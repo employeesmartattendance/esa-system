@@ -44,7 +44,10 @@ const io = socketIo(server, { cors: { origin: '*', methods: ['GET', 'POST'] } })
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'esa_secret_key_123';
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '30d';
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const BACKEND_PUBLIC_URL = (process.env.BACKEND_PUBLIC_URL || '').replace(/\/+$/, '');
+const UPLOADS_DIR = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(__dirname, 'uploads');
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -59,8 +62,21 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const allowedOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.length === 0) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 app.use('/api', apiLimiter);
@@ -167,6 +183,19 @@ async function logAction(action, userId, details, ip) {
 }
 function sendSuccess(res, data, message = 'Success', code = 200) { return res.status(code).json({ success: true, message, data }); }
 function sendError(res, message = 'Error', code = 400) { return res.status(code).json({ success: false, message }); }
+function getRequestBaseUrl(req) {
+  if (BACKEND_PUBLIC_URL) return BACKEND_PUBLIC_URL;
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0].trim();
+  const host = (req.headers['x-forwarded-host'] || req.get('host') || '').toString().split(',')[0].trim();
+  return host ? `${proto}://${host}` : '';
+}
+function toPublicUploadUrl(req, logoUrl) {
+  if (!logoUrl) return null;
+  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) return logoUrl;
+  const base = getRequestBaseUrl(req);
+  if (!base) return logoUrl;
+  return `${base}${logoUrl.startsWith('/') ? logoUrl : `/${logoUrl}`}`;
+}
 
 // ── PUBLIC HEALTH CHECK ──
 app.get('/api/health', async (req, res) => {
@@ -430,7 +459,7 @@ async function createSchool(req, res) {
     emitToSuperAdmin('school_created', { schoolId: toId(school._id), name });
 
     // Send welcome email to school admin (non-blocking)
-    const loginUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const loginUrl = process.env.FRONTEND_URL || 'https://esasystem.online';
     sendEmail({
       to: adminEmail.toLowerCase(),
       subject: `Welcome to ESA — Your School Admin Account is Ready`,
@@ -574,7 +603,10 @@ app.delete('/api/super/contact-requests/:id', SA, async (req, res) => {
 
 // ── TRUSTED SCHOOLS ──
 app.get('/api/super/trusted-schools', SA, async (req, res) => {
-  try { return sendSuccess(res, (await TrustedSchool.find().sort({ sort_order: 1, _id: 1 }).lean()).map(r => ({ ...r, id: toId(r._id), is_active: r.is_active ? 1 : 0 }))); } catch { return sendError(res, 'Server error', 500); }
+  try {
+    const rows = await TrustedSchool.find().sort({ sort_order: 1, _id: 1 }).lean();
+    return sendSuccess(res, rows.map(r => ({ ...r, id: toId(r._id), logo_url: toPublicUploadUrl(req, r.logo_url), is_active: r.is_active ? 1 : 0 })));
+  } catch { return sendError(res, 'Server error', 500); }
 });
 app.post('/api/super/trusted-schools', SA, async (req, res) => {
   const { name, logo_url, sort_order, is_active } = req.body;
@@ -592,10 +624,9 @@ app.delete('/api/super/trusted-schools/:id', SA, async (req, res) => {
 app.post('/api/super/trusted-schools/upload-logo', SA, trustedLogoUpload.single('logo'), async (req, res) => {
   try {
     if (!req.file) return sendError(res, 'No file uploaded');
-    // Return a relative path so it works via Vite proxy in dev and direct in production.
-    // The key is logo_url (not url) to match what the frontend reads.
-    const logo_url = `/uploads/trusted-logos/${req.file.filename}`;
-    return sendSuccess(res, { logo_url }, 'Logo uploaded successfully');
+    const relative_logo_url = `/uploads/trusted-logos/${req.file.filename}`;
+    const logo_url = toPublicUploadUrl(req, relative_logo_url);
+    return sendSuccess(res, { logo_url, relative_logo_url }, 'Logo uploaded successfully');
   } catch { return sendError(res, 'Server error', 500); }
 });
 
@@ -996,10 +1027,21 @@ app.get('/api/website/schools-count', async (req, res) => {
   try { const [total, active] = await Promise.all([School.countDocuments(), School.countDocuments({ status: 'active' })]); return sendSuccess(res, { total, active }); } catch { return sendError(res, 'Server error', 500); }
 });
 app.get('/api/website/trusted-schools', async (req, res) => {
-  try { return sendSuccess(res, (await TrustedSchool.find({ is_active: true }).sort({ sort_order: 1, _id: 1 }).lean()).map(r => ({ id: toId(r._id), name: r.name, logo_url: r.logo_url }))); } catch { return sendError(res, 'Server error', 500); }
+  try {
+    const rows = await TrustedSchool.find({ is_active: true }).sort({ sort_order: 1, _id: 1 }).lean();
+    return sendSuccess(res, rows.map(r => ({ id: toId(r._id), name: r.name, logo_url: toPublicUploadUrl(req, r.logo_url) })));
+  } catch { return sendError(res, 'Server error', 500); }
 });
 app.post('/api/website/contact', async (req, res) => {
-  try { const { full_name, email, phone, school_name, message } = req.body; if (!full_name || !email) return sendError(res, 'Name and email are required', 400); const r = await Contact.create({ full_name, email, phone: phone||null, school_name: school_name||null, message: message||null }); return sendSuccess(res, { id: toId(r._id) }, 'Request submitted successfully'); } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
+  try {
+    const { full_name, email, phone, school_name, message } = req.body || {};
+    if (!full_name || !email) return sendError(res, 'Name and email are required', 400);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+    if (!emailValid) return sendError(res, 'Please provide a valid email address', 400);
+    const r = await Contact.create({ full_name, email: normalizedEmail, phone: phone || null, school_name: school_name || null, message: message || null });
+    return sendSuccess(res, { id: toId(r._id) }, 'Request submitted successfully');
+  } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
 });
 
 // ── APP DOWNLOADS ──
@@ -1061,7 +1103,16 @@ try {
 
 // ── 404 & ERROR HANDLERS ──
 app.use((req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
-app.use((err, req, res, next) => { console.error('Unhandled error:', err); res.status(500).json({ success: false, message: 'Internal server error' }); });
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, message: 'Invalid JSON payload' });
+  }
+  if (err?.message === 'Not allowed by CORS') {
+    return res.status(403).json({ success: false, message: 'CORS blocked this origin' });
+  }
+  console.error('Unhandled error:', err);
+  res.status(500).json({ success: false, message: 'Internal server error' });
+});
 
 // ── DATABASE & SERVER START ──
 async function createSuperAdmin() {

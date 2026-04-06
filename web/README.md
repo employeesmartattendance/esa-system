@@ -8,12 +8,11 @@ GPS geofencing · Wi-Fi validation · Real-time Socket.io · Dark mode · Mobile
 ## 🚀 Quick Start
 
 ### Prerequisites
-
-| Tool    | Min Version |
-| ------- | ----------- |
-| Node.js | ≥ 18.x      |
-| MySQL   | ≥ 8.0       |
-| npm     | ≥ 9.x       |
+| Tool | Min Version |
+|------|-------------|
+| Node.js | ≥ 18.x |
+| MySQL | ≥ 8.0 |
+| npm | ≥ 9.x |
 
 ---
 
@@ -49,13 +48,12 @@ npm run dev
 npm start
 ```
 
-Backend runs on → **https://esasystem.onrender.com**
+Backend runs on → **https://esa-system.onrender.com**
 
 > ✅ **Super Admin is auto-created on first run:**
->
-> - Email: `superadmin@esa.com`
+> - Email: `superadmin@esa.com`  
 > - Password: `superadmin123`  
->   🔒 Change this password after first login!
+> 🔒 Change this password after first login!
 
 ---
 
@@ -71,7 +69,7 @@ npm install
 npm run dev
 ```
 
-Frontend runs on → **http://localhost:5173**
+Frontend runs on → **https://esasystem.online**
 
 ---
 
@@ -88,11 +86,11 @@ Frontend runs on → **http://localhost:5173**
 
 ## 👤 Role-Based Routing
 
-| Role            | Redirect             | Access                                          |
-| --------------- | -------------------- | ----------------------------------------------- |
-| 👑 Super Admin  | `/super/dashboard`   | All schools, system logs, platform stats        |
-| 🏫 School Admin | `/school/dashboard`  | Teachers, attendance, settings for their school |
-| 🧑‍🏫 Teacher      | `/teacher/dashboard` | Check-in/out, personal attendance history       |
+| Role | Redirect | Access |
+|------|----------|--------|
+| 👑 Super Admin | `/super/dashboard` | All schools, system logs, platform stats |
+| 🏫 School Admin | `/school/dashboard` | Teachers, attendance, settings for their school |
+| 🧑‍🏫 Teacher | `/teacher/dashboard` | Check-in/out, personal attendance history |
 
 ---
 
@@ -174,49 +172,45 @@ esa-system/
 ## 📡 API Reference
 
 ### Auth
-
-| Method | Path              | Auth     |
-| ------ | ----------------- | -------- |
-| POST   | `/api/auth/login` | Public   |
-| GET    | `/api/auth/me`    | Any role |
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/auth/login` | Public |
+| GET  | `/api/auth/me` | Any role |
 
 ### Super Admin
-
-| Method              | Path                      |
-| ------------------- | ------------------------- |
-| GET                 | `/api/super/stats`        |
-| GET/POST/PUT/DELETE | `/api/schools`            |
-| PATCH               | `/api/schools/:id/status` |
-| GET                 | `/api/logs`               |
+| Method | Path |
+|--------|------|
+| GET    | `/api/super/stats` |
+| GET/POST/PUT/DELETE | `/api/schools` |
+| PATCH  | `/api/schools/:id/status` |
+| GET    | `/api/logs` |
 
 ### School Admin
-
-| Method              | Path                |
-| ------------------- | ------------------- |
-| GET                 | `/api/school/stats` |
-| GET/POST/PUT/DELETE | `/api/teachers`     |
-| GET                 | `/api/attendance`   |
-| GET/POST            | `/api/settings`     |
+| Method | Path |
+|--------|------|
+| GET    | `/api/school/stats` |
+| GET/POST/PUT/DELETE | `/api/teachers` |
+| GET    | `/api/attendance` |
+| GET/POST | `/api/settings` |
 
 ### Teacher
-
-| Method | Path                       |
-| ------ | -------------------------- |
-| GET    | `/api/attendance/today`    |
-| GET    | `/api/attendance/my`       |
-| POST   | `/api/attendance/checkin`  |
+| Method | Path |
+|--------|------|
+| GET    | `/api/attendance/today` |
+| GET    | `/api/attendance/my` |
+| POST   | `/api/attendance/checkin` |
 | POST   | `/api/attendance/checkout` |
-| GET    | `/api/school/info`         |
+| GET    | `/api/school/info` |
 
 ---
 
 ## ⚡ Real-Time Events (Socket.io)
 
-| Event               | Trigger                  |
-| ------------------- | ------------------------ |
+| Event | Trigger |
+|-------|---------|
 | `attendance_marked` | Teacher checks in or out |
-| `teacher_updated`   | Teacher CRUD             |
-| `school_created`    | New school added         |
+| `teacher_updated` | Teacher CRUD |
+| `school_created` | New school added |
 
 ---
 
@@ -231,7 +225,6 @@ npx cap open android
 ```
 
 Android permissions required:
-
 ```xml
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -250,7 +243,7 @@ cd backend && pm2 start app.js --name esa-api
 # Frontend (build + serve with Nginx)
 cd frontend && npm run build
 # Point Nginx root to frontend/dist/
-# Proxy /api and /socket.io to esasystem.onrender.com
+# Proxy /api and /socket.io to localhost:3000
 ```
 
 ---
@@ -266,4 +259,4 @@ cd frontend && npm run build
 
 ---
 
-_ESA v2.0 · Vue 3 + Node.js + MySQL + Socket.io · Premium UI with 32 Components_
+*ESA v2.0 · Vue 3 + Node.js + MySQL + Socket.io · Premium UI with 32 Components*

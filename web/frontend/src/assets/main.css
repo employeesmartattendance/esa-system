@@ -563,12 +563,3 @@ tr:last-child td { border-bottom: none; }
   max-width: 100%;
   display: block;
 }
-
-/* ── Login page: hide scrollbar when content fits, show when needed ────── */
-.login-page { scrollbar-width: none; -ms-overflow-style: none; }
-.login-page::-webkit-scrollbar { display: none; }
-@media (max-height: 700px) {
-  .login-page { scrollbar-width: thin; -ms-overflow-style: auto; }
-  .login-page::-webkit-scrollbar { display: block; width: 4px; }
-  .login-page::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 99px; }
-}

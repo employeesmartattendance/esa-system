@@ -55,6 +55,7 @@ const isMobile    = ref(window.innerWidth < 768)
 const toastRef    = ref(null)
 const showNotif   = ref(false)
 const showProfile = ref(false)
+let lastApiErrorAt = 0
 
 async function onProfileUpdated(updatedUser) {
   if (updatedUser && auth.user) {
@@ -68,8 +69,22 @@ function checkMobile() {
   if (!isMobile.value) sidebarOpen.value = true
 }
 
-onMounted(() => window.addEventListener('resize', checkMobile))
-onUnmounted(() => window.removeEventListener('resize', checkMobile))
+function handleApiError(event) {
+  const now = Date.now()
+  if (now - lastApiErrorAt < 1500) return
+  lastApiErrorAt = now
+  const message = event?.detail?.message || 'Network request failed'
+  toastRef.value?.add({ type: 'error', message })
+}
+
+onMounted(() => {
+  window.addEventListener('resize', checkMobile)
+  window.addEventListener('esa:api-error', handleApiError)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+  window.removeEventListener('esa:api-error', handleApiError)
+})
 
 // ── Swipe gesture to open/close sidebar ──────────────────────────────────
 let touchStartX = 0

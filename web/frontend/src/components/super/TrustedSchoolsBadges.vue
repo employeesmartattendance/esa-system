@@ -356,6 +356,9 @@ import api from "../../api";
 import { useToast } from "../../composables/useToast";
 
 const { showToast } = useToast();
+const API =
+  import.meta.env.VITE_API_URL || "https://esa-system.onrender.com/api";
+const apiBase = API.replace(/\/api\/?$/, "");
 
 // ── State ──────────────────────────────────────────────────────────────────
 const schools = ref([]);
@@ -392,14 +395,13 @@ onMounted(load);
 /**
  * Convert a stored logo_url (relative /uploads/... or absolute http://...)
  * to a URL the browser can use.
- * In dev, the Vite proxy maps /uploads → esa-system.onrender.com/uploads, so relative paths work directly.
+ * In dev, the Vite proxy maps /uploads → localhost:3000/uploads, so relative paths work directly.
  * We keep this passthrough for the dashboard (proxy handles it).
  */
 function toDisplayUrl(url) {
   if (!url) return "";
   if (url.startsWith("http") || url.startsWith("//")) return url;
-  // Relative /uploads/... path — served via Vite proxy to esa-system.onrender.com in dev
-  return url;
+  return `${apiBase}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
 function initials(name) {

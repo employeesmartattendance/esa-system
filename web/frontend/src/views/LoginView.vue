@@ -216,7 +216,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useDark } from '../composables/useDark'
@@ -243,11 +243,18 @@ const newPw     = ref('')
 const confirmPw = ref('')
 const resendCooldown = ref(0)
 let cooldownTimer = null
+const LOGIN_SCROLL_LOCK_CLASS = 'login-scroll-lock'
 
 const WEBSITE_URL = import.meta.env.VITE_WEBSITE_URL || ''
 function openWebsite() {
   if (!WEBSITE_URL) return
   window.open(WEBSITE_URL, '_blank', 'noopener,noreferrer')
+}
+
+function toggleLoginScrollLock(shouldLock) {
+  const method = shouldLock ? 'add' : 'remove'
+  document.documentElement.classList[method](LOGIN_SCROLL_LOCK_CLASS)
+  document.body.classList[method](LOGIN_SCROLL_LOCK_CLASS)
 }
 
 const features = [
@@ -278,7 +285,7 @@ async function handleLogin() {
     const routes = { super_admin: '/super/dashboard', school_admin: '/school/dashboard', teacher: '/teacher/dashboard' }
     const dest = routes[user.role]
     if (!dest) { error.value = 'Unknown account role. Please contact your administrator.'; return }
-    await router.push(dest)
+    window.location.assign(dest)
   } catch (e) {
     error.value = e.message || 'Invalid credentials. Please try again.'
     if (router.currentRoute.value.path !== '/login') await router.replace('/login')
@@ -360,7 +367,7 @@ async function resetPassword() {
       localStorage.setItem('esa_user', JSON.stringify(u))
       localStorage.setItem('esa_login_time', String(Date.now()))
       const routes = { super_admin: '/super/dashboard', school_admin: '/school/dashboard', teacher: '/teacher/dashboard' }
-      await router.push(routes[u.role] || '/login')
+      window.location.assign(routes[u.role] || '/login')
     } else {
       step.value = 'login'
       error.value = ''
@@ -369,17 +376,43 @@ async function resetPassword() {
     error.value = e.response?.data?.message || 'Failed to reset password. Please start over.'
   } finally { loading.value = false }
 }
+
+onMounted(() => {
+  toggleLoginScrollLock(true)
+})
+
+onUnmounted(() => {
+  clearInterval(cooldownTimer)
+  toggleLoginScrollLock(false)
+})
 </script>
 
 
 <style scoped>
-.login-page { min-height: 100vh; display: flex; align-items: stretch; background: var(--bg); position: relative; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; -ms-overflow-style: none; }
-.login-page::-webkit-scrollbar { display: none; }
-@media (max-height: 700px) {
-  .login-page { scrollbar-width: thin; }
-  .login-page::-webkit-scrollbar { display: block; width: 4px; }
-  .login-page::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 99px; }
+.login-page {
+  min-height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg);
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) transparent;
 }
+.login-page::-webkit-scrollbar { width: 6px; }
+.login-page::-webkit-scrollbar-track { background: transparent; }
+.login-page::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 99px; }
+.login-page::-webkit-scrollbar-thumb:hover { background: var(--primary-dark); }
+:global(html.login-scroll-lock),
+:global(body.login-scroll-lock) {
+  overflow: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+:global(html.login-scroll-lock::-webkit-scrollbar),
+:global(body.login-scroll-lock::-webkit-scrollbar) { display: none; }
 .orb { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; }
 .orb-1 { width: 600px; height: 600px; background: rgba(37,99,235,0.15); top: -200px; left: -100px; }
 .orb-2 { width: 400px; height: 400px; background: rgba(6,182,212,0.1); bottom: -100px; right: 200px; }
@@ -441,6 +474,10 @@ async function resetPassword() {
 .btn-website:hover { border-color: var(--primary); color: var(--primary); background: rgba(37,99,235,0.06); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) { .login-panel-left { display: none; } .login-panel-right { flex: 1; padding: 32px 24px; } }
+@media (max-height: 760px) {
+  .login-page { align-items: flex-start; }
+  .login-container { min-height: 100%; }
+}
 
 /* ── Forgot password buttons ── */
 .btn-forgot {

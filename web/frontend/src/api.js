@@ -15,6 +15,9 @@ import axios from "axios";
 const isElectron = !!window.electronAPI;
 
 // ── Base URL resolution ────────────────────────────────────────────────────────
+const isLocalhostHost = (host) =>
+  ["localhost", "127.0.0.1", "::1"].includes(host);
+
 const getBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return envUrl.endsWith("/api") ? envUrl : `${envUrl}/api`;
@@ -23,7 +26,9 @@ const getBaseUrl = () => {
   if (customUrl)
     return customUrl.endsWith("/api") ? customUrl : `${customUrl}/api`;
 
-  return "https://esa-system.onrender.com/api";
+  if (isLocalhostHost(window.location.hostname))
+    return "https://esa-system.onrender.com/api";
+  return "/api";
 };
 
 // ── Axios instance ────────────────────────────────────────────────────────────
@@ -153,19 +158,50 @@ api.interceptors.response.use(
     const method = (config?.method || "get").toLowerCase();
     const isOffline =
       !navigator.onLine || !response || err.code === "ECONNABORTED";
+    const statusCode = response?.status;
+    const contentType = response?.headers?.["content-type"] || "";
+
+    const dispatchApiError = (message) => {
+      window.dispatchEvent(
+        new CustomEvent("esa:api-error", {
+          detail: {
+            message,
+            url: config?.url || "",
+            method,
+            status: statusCode || null,
+          },
+        }),
+      );
+    };
+
+    const deriveErrorMessage = () => {
+      if (contentType.includes("text/html")) {
+        return "Server returned HTML instead of JSON. Check frontend API base URL and backend route.";
+      }
+      return (
+        response?.data?.message ||
+        response?.data?.error ||
+        err.message ||
+        "Request failed"
+      );
+    };
 
     // 401 – session expired
-    if (response?.status === 401) {
+    if (statusCode === 401) {
       localStorage.removeItem("esa_token");
       localStorage.removeItem("esa_user");
       setTimeout(() => {
         window.location.href = "/login";
       }, 1200);
+      dispatchApiError("Your session expired. Please sign in again.");
       return Promise.reject(err);
     }
 
     // Offline or network error → try SQLite
     if (isOffline) {
+      dispatchApiError(
+        "Unable to reach the backend server. Check your network or backend URL.",
+      );
       const fallback = await _offlineFallback(config?.url, method);
       if (fallback !== null) return fallback;
 
@@ -176,6 +212,7 @@ api.interceptors.response.use(
       }
     }
 
+    dispatchApiError(deriveErrorMessage());
     return Promise.reject(err);
   },
 );
