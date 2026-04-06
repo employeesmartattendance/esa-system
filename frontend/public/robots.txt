@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://esa-system.onrender.com/sitemap.xml
