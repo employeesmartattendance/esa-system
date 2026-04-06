@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="ESA attendance system for schools with GPS geolocation, teacher attendance tracking, real-time dashboard, and automated reports." />
+    <meta name="keywords" content="ESA attendance system, employee smart attendance system, school attendance tracking system, teacher attendance system, GPS attendance system, attendance system with geolocation" />
+    <meta name="robots" content="index,follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ESA Attendance System for Schools | GPS Teacher Attendance Tracking" />
+    <meta property="og:description" content="Manage teacher attendance with GPS verification, live dashboards, and automated reports using ESA." />
+    <meta property="og:url" content="https://esa-system.onrender.com/website" />
+    <meta property="og:image" content="https://esa-system.onrender.com/esa-logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ESA Attendance System for Schools" />
+    <meta name="twitter:description" content="GPS attendance tracking, real-time updates, and automated reporting for schools." />
+    <meta name="twitter:image" content="https://esa-system.onrender.com/esa-logo.png" />
+    <link rel="canonical" href="https://esa-system.onrender.com/website" />
+    <link rel="icon" type="image/png" href="/esa-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <title>ESA — Smart Attendance</title>
+    <!-- Theme initialization: runs before first paint to prevent FOUC -->
+    <script>
+      (function () {
+        var saved = localStorage.getItem('esa-theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = saved ? saved : (prefersDark ? 'dark' : 'light');
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
+    <link href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
