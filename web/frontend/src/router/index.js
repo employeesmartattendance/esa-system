@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth'
 const routes = [
   {
     path: '/',
-    redirect: '/website',
+    redirect: '/login',
   },
   {
     path: '/website',
@@ -146,8 +146,9 @@ const router = createRouter({
   routes,
   scrollBehavior() { return { top: 0 } },
 })
+let authValidated = false
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore()
   const refreshFlagKey = 'esa_dashboard_refresh_pending'
 
@@ -174,6 +175,11 @@ router.beforeEach((to, from, next) => {
     if (!auth.isLoggedIn) {
       // Session expired or not logged in — go to login
       return next('/login')
+    }
+    if (!authValidated) {
+      await auth.fetchMe()
+      authValidated = true
+      if (!auth.isLoggedIn) return next('/login')
     }
     if (to.meta.role && auth.user?.role !== to.meta.role) {
       return next(getRoleRoot(auth.user?.role))

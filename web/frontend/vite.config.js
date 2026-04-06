@@ -1,48 +1,48 @@
-import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue";
-import path from "path";
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import path from 'path'
 
 export default defineConfig({
-  base: "/",
+  base: '/',
   plugins: [
     vue({
       template: {
         compilerOptions: {
           // Treat all tags with a dash as custom elements if needed
-          isCustomElement: (tag) => tag.includes("-"),
-        },
-      },
-    }),
+          isCustomElement: (tag) => tag.includes('-')
+        }
+      }
+    })
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   server: {
     port: 5173,
     proxy: {
-      "/api": {
-        target: "https://esa-system.onrender.com",
+      '/api': {
+        target: 'https://esa-system.onrender.com',
         changeOrigin: true,
       },
-      "/socket.io": {
-        target: "https://esa-system.onrender.com",
+      '/socket.io': {
+        target: 'https://esa-system.onrender.com',
         ws: true,
         changeOrigin: true,
       },
-      "/uploads": {
-        target: "https://esa-system.onrender.com",
+      '/uploads': {
+        target: 'https://esa-system.onrender.com',
         changeOrigin: true,
       },
     },
   },
   build: {
-    outDir: "dist",
+    outDir: 'dist',
     emptyOutDir: true,
-    assetsDir: "assets",
+    assetsDir: 'assets',
     sourcemap: false,
-    minify: "terser",
+    minify: 'terser',
     terserOptions: {
       compress: {
         drop_console: false, // Keep logs for debugging the white screen
@@ -52,9 +52,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vue: ["vue", "vue-router", "pinia"],
-          axios: ["axios"],
-          socket: ["socket.io-client"],
+          vue: ['vue', 'vue-router', 'pinia'],
+          axios: ['axios'],
+          socket: ['socket.io-client'],
         },
       },
     },
@@ -62,4 +62,4 @@ export default defineConfig({
     reportCompressedSize: false,
     chunkSizeWarningLimit: 1000,
   },
-});
+})

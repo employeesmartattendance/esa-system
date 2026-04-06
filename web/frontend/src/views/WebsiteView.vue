@@ -436,7 +436,7 @@
     </footer>
 
     <!-- ══════════ BACK TO TOP ══════════ -->
-    <button class="back-top" :class="{ visible: showBackTop }" @click="scrollTop">
+    <button class="back-top" :class="{ visible: showBackTop }" @click.prevent="scrollTop">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
     </button>
 
@@ -481,20 +481,23 @@ function scrollTop() {
   mobileOpen.value = false
   activeSection.value = 'home'
   showBackTop.value = false
-  try {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    setTimeout(() => {
-      const root = document.scrollingElement || document.documentElement
-      if ((root?.scrollTop ?? window.scrollY) > 2) {
-        window.scrollTo(0, 0)
-        document.documentElement.scrollTop = 0
-        document.body.scrollTop = 0
-      }
-    }, 420)
-  } catch {
+  const root = document.scrollingElement || document.documentElement
+  const fallbackTop = () => {
     window.scrollTo(0, 0)
+    if (typeof root?.scrollTo === 'function') root.scrollTo({ top: 0 })
     document.documentElement.scrollTop = 0
     document.body.scrollTop = 0
+  }
+
+  try {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (typeof root?.scrollTo === 'function') root.scrollTo({ top: 0, behavior: 'smooth' })
+    setTimeout(() => {
+      const currentTop = root?.scrollTop ?? window.scrollY
+      if (currentTop > 2) fallbackTop()
+    }, 500)
+  } catch {
+    fallbackTop()
   }
 }
 
@@ -766,7 +769,10 @@ async function submitContact() {
     formMsg.value = { type:'success', text:'Request sent! Check your email for confirmation.' }
     Object.assign(form, { full_name:'', email:'', phone:'', school_name:'', message:'' })
   } catch(e) {
-    const msg = e?.response?.data?.message || e?.message || 'Something went wrong. Please try again.'
+    const msg = e?.response?.data?.message
+      || e?.response?.data?.error
+      || e?.message
+      || 'Unable to submit request right now. Please verify backend URL and CORS configuration.'
     formMsg.value = { type:'error', text: msg }
   } finally {
     submitting.value = false

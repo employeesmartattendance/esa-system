@@ -39,7 +39,6 @@ async function sendEmail({ to, subject, html }) {
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'esa_secret_key_123';
@@ -66,13 +65,35 @@ const allowedOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
+const fallbackOrigins = [
+  'https://esasystem.online',
+  'http://127.0.0.1:5173',
+  'https://esa-system.onrender.com',
+];
+const allowedOriginSet = new Set([...allowedOrigins, ...fallbackOrigins]);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOriginSet.has(origin)) return true;
+  if (allowedOrigins.some((entry) => entry.startsWith('*.') && origin.endsWith(entry.slice(1)))) return true;
+  return false;
+};
+
+const io = socketIo(server, {
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({
   origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -1047,9 +1068,6 @@ app.post('/api/website/contact', async (req, res) => {
 // ── APP DOWNLOADS ──
 app.get('/downloads/windows', (req, res) => { const p = path.join(UPLOADS_DIR, 'app-releases', 'esa-setup.exe'); if (!fs.existsSync(p)) return res.status(404).json({ success: false, message: 'Windows installer not yet available. Please contact us to get the app.' }); res.download(p, 'ESA-Setup.exe'); });
 app.get('/downloads/mac', (req, res) => { const p = path.join(UPLOADS_DIR, 'app-releases', 'esa-setup.dmg'); if (!fs.existsSync(p)) return res.status(404).json({ success: false, message: 'macOS installer not yet available. Please contact us to get the app.' }); res.download(p, 'ESA-Setup.dmg'); });
-
-// ── HEALTH ──
-app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.0.0-mongo' }));
 
 // ── REPORT & AUTO-CHECKOUT FUNCTIONS ──
 async function generateDailyReport(schoolId) {
