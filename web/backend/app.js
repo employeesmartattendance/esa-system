@@ -17,6 +17,9 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 // ── EMAIL TRANSPORTER ──
+// Uses Resend HTTP API if RESEND_API_KEY is set (recommended on Render — SMTP ports are blocked).
+// Falls back to nodemailer SMTP for local dev or other hosts.
+
 const mailer = nodemailer.createTransport({
   host:   process.env.SMTP_HOST   || 'smtp.gmail.com',
   port:   parseInt(process.env.SMTP_PORT || '587'),
@@ -28,13 +31,51 @@ const mailer = nodemailer.createTransport({
 });
 
 async function sendEmail({ to, subject, html }) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+  const fromName  = process.env.SMTP_FROM_NAME  || 'ESA System';
+  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'noreply@esasystem.online';
+
+  // ── Resend HTTP API (works on Render — no SMTP port needed) ──
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: `${fromName} <${fromEmail}>`,
+          to: Array.isArray(to) ? to : [to],
+          subject,
+          html,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('[Mailer] Resend error:', data?.message || JSON.stringify(data));
+      } else {
+        console.log('[Mailer] Email sent via Resend, id:', data.id);
+      }
+    } catch (err) {
+      console.error('[Mailer] Resend failed:', err.message);
+    }
+    return;
+  }
+
+  // ── Nodemailer SMTP fallback (local dev) ──
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn('[Mailer] No RESEND_API_KEY or SMTP credentials set — email skipped.');
+    return;
+  }
   try {
     await mailer.sendMail({
-      from: `"${process.env.SMTP_FROM_NAME || 'ESA System'}" <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
+      from: `"${fromName}" <${fromEmail}>`,
       to, subject, html,
     });
-  } catch (err) { console.error('[Mailer] Failed to send email:', err.message); }
+    console.log('[Mailer] Email sent via SMTP to:', to);
+  } catch (err) {
+    console.error('[Mailer] SMTP failed:', err.message);
+  }
 }
 
 const app = express();
