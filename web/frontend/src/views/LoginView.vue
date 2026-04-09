@@ -206,8 +206,8 @@
         <div class="form-footer">
           <div class="footer-copy">ESA v1.0 · Secured · &copy; {{ new Date().getFullYear() }}</div>
           <a href="#" class="btn-website" @click.prevent="openWebsite">
-            <AppIcon name="info" :size="14" color="var(--text-muted)" />
-            Visit our site for more information
+            <AppIcon name="info" :size="14" color="var(--primary)" />
+            Visit our site for more!
           </a>
         </div>
       </div>
@@ -401,10 +401,7 @@ onUnmounted(() => {
   scrollbar-width: thin;
   scrollbar-color: var(--primary) transparent;
 }
-.login-page::-webkit-scrollbar { width: 6px; }
-.login-page::-webkit-scrollbar-track { background: transparent; }
-.login-page::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 99px; }
-.login-page::-webkit-scrollbar-thumb:hover { background: var(--primary-dark); }
+
 :global(html.login-scroll-lock),
 :global(body.login-scroll-lock) {
   overflow: hidden;
@@ -464,35 +461,14 @@ onUnmounted(() => {
 .form-footer { margin-top: 32px; font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .footer-copy { font-size: 12px; color: var(--text-muted); }
 .btn-website {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 11px 22px; border-radius: var(--radius);
-  border: 1.5px solid var(--primary);
-  background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(6,182,212,0.06));
-  color: var(--primary); font-size: 13px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 20px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--surface-border); background: transparent;
+  color: var(--text-muted); font-size: 13px; font-weight: 600;
   font-family: var(--font); cursor: pointer;
   transition: all var(--transition); text-decoration: none;
-  box-shadow: 0 2px 12px rgba(37,99,235,0.12);
-  letter-spacing: 0.01em;
 }
-.btn-website:hover {
-  background: linear-gradient(135deg, var(--primary), #1d4ed8);
-  color: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 6px 20px rgba(37,99,235,0.3);
-  transform: translateY(-1px);
-}
-[data-theme="dark"] .btn-website {
-  border-color: rgba(59,130,246,0.5);
-  background: linear-gradient(135deg, rgba(37,99,235,0.15), rgba(6,182,212,0.1));
-  color: #93c5fd;
-  box-shadow: 0 2px 12px rgba(37,99,235,0.2);
-}
-[data-theme="dark"] .btn-website:hover {
-  background: linear-gradient(135deg, var(--primary), #1d4ed8);
-  color: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 6px 24px rgba(37,99,235,0.4);
-}
+.btn-website:hover { border-color: var(--primary); color: var(--primary); background: rgba(37,99,235,0.06); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) { .login-panel-left { display: none; } .login-panel-right { flex: 1; padding: 32px 24px; } }
 @media (max-height: 760px) {
@@ -539,5 +515,14 @@ onUnmounted(() => {
 .step-enter-active, .step-leave-active { transition: all 0.22s ease; }
 .step-enter-from { opacity: 0; transform: translateX(20px); }
 .step-leave-to   { opacity: 0; transform: translateX(-20px); }
+
+
+
+@media (min-width: 760px) {
+.login-page::-webkit-scrollbar { width: 6px; }
+.login-page::-webkit-scrollbar-track { background: transparent; }
+.login-page::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 99px; }
+.login-page::-webkit-scrollbar-thumb:hover { background: var(--primary-dark); }
+}
 
 </style>
