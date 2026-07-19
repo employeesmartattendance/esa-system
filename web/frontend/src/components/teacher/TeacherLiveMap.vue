@@ -57,9 +57,15 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import maplibregl from 'maplibre-gl'
 import api from '../../api'
 import { getSocket } from '../../socket'
+
+// maplibre-gl is a large WebGL mapping library (~150KB+) that was previously
+// bundled directly into every dashboard route. It's only needed when this map
+// component actually mounts, so it's loaded dynamically here instead — this
+// keeps it out of TeacherDashboard's main chunk and shrinks initial load time
+// on every other page of the app.
+let maplibregl = null
 
 const props = defineProps({
   schoolLat:    { type: Number, default: null },
@@ -125,6 +131,12 @@ function darkStyle() {
 
 // ── Init map ───────────────────────────────────────────────────────────────
 onMounted(async () => {
+  const [mod] = await Promise.all([
+    import('maplibre-gl'),
+    import('maplibre-gl/dist/maplibre-gl.css'),
+  ])
+  maplibregl = mod.default
+
   const center = props.schoolLat && props.schoolLng
     ? [props.schoolLng, props.schoolLat]
     : [30.0619, -1.9441]
@@ -424,7 +436,7 @@ function getBearing(la1,lo1,la2,lo2) {
 .map-spinner { width:36px; height:36px; border:3px solid rgba(74,158,255,0.2); border-top-color:#4a9eff; border-radius:50%; animation:spin 0.8s linear infinite; }
 
 /* HUD top */
-.hud-top { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(6,13,31,0.88); backdrop-filter:blur(16px); border:1px solid rgba(74,158,255,0.25); border-radius:var(--radius); padding:8px 16px; z-index:10; box-shadow:0 4px 24px rgba(0,0,0,0.4); white-space:nowrap; }
+.hud-top { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(6,13,31,0.94); border:1px solid rgba(74,158,255,0.25); border-radius:var(--radius); padding:8px 16px; z-index:10; box-shadow:0 4px 24px rgba(0,0,0,0.4); white-space:nowrap; }
 .hud-pill { display:flex; align-items:center; gap:8px; padding:0 12px; }
 .hud-dot  { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 .location-dot { background:#4a9eff; box-shadow:0 0 6px rgba(74,158,255,0.8); animation:dotPulse 2s ease-in-out infinite; }
@@ -442,7 +454,7 @@ function getBearing(la1,lo1,la2,lo2) {
 
 /* HUD bottom */
 .hud-bottom { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); z-index:10; }
-.dist-bar { display:flex; align-items:center; background:rgba(6,13,31,0.88); backdrop-filter:blur(16px); border:1px solid rgba(74,158,255,0.25); border-radius:var(--radius); padding:10px 20px; gap:0; box-shadow:0 4px 24px rgba(0,0,0,0.4); }
+.dist-bar { display:flex; align-items:center; background:rgba(6,13,31,0.94); border:1px solid rgba(74,158,255,0.25); border-radius:var(--radius); padding:10px 20px; gap:0; box-shadow:0 4px 24px rgba(0,0,0,0.4); }
 .dist-item  { display:flex; align-items:center; gap:6px; padding:0 14px; }
 .dist-div   { width:1px; height:24px; background:rgba(74,158,255,0.2); }
 .dist-label { font-size:10px; color:rgba(150,180,230,0.6); font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
@@ -450,7 +462,7 @@ function getBearing(la1,lo1,la2,lo2) {
 
 /* Controls */
 .map-ctrl-btns { position:absolute; top:14px; right:14px; display:flex; flex-direction:column; gap:6px; z-index:10; }
-.ctrl-btn { width:38px; height:38px; border-radius:10px; background:rgba(6,13,31,0.88); border:1px solid rgba(74,158,255,0.3); color:rgba(150,200,255,0.7); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(12px); }
+.ctrl-btn { width:38px; height:38px; border-radius:10px; background:rgba(6,13,31,0.94); border:1px solid rgba(74,158,255,0.3); color:rgba(150,200,255,0.7); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; }
 .ctrl-btn:hover  { border-color:rgba(74,158,255,0.8); color:#7ec8ff; background:rgba(30,60,120,0.5); }
 .ctrl-active     { border-color:#10b981 !important; color:#10b981 !important; background:rgba(16,185,129,0.1) !important; }
 

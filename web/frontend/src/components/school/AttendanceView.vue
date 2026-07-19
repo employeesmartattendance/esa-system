@@ -7,7 +7,9 @@
       </div>
       <div class="header-actions">
         <button class="btn btn-ghost btn-sm" @click="$emit('refresh')"><AppIcon name="refresh" :size="14" />Refresh</button>
-        <button class="btn btn-accent btn-sm" @click="exportPDF"><AppIcon name="export" :size="14" />Export PDF</button>
+        <button class="btn btn-accent btn-sm" :disabled="exporting" @click="exportPDF">
+          <AppIcon name="export" :size="14" />{{ exporting ? 'Preparing…' : 'Export PDF' }}
+        </button>
       </div>
     </div>
 
@@ -123,8 +125,10 @@ import AppIcon from '../ui/AppIcon.vue'
 import AppModal from '../ui/AppModal.vue'
 import { useToast } from '../../composables/useToast'
 import api from '../../api'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+
+// jspdf + jspdf-autotable are only needed when the user clicks "Export PDF",
+// so they're loaded dynamically inside exportPDF() below instead of being
+// bundled into every load of the school admin dashboard.
 
 const props = defineProps({ records: { type: Array, default: () => [] }, teachers: { type: Array, default: () => [] }, loading: Boolean })
 const emit = defineEmits(['refresh'])
@@ -136,6 +140,7 @@ const toast = useToast()
 const filters = ref({ date: new Date().toISOString().split('T')[0], teacherId: '', status: '' })
 const appliedFilters = ref({ ...filters.value })
 const lastUpdate = ref(new Date().toLocaleTimeString())
+const exporting = ref(false)
 
 const cols = [
   { key: 'teacher', label: 'Teacher', sortable: true },
@@ -169,14 +174,21 @@ const todayStats = computed(() => {
 
 function applyFilters() { appliedFilters.value = { ...filters.value }; lastUpdate.value = new Date().toLocaleTimeString(); emit('refresh') }
 function clearFilters() { filters.value = { date: '', teacherId: '', status: '' }; appliedFilters.value = { ...filters.value }; emit('refresh') }
-watch(() => props.records, () => { lastUpdate.value = new Date().toLocaleTimeString() }, { deep: true })
+watch(() => props.records, () => { lastUpdate.value = new Date().toLocaleTimeString() })
 
 function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' }
 
-function exportPDF() {
+async function exportPDF() {
   const rows = filteredRecords.value.map(r => ({ ...r }))
   if (!rows.length) { toast.warning('No records to export'); return }
   const exportFilters = { ...appliedFilters.value }
+  exporting.value = true
+
+  try {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ])
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -298,6 +310,12 @@ function exportPDF() {
   const filename = `attendance_${now.toISOString().split('T')[0]}.pdf`
   doc.save(filename)
   toast.success('PDF exported successfully')
+  } catch (err) {
+    toast.error('Failed to export PDF. Please try again.')
+    console.error('[exportPDF]', err)
+  } finally {
+    exporting.value = false
+  }
 }
 </script>
 

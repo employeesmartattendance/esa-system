@@ -25,13 +25,13 @@
   /* Light Mode Surfaces */
   --bg:              #f0f4ff;
   --bg-secondary:    #e6edff;
-  --surface:         rgba(255, 255, 255, 0.88);
+  --surface:         rgba(255, 255, 255, 0.96);
   --surface-hover:   rgba(255, 255, 255, 0.98);
   --surface-border:  rgba(37, 99, 235, 0.11);
   --text:            #0f172a;
   --text-secondary:  #475569;
   --text-muted:      #94a3b8;
-  --sidebar-bg:      rgba(255, 255, 255, 0.94);
+  --sidebar-bg:      rgba(255, 255, 255, 0.97);
   --card-shadow:     0 4px 24px rgba(37, 99, 235, 0.09);
   --card-shadow-lg:  0 12px 48px rgba(37, 99, 235, 0.14);
   --glass-blur:      18px;
@@ -57,8 +57,8 @@
 .dark {
   --bg:             #060c1a;
   --bg-secondary:   #0a1428;
-  --surface:        rgba(13, 25, 58, 0.88);
-  --surface-hover:  rgba(20, 40, 82, 0.95);
+  --surface:        rgba(13, 25, 58, 0.97);
+  --surface-hover:  rgba(20, 40, 82, 0.98);
   --surface-border: rgba(59, 130, 246, 0.16);
   --text:           #e2e8f0;
   --text-secondary: #94a3b8;
@@ -127,10 +127,12 @@ img { -webkit-user-drag: none; pointer-events: none; }
 img.clickable { pointer-events: auto; }
 
 /* ── Glass Card ──────────────────────────────────────────────────────────── */
+/* Note: intentionally no backdrop-filter here. With --surface already ~96-97%
+   opaque, a live blur added negligible visual difference but forced the browser
+   to re-sample everything behind every .glass card on every scroll/repaint frame —
+   this was the primary cause of scroll/typing/click jank across the app. */
 .glass {
   background: var(--surface);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--surface-border);
   border-radius: var(--radius);
   box-shadow: var(--card-shadow);
@@ -138,8 +140,6 @@ img.clickable { pointer-events: auto; }
 
 .glass-lg {
   background: var(--surface);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--card-shadow-lg);
@@ -300,12 +300,14 @@ tr:hover td { background: rgba(37, 99, 235, 0.025); }
 tr:last-child td { border-bottom: none; }
 
 /* ── Modal Overlay ────────────────────────────────────────────────────────── */
+/* NOTE: AppModal.vue defines its own .modal-overlay in a global <style> block
+   with a higher-specificity z-index (9999) which is what's actually rendered —
+   this rule is effectively unused but kept opacity-only (no blur) in case
+   anything else references the class name. */
 .modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   z-index: 1000;
   display: flex;
   align-items: center;

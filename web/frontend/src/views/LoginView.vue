@@ -413,7 +413,7 @@ onUnmounted(() => {
 .orb-1 { width: 600px; height: 600px; background: rgba(37,99,235,0.15); top: -200px; left: -100px; }
 .orb-2 { width: 400px; height: 400px; background: rgba(6,182,212,0.1); bottom: -100px; right: 200px; }
 .orb-3 { width: 300px; height: 300px; background: rgba(139,92,246,0.1); top: 50%; left: 30%; }
-.theme-float-btn { position: fixed; top: 20px; right: 20px; z-index: 10; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--surface-border); background: var(--surface); backdrop-filter: blur(12px); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
+.theme-float-btn { position: fixed; top: 20px; right: 20px; z-index: 10; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--surface-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .theme-float-btn:hover { color: var(--primary); border-color: var(--primary); }
 .login-container { display: flex; width: 100%; max-width: 1100px; margin: auto; min-height: 100vh; position: relative; z-index: 1; }
 .login-panel-left { flex: 1.1; padding: 48px 52px; display: flex; flex-direction: column; border-right: 1px solid var(--surface-border); background: linear-gradient(150deg, rgba(37,99,235,0.06) 0%, rgba(6,182,212,0.03) 100%); }
@@ -430,7 +430,7 @@ onUnmounted(() => {
 .feature-item { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; color: var(--text-secondary); }
 .feature-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .stat-pills { display: flex; gap: 12px; margin-top: 48px; }
-.stat-pill { flex: 1; padding: 14px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: var(--radius); text-align: center; backdrop-filter: blur(12px); }
+.stat-pill { flex: 1; padding: 14px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: var(--radius); text-align: center; }
 .pill-val { font-size: 18px; font-weight: 800; color: var(--primary); }
 .pill-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .login-panel-right { flex: 0.9; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 52px; }

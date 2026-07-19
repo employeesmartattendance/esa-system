@@ -49,9 +49,7 @@ defineEmits(['update:modelValue'])
 .modal-overlay {
   position: fixed !important;
   inset: 0 !important;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.72);
   z-index: 9999 !important;
   display: flex !important;
   align-items: center !important;

@@ -172,7 +172,7 @@ async function save() {
 <style scoped>
 .profile-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,0.45); backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.55);
   display: flex; align-items: flex-start; justify-content: flex-end;
 }
 

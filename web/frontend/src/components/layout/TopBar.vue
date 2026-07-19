@@ -70,8 +70,6 @@ const dateStr = computed(() =>
 .topbar {
   position: sticky; top: 0; z-index: 50;
   background: var(--surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--surface-border);
   padding: 0 24px;
   height: 76px;

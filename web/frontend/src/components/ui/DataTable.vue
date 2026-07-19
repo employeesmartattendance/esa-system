@@ -56,7 +56,7 @@
             </td>
           </tr>
           <template v-else>
-            <tr v-for="row in paginatedRows" :key="row.id || row._id || Math.random()" class="table-row">
+            <tr v-for="(row, idx) in paginatedRows" :key="row.id ?? row._id ?? `${page}-${idx}`" class="table-row">
               <td
                 v-for="col in columns"
                 :key="col.key"

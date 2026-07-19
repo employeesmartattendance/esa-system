@@ -148,13 +148,18 @@ onMounted(async () => {
   await Promise.all([fetchStats(), fetchSchools(), fetchActivity()])
   if (cur === 'logs') fetchLogs()
 
-  // 30-second polling fallback for stats + activity (ensures data stays fresh)
+  // Polling fallback for stats + activity — only runs when the socket isn't
+  // connected, so we're not duplicating work the live socket events already
+  // cover. Guards against silently dropped connections (network hiccups,
+  // backend restarts) without polling redundantly during normal operation.
+  const socket = getSocket()
   pollInterval = setInterval(() => {
-    fetchStats()
-    fetchActivity()
+    if (!socket?.connected) {
+      fetchStats()
+      fetchActivity()
+    }
   }, 30000)
 
-  const socket = getSocket()
   if (socket) {
     // School events
     socket.on('school_created',        () => { fetchSchools(); fetchStats(); fetchActivity() })

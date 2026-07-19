@@ -154,8 +154,6 @@ function getType(a) {
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-lg);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(37, 99, 235, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   overflow: hidden;
   z-index: 9000;
   animation: npSlideIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);

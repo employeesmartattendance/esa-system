@@ -59,7 +59,6 @@ defineExpose({ add })
 }
 .toast {
   background: var(--surface);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius);
   padding: 14px 16px;

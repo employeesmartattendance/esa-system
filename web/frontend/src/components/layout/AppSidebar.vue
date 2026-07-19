@@ -117,13 +117,10 @@ onUnmounted(() => window.removeEventListener('resize', checkMobile))
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.5);
   z-index: 99;
-  backdrop-filter: blur(2px);
 }
 .sidebar {
   width: 264px; flex-shrink: 0;
   background: var(--sidebar-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   border-right: 1px solid var(--surface-border);
   display: flex; flex-direction: column;
   padding: 0;
