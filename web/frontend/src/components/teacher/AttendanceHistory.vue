@@ -65,10 +65,16 @@ const monthRecords = computed(() => {
 
 const monthlySummary = computed(() => {
   const r = monthRecords.value
+  let present = 0, late = 0, absent = 0
+  for (const x of r) {
+    if (x.status === 'present') present++
+    else if (x.status === 'late') late++
+    else if (x.status === 'absent') absent++
+  }
   return [
-    { label: 'Present', val: r.filter(x => x.status === 'present').length, color: 'var(--success)' },
-    { label: 'Late', val: r.filter(x => x.status === 'late').length, color: 'var(--warning)' },
-    { label: 'Absent', val: r.filter(x => x.status === 'absent').length, color: 'var(--danger)' },
+    { label: 'Present', val: present, color: 'var(--success)' },
+    { label: 'Late', val: late, color: 'var(--warning)' },
+    { label: 'Absent', val: absent, color: 'var(--danger)' },
     { label: 'Total', val: r.length, color: 'var(--primary)' },
   ]
 })

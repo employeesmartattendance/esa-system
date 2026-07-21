@@ -133,7 +133,10 @@
       <div class="stats-bar-inner container">
         <div class="sbar-item" v-for="s in statBarItems" :key="s.label">
           <div class="sbar-icon">
-            <component :is="'svg'" v-bind="s.svgProps" v-html="s.svgPath"></component>
+            <svg v-if="s.icon === 'location'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <svg v-else-if="s.icon === 'roles'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            <svg v-else-if="s.icon === 'live'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <svg v-else-if="s.icon === 'encrypted'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
           </div>
           <div class="sbar-text">
             <div class="sbar-val">{{ s.val }}</div>
@@ -158,7 +161,10 @@
           <div class="glass step-card" v-for="s in steps" :key="s.num">
             <div class="step-num">{{ s.num }}</div>
             <div class="step-icon-wrap" :style="`background:${s.iconBg}`">
-              <component :is="'svg'" v-bind="s.svgProps" v-html="s.svgPath"></component>
+              <svg v-if="s.num === '01'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <svg v-else-if="s.num === '02'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+              <svg v-else-if="s.num === '03'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <svg v-else-if="s.num === '04'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             </div>
             <div class="step-title">{{ s.title }}</div>
             <div class="step-desc">{{ s.desc }}</div>
@@ -181,7 +187,12 @@
         <div class="features-grid">
           <div class="glass feature-card" v-for="f in features" :key="f.title">
             <div class="feature-icon" :style="`background:${f.iconBg}`">
-              <component :is="'svg'" v-bind="f.svgProps" v-html="f.svgPath"></component>
+              <svg v-if="f.title === 'GPS Location Verification'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <svg v-else-if="f.title === 'Wi-Fi Network Validation'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+              <svg v-else-if="f.title === 'Real-Time Live Dashboard'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <svg v-else-if="f.title === 'Automated Reports'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg>
+              <svg v-else-if="f.title === 'Multi-School Management'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <svg v-else-if="f.title === 'Auto-Checkout System'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div class="feature-title">{{ f.title }}</div>
             <div class="feature-desc">{{ f.desc }}</div>
@@ -335,7 +346,9 @@
             <div class="contact-info-cards">
               <div class="glass ci-card" v-for="ci in contactInfo" :key="ci.label">
                 <div class="ci-icon" :style="`background:${ci.bg}`">
-                  <component :is="'svg'" v-bind="ci.svgProps" v-html="ci.svgPath"></component>
+                  <svg v-if="ci.label === 'Response Time'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16v.92z"/></svg>
+                  <svg v-else-if="ci.label === 'Setup Process'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  <svg v-else-if="ci.label === 'Platform'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
                 </div>
                 <div>
                   <div class="ci-label">{{ ci.label }}</div>
@@ -465,16 +478,48 @@ const headState = {
   structuredDataEl: null,
 }
 
+// Cheap, DOM-read-free scroll state (just arithmetic on window.scrollY —
+// no getBoundingClientRect, so this never forces a synchronous layout pass).
+// rAF-gated so it runs at most once per rendered frame, no matter how many
+// scroll events the browser fires in between.
+let scrollRafId = null
 function onScroll() {
-  const y = window.scrollY
-  scrolled.value    = y > 20
-  showBackTop.value = y > 400
-  for (let i = sectionIds.length - 1; i >= 0; i--) {
-    const el = document.getElementById(sectionIds[i])
-    if (el && el.getBoundingClientRect().top <= 80) {
-      activeSection.value = sectionIds[i]
-      break
+  if (scrollRafId !== null) return
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null
+    const y = window.scrollY
+    scrolled.value    = y > 20
+    showBackTop.value = y > 400
+  })
+}
+
+// Active-section tracking via IntersectionObserver instead of a manual
+// getBoundingClientRect loop on every scroll tick. The browser computes
+// intersection changes asynchronously as part of its normal rendering
+// pipeline, so this never blocks the scroll thread the way a forced
+// synchronous reflow does.
+let sectionObserver = null
+function setupSectionObserver() {
+  const visibleRatios = new Map()
+  sectionObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      visibleRatios.set(entry.target.id, entry.isIntersecting ? entry.intersectionRatio : 0)
     }
+    let best = null, bestRatio = 0
+    for (const id of sectionIds) {
+      const r = visibleRatios.get(id) || 0
+      if (r > bestRatio) { bestRatio = r; best = id }
+    }
+    if (best) activeSection.value = best
+  }, {
+    // Mirrors the old "top <= 80" check: treat a section as active once
+    // it's crossed 80px below the fixed nav, until the next one does.
+    rootMargin: '-80px 0px -60% 0px',
+    threshold: [0, 0.25, 0.5, 0.75, 1],
+  })
+  for (const id of sectionIds) {
+    const el = document.getElementById(id)
+    if (el) sectionObserver.observe(el)
   }
 }
 function scrollTop() {
@@ -591,9 +636,12 @@ onMounted(() => {
   onScroll()
   applyWebsiteSeoMeta()
   window.addEventListener('scroll', onScroll, { passive: true })
+  setupSectionObserver()
 })
 onUnmounted(() => {
   window.removeEventListener('scroll', onScroll)
+  if (scrollRafId !== null) cancelAnimationFrame(scrollRafId)
+  if (sectionObserver) { sectionObserver.disconnect(); sectionObserver = null }
   restoreWebsiteSeoMeta()
 })
 
@@ -656,48 +704,24 @@ const heroTeachers = [
 
 // ── Stats bar ─────────────────────────────────────────────────
 const statBarItems = [
-  {
-    val:'100%', label:'GPS Accuracy',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'rgba(255,255,255,0.9)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>',
-  },
-  {
-    val:'3', label:'User Roles',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'rgba(255,255,255,0.9)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
-  },
-  {
-    val:'Real-time', label:'Live Updates',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'rgba(255,255,255,0.9)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
-  },
-  {
-    val:'AES-256', label:'Encrypted',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'rgba(255,255,255,0.9)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>',
-  },
+  { val:'100%', label:'GPS Accuracy', icon:'location' },
+  { val:'3', label:'User Roles', icon:'roles' },
+  { val:'Real-time', label:'Live Updates', icon:'live' },
+  { val:'AES-256', label:'Encrypted', icon:'encrypted' },
 ]
 
 // ── How it works steps ────────────────────────────────────────
 const steps = [
   { num:'01', title:'School Registration', iconBg:'rgba(37,99,235,0.1)',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'var(--primary)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
     desc:'Super admin creates your school profile, assigns a school admin account, and configures GPS boundary and working hours.',
   },
   { num:'02', title:'Add Teachers', iconBg:'rgba(6,182,212,0.1)',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'var(--accent)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
     desc:'School admins register teachers with their profiles. Each teacher receives credentials and can download the ESA app.',
   },
   { num:'03', title:'GPS Check-In', iconBg:'rgba(16,185,129,0.1)',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'var(--success)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>',
     desc:'Teachers open the app and tap check-in. ESA verifies their GPS location against the school boundary and records the timestamp.',
   },
   { num:'04', title:'Live Dashboard', iconBg:'rgba(139,92,246,0.1)',
-    svgProps:{ width:28,height:28,viewBox:'0 0 24 24',fill:'none',stroke:'var(--info)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
     desc:'Admins see real-time attendance on a live map and dashboard. Reports are auto-generated, and auto-checkout handles end-of-day.',
   },
 ]
@@ -705,33 +729,21 @@ const steps = [
 // ── Features ──────────────────────────────────────────────────
 const features = [
   { title:'GPS Location Verification', iconBg:'rgba(37,99,235,0.1)',
-    svgProps:{ width:26,height:26,viewBox:'0 0 24 24',fill:'none',stroke:'var(--primary)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>',
     desc:'Attendance is verified using precise GPS. Teachers must be within the school boundary — no proxy attendance possible.',
   },
   { title:'Wi-Fi Network Validation', iconBg:'rgba(6,182,212,0.1)',
-    svgProps:{ width:26,height:26,viewBox:'0 0 24 24',fill:'none',stroke:'var(--accent)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
     desc:'Optional Wi-Fi BSSID validation adds extra security. Teachers must be on the school network to check in.',
   },
   { title:'Real-Time Live Dashboard', iconBg:'rgba(16,185,129,0.1)',
-    svgProps:{ width:26,height:26,viewBox:'0 0 24 24',fill:'none',stroke:'var(--success)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
     desc:'Watch attendance live. Dashboard updates via WebSockets showing present, late, or absent the moment check-in is recorded.',
   },
   { title:'Automated Reports', iconBg:'rgba(245,158,11,0.1)',
-    svgProps:{ width:26,height:26,viewBox:'0 0 24 24',fill:'none',stroke:'var(--warning)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/>',
     desc:'Generate daily, weekly, and monthly attendance reports with one click. Export to CSV for payroll or HR integration.',
   },
   { title:'Multi-School Management', iconBg:'rgba(139,92,246,0.1)',
-    svgProps:{ width:26,height:26,viewBox:'0 0 24 24',fill:'none',stroke:'var(--info)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
     desc:'Super admins manage unlimited schools from one central panel. Each school operates independently with its own settings.',
   },
   { title:'Auto-Checkout System', iconBg:'rgba(239,68,68,0.1)',
-    svgProps:{ width:26,height:26,viewBox:'0 0 24 24',fill:'none',stroke:'var(--danger)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
     desc:'Configure automatic end-of-day checkout times. Teachers who forget are handled automatically, keeping records clean.',
   },
 ]
@@ -742,18 +754,9 @@ const desktopFeatures = ['Full dashboard — all admin features','Live map with 
 
 // ── Contact info ──────────────────────────────────────────────
 const contactInfo = [
-  { label:'Response Time', val:'Within 24–48 hours', bg:'rgba(37,99,235,0.1)',
-    svgProps:{ width:22,height:22,viewBox:'0 0 24 24',fill:'none',stroke:'var(--primary)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16v.92z"/>',
-  },
-  { label:'Setup Process', val:'Guided onboarding, free', bg:'rgba(16,185,129,0.1)',
-    svgProps:{ width:22,height:22,viewBox:'0 0 24 24',fill:'none',stroke:'var(--success)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
-  },
-  { label:'Platform', val:'Mobile + Web + Desktop', bg:'rgba(6,182,212,0.1)',
-    svgProps:{ width:22,height:22,viewBox:'0 0 24 24',fill:'none',stroke:'var(--accent)',['stroke-width']:1.8,['stroke-linecap']:'round',['stroke-linejoin']:'round' },
-    svgPath:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>',
-  },
+  { label:'Response Time', val:'Within 24–48 hours', bg:'rgba(37,99,235,0.1)' },
+  { label:'Setup Process', val:'Guided onboarding, free', bg:'rgba(16,185,129,0.1)' },
+  { label:'Platform', val:'Mobile + Web + Desktop', bg:'rgba(6,182,212,0.1)' },
 ]
 
 // ── Contact form ──────────────────────────────────────────────
@@ -799,7 +802,7 @@ async function submitContact() {
 
   --bg:             #f0f4ff;
   --bg-secondary:   #e6edff;
-  --surface:        rgba(255,255,255,0.88);
+  --surface:        rgba(255,255,255,0.96);
   --surface-hover:  rgba(255,255,255,0.98);
   --surface-border: rgba(37,99,235,0.11);
   --text:           #0f172a;
@@ -819,6 +822,14 @@ async function submitContact() {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
+
+/* Defensive fallback: guarantees the correct page color shows through
+   during rubber-band/overscroll or any brief gap in .esa-website's own
+   paint, instead of the browser's default white canvas. html/body aren't
+   scoped by Vue's component styles, so this is set globally but harmlessly
+   mirrors the same light/dark background the dashboard already uses. */
+:global(html), :global(body) { background: #f0f4ff; }
+:global(html.dark), :global(body.dark) { background: #060c1a; }
 
 .esa-website.dark {
   --bg:             #060c1a;

@@ -422,15 +422,30 @@ const navSections = computed(() => [{
 const pageTitles       = { dashboard: 'My Dashboard', map: 'Live GPS Map', history: 'My Attendance', profile: 'My Profile' }
 const currentPageTitle = computed(() => pageTitles[section.value] || 'Dashboard')
 
+/* ── Single-pass tally helper ──
+   Counts present/late/absent in one walk instead of 3 separate .filter()
+   passes per stat block. All stat computeds below derive from a tally
+   rather than re-scanning the source array multiple times each. */
+function tally(records) {
+  let present = 0, late = 0, absent = 0
+  for (const r of records) {
+    if (r.status === 'present') present++
+    else if (r.status === 'late') late++
+    else if (r.status === 'absent') absent++
+  }
+  return { present, late, absent, total: records.length }
+}
+
 /* ── Quick stats (mobile) ── */
 const quickStats = computed(() => {
   const now  = new Date()
   const sow  = new Date(now); sow.setDate(now.getDate() - now.getDay()); sow.setHours(0,0,0,0)
   const week = records.value.filter(r => new Date(r.date) >= sow)
+  const t = tally(week)
   return [
-    { val: week.filter(r => r.status === 'present').length, label: 'Present', color: 'var(--success)' },
-    { val: week.filter(r => r.status === 'late').length,    label: 'Late',    color: 'var(--warning)' },
-    { val: week.filter(r => r.status === 'absent').length,  label: 'Absent',  color: 'var(--danger)'  },
+    { val: t.present, label: 'Present', color: 'var(--success)' },
+    { val: t.late,    label: 'Late',    color: 'var(--warning)' },
+    { val: t.absent,  label: 'Absent',  color: 'var(--danger)'  },
   ]
 })
 
@@ -447,38 +462,38 @@ const monthRecordsAll = computed(() => {
   })
 })
 
+// Shared tally for the month, computed once and reused by both monthStats
+// and monthAttendanceRate below (previously each recomputed present/late
+// counts independently).
+const monthTally = computed(() => tally(monthRecordsAll.value))
+
 const monthStats = computed(() => {
-  const r       = monthRecordsAll.value
-  const total   = r.length || 1
-  const present = r.filter(x => x.status === 'present').length
-  const late    = r.filter(x => x.status === 'late').length
-  const absent  = r.filter(x => x.status === 'absent').length
+  const t     = monthTally.value
+  const total = t.total || 1
   return [
-    { label: 'Present', val: present, color: 'var(--success)', pct: Math.round(present/total*100) },
-    { label: 'Late',    val: late,    color: 'var(--warning)', pct: Math.round(late/total*100)    },
-    { label: 'Absent',  val: absent,  color: 'var(--danger)',  pct: Math.round(absent/total*100)  },
+    { label: 'Present', val: t.present, color: 'var(--success)', pct: Math.round(t.present/total*100) },
+    { label: 'Late',    val: t.late,    color: 'var(--warning)', pct: Math.round(t.late/total*100)    },
+    { label: 'Absent',  val: t.absent,  color: 'var(--danger)',  pct: Math.round(t.absent/total*100)  },
   ]
 })
 
 const monthAttendanceRate = computed(() => {
-  const r = monthRecordsAll.value
-  if (!r.length) return 0
-  return Math.round(r.filter(x => x.status === 'present' || x.status === 'late').length / r.length * 100)
+  const t = monthTally.value
+  if (!t.total) return 0
+  return Math.round((t.present + t.late) / t.total * 100)
 })
 
 /* ── All-time stats ── */
+const allTimeTally = computed(() => tally(records.value))
 const allTimeStats = computed(() => {
-  const r       = records.value
-  const total   = r.length || 1
-  const present = r.filter(x => x.status === 'present').length
-  const late    = r.filter(x => x.status === 'late').length
-  const absent  = r.filter(x => x.status === 'absent').length
+  const t     = allTimeTally.value
+  const total = t.total || 1
   return [
-    { label: 'Total Days',     val: r.length, color: 'var(--primary)', pct: 100 },
-    { label: 'Present',        val: present,  color: 'var(--success)', pct: Math.round(present/total*100) },
-    { label: 'Late',           val: late,     color: 'var(--warning)', pct: Math.round(late/total*100) },
-    { label: 'Absent',         val: absent,   color: 'var(--danger)',  pct: Math.round(absent/total*100) },
-    { label: 'Attendance Rate',val: `${Math.round((present+late)/total*100)}%`, color: 'var(--accent)', pct: Math.round((present+late)/total*100) },
+    { label: 'Total Days',     val: t.total, color: 'var(--primary)', pct: 100 },
+    { label: 'Present',        val: t.present, color: 'var(--success)', pct: Math.round(t.present/total*100) },
+    { label: 'Late',           val: t.late,    color: 'var(--warning)', pct: Math.round(t.late/total*100) },
+    { label: 'Absent',         val: t.absent,  color: 'var(--danger)',  pct: Math.round(t.absent/total*100) },
+    { label: 'Attendance Rate',val: `${Math.round((t.present+t.late)/total*100)}%`, color: 'var(--accent)', pct: Math.round((t.present+t.late)/total*100) },
   ]
 })
 

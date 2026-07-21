@@ -170,12 +170,15 @@ const cols = [
   { key: 'actions', label: 'Actions' },
 ]
 
-const miniStats = computed(() => [
-  { icon: 'school', label: 'Total Schools', val: props.schools.length, color: 'var(--primary)' },
-  { icon: 'check-circle', label: 'Active', val: props.schools.filter(s => s.status === 'active').length, color: 'var(--success)' },
-  { icon: 'x-circle', label: 'Inactive', val: props.schools.filter(s => s.status !== 'active').length, color: 'var(--danger)' },
-  { icon: 'teachers', label: 'Total Teachers', val: props.schools.reduce((a, s) => a + (s.teacher_count || 0), 0), color: 'var(--accent)' },
-])
+const miniStats = computed(() => {
+  const active = props.schools.filter(s => s.status === 'active').length
+  return [
+    { icon: 'school', label: 'Total Schools', val: props.schools.length, color: 'var(--primary)' },
+    { icon: 'check-circle', label: 'Active', val: active, color: 'var(--success)' },
+    { icon: 'x-circle', label: 'Inactive', val: props.schools.length - active, color: 'var(--danger)' },
+    { icon: 'teachers', label: 'Total Teachers', val: props.schools.reduce((a, s) => a + (s.teacher_count || 0), 0), color: 'var(--accent)' },
+  ]
+})
 
 function openCreate() { editing.value = false; form.value = { name: '', admin_name: '', admin_email: '', admin_password: '' }; showModal.value = true }
 function openEdit(row) { editing.value = true; form.value = { ...row, admin_password: '' }; showModal.value = true }

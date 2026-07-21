@@ -206,8 +206,11 @@
         <div class="form-footer">
           <div class="footer-copy">ESA v1.0 · Secured · &copy; {{ new Date().getFullYear() }}</div>
           <a href="#" class="btn-website" @click.prevent="openWebsite">
-            <AppIcon name="info" :size="14" color="var(--primary)" />
-            Visit our site for more!
+            <span class="btn-website-icon">
+              <AppIcon name="info" :size="14" color="currentColor" />
+            </span>
+            <span>Visit our site for more</span>
+            <svg class="btn-website-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
         </div>
       </div>
@@ -398,8 +401,6 @@ onUnmounted(() => {
   position: relative;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--primary) transparent;
 }
 :global(html.login-scroll-lock),
 :global(body.login-scroll-lock) {
@@ -415,7 +416,7 @@ onUnmounted(() => {
 .orb-3 { width: 300px; height: 300px; background: rgba(139,92,246,0.1); top: 50%; left: 30%; }
 .theme-float-btn { position: fixed; top: 20px; right: 20px; z-index: 10; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--surface-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .theme-float-btn:hover { color: var(--primary); border-color: var(--primary); }
-.login-container { display: flex; width: 100%; max-width: 1100px; margin: auto; min-height: 100vh; position: relative; z-index: 1; }
+.login-container { display: flex; width: 100%; max-width: 1100px; margin: auto; position: relative; z-index: 1; }
 .login-panel-left { flex: 1.1; padding: 48px 52px; display: flex; flex-direction: column; border-right: 1px solid var(--surface-border); background: linear-gradient(150deg, rgba(37,99,235,0.06) 0%, rgba(6,182,212,0.03) 100%); }
 .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 60px; }
 .brand-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -454,46 +455,63 @@ onUnmounted(() => {
 .btn-login { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all var(--transition); box-shadow: 0 4px 20px var(--primary-glow); font-family: var(--font); }
 .btn-login:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 8px 28px var(--primary-glow); }
 .btn-login:disabled { opacity: 0.7; cursor: not-allowed; }
-.btn-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+.btn-spinner {
+  width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+  border-radius: 50%; flex-shrink: 0;
+  animation: spin 0.8s linear infinite, spinner-fade-in 0.15s ease-out;
+  will-change: transform;
+}
+@keyframes spinner-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .demo-hint { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); justify-content: center; }
 .demo-hint strong { color: var(--text-secondary); }
 .form-footer { margin-top: 32px; font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .footer-copy { font-size: 12px; color: var(--text-muted); }
 .btn-website {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 11px 22px; border-radius: var(--radius);
-  border: 1.5px solid var(--primary);
-  background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(6,182,212,0.06));
-  color: var(--primary); font-size: 13px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 4px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); font-size: 13px; font-weight: 600;
   font-family: var(--font); cursor: pointer;
-  transition: all var(--transition); text-decoration: none;
-  box-shadow: 0 2px 12px rgba(37,99,235,0.12);
-  letter-spacing: 0.01em;
+  text-decoration: none; letter-spacing: 0.01em;
+  transition: color var(--transition);
 }
-.btn-website:hover {
-  background: linear-gradient(135deg, var(--primary), #1d4ed8);
-  color: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 6px 20px rgba(37,99,235,0.3);
-  transform: translateY(-1px);
+.btn-website-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(37,99,235,0.1); color: var(--primary);
+  flex-shrink: 0;
+  transition: background var(--transition), color var(--transition), transform var(--transition);
 }
-[data-theme="dark"] .btn-website {
-  border-color: rgba(59,130,246,0.5);
-  background: linear-gradient(135deg, rgba(37,99,235,0.15), rgba(6,182,212,0.1));
-  color: #93c5fd;
-  box-shadow: 0 2px 12px rgba(37,99,235,0.2);
+.btn-website-arrow {
+  color: var(--text-muted);
+  transform: translateX(0);
+  transition: transform var(--transition), color var(--transition);
 }
-[data-theme="dark"] .btn-website:hover {
-  background: linear-gradient(135deg, var(--primary), #1d4ed8);
-  color: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 6px 24px rgba(37,99,235,0.4);
+.btn-website:hover { color: var(--primary); }
+.btn-website:hover .btn-website-icon {
+  background: var(--primary); color: #fff;
+  transform: scale(1.08);
 }
+.btn-website:hover .btn-website-arrow {
+  color: var(--primary);
+  transform: translateX(3px);
+}
+
+.login-page.dark .btn-website-icon { background: rgba(59,130,246,0.18); color: #93c5fd; }
+.login-page.dark .btn-website:hover { color: #93c5fd; }
+.login-page.dark .btn-website:hover .btn-website-icon { background: var(--primary); color: #fff; }
+.login-page.dark .btn-website:hover .btn-website-arrow { color: #93c5fd; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) { .login-panel-left { display: none; } .login-panel-right { flex: 1; padding: 32px 24px; } }
 @media (max-height: 760px) {
-  .login-page { align-items: flex-start; }
-  .login-container { min-height: 100%; }
+  .login-panel-left, .login-panel-right { padding-top: clamp(20px, 5vh, 48px); padding-bottom: clamp(20px, 5vh, 48px); }
+  .brand { margin-bottom: clamp(20px, 4vh, 60px); }
+  .left-content p { margin-bottom: clamp(16px, 3vh, 36px); }
+  .stat-pills { margin-top: clamp(20px, 4vh, 48px); }
+  .form-footer { margin-top: clamp(14px, 3vh, 32px); }
+}
+@media (max-height: 620px) {
+  .left-content h1 { font-size: 28px; }
+  .feature-list { display: none; }
 }
 
 /* ── Forgot password buttons ── */
@@ -536,11 +554,5 @@ onUnmounted(() => {
 .step-enter-from { opacity: 0; transform: translateX(20px); }
 .step-leave-to   { opacity: 0; transform: translateX(-20px); }
 
-@media (min-width:760px){
-.login-page::-webkit-scrollbar { width: 6px; }
-.login-page::-webkit-scrollbar-track { background: transparent; }
-.login-page::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 99px; }
-.login-page::-webkit-scrollbar-thumb:hover { background: var(--primary-dark); }
-}
 
 </style>

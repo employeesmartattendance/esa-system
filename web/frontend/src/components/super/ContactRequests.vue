@@ -246,17 +246,30 @@ const filtered = computed(() =>
     : localList.value.filter(r => r.status === activeTab.value)
 )
 
+// Single-pass tally: counts every status in one walk of localList instead of
+// a separate .filter() per status. Both the per-tab counts (below) and the
+// mini-stat cards read from this one shared source.
+const statusTally = computed(() => {
+  const t = { all: localList.value.length, pending: 0, approved: 0, rejected: 0 }
+  for (const r of localList.value) {
+    if (t[r.status] !== undefined) t[r.status]++
+  }
+  return t
+})
+
 function countByStatus(key) {
-  if (key === 'all') return localList.value.length
-  return localList.value.filter(r => r.status === key).length
+  return statusTally.value[key] ?? 0
 }
 
-const miniStats = computed(() => [
-  { icon: 'bell',        label: 'Total',    val: localList.value.length,                                             color: 'var(--primary)' },
-  { icon: 'clock',       label: 'Pending',  val: localList.value.filter(r => r.status === 'pending').length,         color: 'var(--warning)' },
-  { icon: 'check-circle',label: 'Approved', val: localList.value.filter(r => r.status === 'approved').length,        color: 'var(--success)' },
-  { icon: 'x-circle',   label: 'Rejected', val: localList.value.filter(r => r.status === 'rejected').length,        color: 'var(--danger)'  },
-])
+const miniStats = computed(() => {
+  const t = statusTally.value
+  return [
+    { icon: 'bell',         label: 'Total',    val: t.all,      color: 'var(--primary)' },
+    { icon: 'clock',        label: 'Pending',  val: t.pending,  color: 'var(--warning)' },
+    { icon: 'check-circle', label: 'Approved', val: t.approved, color: 'var(--success)' },
+    { icon: 'x-circle',     label: 'Rejected', val: t.rejected, color: 'var(--danger)'  },
+  ]
+})
 
 function openDetail(r) {
   selected.value = { ...r }
