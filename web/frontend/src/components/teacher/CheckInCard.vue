@@ -218,11 +218,12 @@ async function detectLocation() {
 /* ── Auto GPS watch ── */
 function startAutoWatch() {
   if (!navigator.geolocation) return
-  autoWatchId = navigator.geolocation.watchPosition(
-    onAutoGPS,
-    err => console.warn('Auto GPS:', err.message),
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-  )
+    // Reduced accuracy and increased maximumAge to save performance and battery
+    autoWatchId = navigator.geolocation.watchPosition(
+      onAutoGPS,
+      err => console.warn('Auto GPS:', err.message),
+      { enableHighAccuracy: false, maximumAge: 30000, timeout: 30000 }
+    )
 }
 function stopAutoWatch() {
   if (autoWatchId !== null) { navigator.geolocation.clearWatch(autoWatchId); autoWatchId = null }

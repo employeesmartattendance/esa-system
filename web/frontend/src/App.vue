@@ -73,10 +73,8 @@ const forceLogoutMessage  = ref('')
 const whatsappHref = import.meta.env.VITE_WHATSAPP_URL || 'https://wa.me/250788000000'
 const showWhatsAppFab = computed(() => {
   const path = route.path || ''
-  return !['/super', '/school', '/teacher'].includes(path)
-    && !path.startsWith('/super/')
-    && !path.startsWith('/school/')
-    && !path.startsWith('/teacher/')
+  // Only show on the website page
+  return path === '/website' || path === '/'
 })
 
 // ── Sync / Online state ────────────────────────────────────────────────────

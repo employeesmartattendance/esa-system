@@ -136,7 +136,19 @@ onMounted(async () => {
   const cur = routeMap[route.path] || 'dashboard'
   section.value = cur
 
-  await Promise.all([fetchStats(), fetchTeachers(), fetchAttendance()])
+  // Optimized fetching: only load what's needed for the initial section
+  if (cur === 'dashboard') {
+    fetchStats()
+    fetchAttendance() // Recent list is on dashboard
+    fetchTeachers()   // Live list is on dashboard
+  } else if (cur === 'teachers') {
+    fetchTeachers()
+  } else if (cur === 'attendance' || cur === 'reports') {
+    fetchAttendance()
+  } else {
+    // Fallback for others
+    Promise.all([fetchStats(), fetchTeachers(), fetchAttendance()])
+  }
 
   const socket = getSocket()
   if (socket) {

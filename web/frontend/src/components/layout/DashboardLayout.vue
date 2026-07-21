@@ -18,9 +18,8 @@
       />
 
       <main class="layout-content">
-        <Transition name="page" mode="out-in">
-          <slot />
-        </Transition>
+        <!-- Transition removed to fix freezing during navigation -->
+        <slot />
       </main>
     </div>
 

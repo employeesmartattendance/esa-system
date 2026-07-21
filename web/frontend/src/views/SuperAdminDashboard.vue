@@ -145,8 +145,18 @@ onMounted(async () => {
   const cur = routeMap[route.path] || 'dashboard'
   section.value = cur
 
-  await Promise.all([fetchStats(), fetchSchools(), fetchActivity()])
-  if (cur === 'logs') fetchLogs()
+  // Optimized fetching: only load what's needed for the initial section
+  if (cur === 'dashboard') {
+    Promise.all([fetchStats(), fetchSchools(), fetchActivity()])
+  } else if (cur === 'schools') {
+    fetchSchools()
+  } else if (cur === 'logs') {
+    fetchLogs()
+  } else if (cur === 'activity') {
+    fetchActivity()
+  } else {
+    Promise.all([fetchStats(), fetchSchools(), fetchActivity()])
+  }
 
   // Polling fallback for stats + activity — only runs when the socket isn't
   // connected, so we're not duplicating work the live socket events already

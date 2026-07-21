@@ -534,16 +534,7 @@ function scrollTop() {
     document.body.scrollTop = 0
   }
 
-  try {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    if (typeof root?.scrollTo === 'function') root.scrollTo({ top: 0, behavior: 'smooth' })
-    setTimeout(() => {
-      const currentTop = root?.scrollTop ?? window.scrollY
-      if (currentTop > 2) fallbackTop()
-    }, 500)
-  } catch {
-    fallbackTop()
-  }
+  fallbackTop() /* Use immediate jump for better performance */
 }
 
 // Smooth scroll with 68px navbar offset
@@ -553,7 +544,8 @@ function navTo(hash, closeMob = false) {
   const el = document.getElementById(id)
   if (el) {
     const top = el.getBoundingClientRect().top + window.scrollY - 68
-    window.scrollTo({ top, behavior: 'smooth' })
+    // Using immediate jump instead of smooth behavior to avoid lag and white flashes
+    window.scrollTo({ top, behavior: 'auto' })
   }
 }
 

@@ -76,7 +76,7 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  /* scroll-behavior: smooth; */ /* Removing smooth scroll to fix lag and "white flashes" during scroll */
   -webkit-text-size-adjust: 100%;
 }
 
@@ -525,12 +525,14 @@ tr:last-child td { border-bottom: none; }
   .glass { box-shadow: none; border: 1px solid #ccc; }
 }
 
-/* ── Performance: GPU-accelerate heavy elements ──────────────────────────── */
-.orb, .modal-overlay, .sidebar, .glass {
+/* ── Performance: Optimized GPU-acceleration ──────────────────────────── */
+/* Avoid over-compositing. Only use will-change for frequently animated elements. */
+.orb, .sidebar {
   will-change: transform;
   transform: translateZ(0);
   backface-visibility: hidden;
 }
+/* Removed .glass and .modal-overlay from global will-change to prevent layer explosion */
 .modal-overlay { will-change: opacity, transform; }
 .sidebar { will-change: transform; }
 

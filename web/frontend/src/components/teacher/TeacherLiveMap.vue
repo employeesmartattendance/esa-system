@@ -325,7 +325,7 @@ function startTracking() {
   tracking.value = true
   watchId = navigator.geolocation.watchPosition(onGPS,
     err => console.warn('GPS:', err.message),
-    { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 })
+    { enableHighAccuracy: false, maximumAge: 15000, timeout: 15000 })
 }
 function stopTracking() {
   if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null }

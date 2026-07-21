@@ -578,8 +578,20 @@ async function fetchSchool() {
 }
 
 onMounted(async () => {
-  section.value = guardMapRoute(route.path)
-  await Promise.all([fetchToday(), fetchHistory(), fetchSchool()])
+  const cur = guardMapRoute(route.path)
+  section.value = cur
+
+  // Optimized fetching: only load what's needed for the initial section
+  if (cur === 'dashboard') {
+    Promise.all([fetchToday(), fetchHistory(), fetchSchool()])
+  } else if (cur === 'history') {
+    fetchHistory()
+  } else if (cur === 'map') {
+    fetchSchool() // Map needs school GPS
+  } else {
+    Promise.all([fetchToday(), fetchHistory(), fetchSchool()])
+  }
+
   const socket = getSocket()
   if (socket) {
     socket.on('attendance_marked', fetchToday)

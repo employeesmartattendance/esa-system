@@ -399,8 +399,7 @@ onUnmounted(() => {
   align-items: stretch;
   background: var(--bg);
   position: relative;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden; /* Prevent scrolling on login page */
 }
 :global(html.login-scroll-lock),
 :global(body.login-scroll-lock) {
@@ -416,7 +415,15 @@ onUnmounted(() => {
 .orb-3 { width: 300px; height: 300px; background: rgba(139,92,246,0.1); top: 50%; left: 30%; }
 .theme-float-btn { position: fixed; top: 20px; right: 20px; z-index: 10; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--surface-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .theme-float-btn:hover { color: var(--primary); border-color: var(--primary); }
-.login-container { display: flex; width: 100%; max-width: 1100px; margin: auto; position: relative; z-index: 1; }
+.login-container { 
+  display: flex; 
+  width: 100%; 
+  max-width: 1100px; 
+  margin: auto; 
+  position: relative; 
+  z-index: 1; 
+  height: 100%; /* Ensure container takes full height */
+}
 .login-panel-left { flex: 1.1; padding: 48px 52px; display: flex; flex-direction: column; border-right: 1px solid var(--surface-border); background: linear-gradient(150deg, rgba(37,99,235,0.06) 0%, rgba(6,182,212,0.03) 100%); }
 .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 60px; }
 .brand-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -458,7 +465,7 @@ onUnmounted(() => {
 .btn-spinner {
   width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
   border-radius: 50%; flex-shrink: 0;
-  animation: spin 0.8s linear infinite, spinner-fade-in 0.15s ease-out;
+  animation: spin 0.6s linear infinite; /* Faster and smoother spin */
   will-change: transform;
 }
 @keyframes spinner-fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -503,11 +510,11 @@ onUnmounted(() => {
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) { .login-panel-left { display: none; } .login-panel-right { flex: 1; padding: 32px 24px; } }
 @media (max-height: 760px) {
-  .login-panel-left, .login-panel-right { padding-top: clamp(20px, 5vh, 48px); padding-bottom: clamp(20px, 5vh, 48px); }
-  .brand { margin-bottom: clamp(20px, 4vh, 60px); }
-  .left-content p { margin-bottom: clamp(16px, 3vh, 36px); }
-  .stat-pills { margin-top: clamp(20px, 4vh, 48px); }
-  .form-footer { margin-top: clamp(14px, 3vh, 32px); }
+  .login-panel-left, .login-panel-right { padding-top: 20px; padding-bottom: 20px; }
+  .brand { margin-bottom: 20px; }
+  .left-content p { margin-bottom: 16px; }
+  .stat-pills { margin-top: 20px; }
+  .form-footer { margin-top: 14px; }
 }
 @media (max-height: 620px) {
   .left-content h1 { font-size: 28px; }
