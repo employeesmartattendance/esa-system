@@ -112,10 +112,10 @@
           </div>
           <div>
             <div class="ss-card-title">Super Admin Team</div>
-            <div class="ss-card-desc">Manage all system administrators</div>
+            <div class="ss-card-desc">Manage system admins</div>
           </div>
           <button class="btn btn-primary btn-sm" style="margin-left:auto" @click="showAddModal = true">
-            <AppIcon name="plus" :size="14" />Add Admin
+            <AppIcon name="plus" :size="14" />Admin
           </button>
         </div>
 

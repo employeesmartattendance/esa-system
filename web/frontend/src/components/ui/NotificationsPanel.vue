@@ -71,11 +71,14 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, toRef } from 'vue'
 import api from '../../api'
+import { useScrollLock } from '../../composables/useScrollLock'
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } })
 const emit  = defineEmits(['update:modelValue'])
+
+useScrollLock(toRef(props, 'modelValue'))
 
 const items   = ref([])
 const loading = ref(false)

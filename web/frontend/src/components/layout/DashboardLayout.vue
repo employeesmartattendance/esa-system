@@ -25,7 +25,7 @@
 
     <ToastNotification ref="toastRef" />
     <NotificationsPanel v-model="showNotif" />
-    <ProfileModal v-model="showProfile" :user="user" @updated="onProfileUpdated" />
+    <ProfileModal v-model="showProfile" :user="user" />
   </div>
 </template>
 
@@ -55,13 +55,6 @@ const toastRef    = ref(null)
 const showNotif   = ref(false)
 const showProfile = ref(false)
 let lastApiErrorAt = 0
-
-async function onProfileUpdated(updatedUser) {
-  if (updatedUser && auth.user) {
-    auth.user.name = updatedUser.name || auth.user.name
-    localStorage.setItem('esa_user', JSON.stringify(auth.user))
-  }
-}
 
 function checkMobile() {
   isMobile.value = window.innerWidth < 768
@@ -120,14 +113,16 @@ provide('toast', {
 
 <style scoped>
 .app-layout {
-  display: flex; min-height: 100vh;
+  display: flex; height: 100vh;
   background: var(--bg); position: relative;
+  overflow: hidden;
 }
 .layout-main {
-  flex: 1; margin-left: 264px; min-height: 100vh;
+  flex: 1; margin-left: 264px; height: 100vh;
   display: flex; flex-direction: column;
   transition: margin-left var(--transition);
   position: relative; z-index: 1;
+  min-height: 0;
 }
 .layout-content { flex: 1; padding: 28px; padding-right: 28px; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; min-height: 0; }
 

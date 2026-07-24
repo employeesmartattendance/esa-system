@@ -346,9 +346,15 @@ tr:last-child td { border-bottom: none; }
 }
 
 /* ── Page Layout ─────────────────────────────────────────────────────────── */
-.app-layout   { display: flex; min-height: 100vh; }
-.layout-main  { flex: 1; margin-left: 264px; min-height: 100vh; display: flex; flex-direction: column; }
-.layout-content { flex: 1; padding: 28px; padding-right: 28px; box-sizing: border-box; overflow-x: hidden; max-width: 100%; }
+.app-layout   { display: flex; height: 100vh; overflow: hidden; }
+.layout-main  { flex: 1; margin-left: 264px; height: 100vh; display: flex; flex-direction: column; min-height: 0; }
+.layout-content { flex: 1; padding: 28px; padding-right: 28px; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; max-width: 100%; min-height: 0; }
+
+/* Applied by useScrollLock while a modal, the sidebar (mobile), or the
+   profile/notifications panel is open — blocks background scroll so only
+   the open overlay's own content can scroll. */
+.layout-content.scroll-locked { overflow: hidden !important; }
+body.scroll-locked-body { overflow: hidden !important; }
 
 /* ── Background Mesh ─────────────────────────────────────────────────────── */
 .bg-mesh {

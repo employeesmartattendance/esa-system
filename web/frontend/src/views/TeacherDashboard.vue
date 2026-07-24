@@ -320,6 +320,11 @@
                 </div>
               </div>
             </div>
+
+            <!-- Edit Profile -->
+            <div class="profile-edit-wrap">
+              <EditProfileCard :user="user" @updated="onProfileUpdated" />
+            </div>
           </div>
 
           <!-- Lifetime stats (desktop only shows alongside) -->
@@ -366,6 +371,7 @@ import TeacherLiveMap     from '../components/teacher/TeacherLiveMap.vue'
 import AppBadge           from '../components/ui/AppBadge.vue'
 import AppIcon            from '../components/ui/AppIcon.vue'
 import EmptyState         from '../components/ui/EmptyState.vue'
+import EditProfileCard    from '../components/ui/EditProfileCard.vue'
 import { useAuthStore }   from '../stores/auth'
 import { getSocket }      from '../socket'
 import api from '../api'
@@ -379,6 +385,13 @@ const isDesktop = ref(typeof navigator !== 'undefined' && navigator.userAgent.to
 
 const user     = computed(() => auth.user)
 const initials = computed(() => user.value?.name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'T')
+
+function onProfileUpdated(updatedUser) {
+  if (updatedUser && auth.user) {
+    auth.user.name = updatedUser.name || auth.user.name
+    localStorage.setItem('esa_user', JSON.stringify(auth.user))
+  }
+}
 
 /* ── Section ── */
 const routeMap = { '/teacher/dashboard': 'dashboard', '/teacher/map': 'map', '/teacher/history': 'history', '/teacher/profile': 'profile' }
@@ -752,6 +765,7 @@ onUnmounted(() => {
 .profile-hero-info p { font-size:13px; color:var(--text-muted); margin-bottom:8px; }
 .profile-badges { display:flex; gap:8px; flex-wrap:wrap; }
 .profile-fields { display:flex; flex-direction:column; gap:8px; }
+.profile-edit-wrap { margin-top:20px; }
 .pf-row { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--surface); border:1px solid var(--surface-border); border-radius:var(--radius-sm); }
 .pf-icon-wrap { width:32px; height:32px; border-radius:8px; background:rgba(37,99,235,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .pf-label { font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }

@@ -5,7 +5,10 @@
         <div class="profile-drawer">
           <!-- Header -->
           <div class="pd-header">
-            <div class="pd-avatar">{{ initials }}</div>
+            <div class="pd-avatar">
+              <img v-if="avatarUrl" :src="avatarUrl" :alt="user?.name || 'Profile photo'" class="pd-avatar-img" />
+              <span v-else>{{ initials }}</span>
+            </div>
             <div class="pd-header-info">
               <div class="pd-name">{{ user?.name }}</div>
               <div class="pd-role">{{ roleLabel }}</div>
@@ -43,60 +46,12 @@
             </div>
           </div>
 
-          <!-- Edit section -->
-          <div class="pd-section">
-            <div class="pd-section-title">Edit Profile</div>
-            <form @submit.prevent="save" class="pd-form">
-              <div class="pd-form-group">
-                <label class="pd-label">Full Name</label>
-                <input v-model="form.name" class="pd-input" placeholder="Your full name" required />
-              </div>
-              <div class="pd-form-group">
-                <label class="pd-label">New Password <span class="pd-optional">(leave blank to keep current)</span></label>
-                <div class="pd-input-wrap">
-                  <input
-                    v-model="form.newPassword"
-                    :type="showPw ? 'text' : 'password'"
-                    class="pd-input"
-                    placeholder="Min 8 characters"
-                    minlength="8"
-                    autocomplete="new-password"
-                  />
-                  <button type="button" class="pd-pw-toggle" @click="showPw = !showPw">
-                    <AppIcon name="eye" :size="14" color="var(--text-muted)" />
-                  </button>
-                </div>
-              </div>
-              <div v-if="form.newPassword" class="pd-form-group">
-                <label class="pd-label">Confirm New Password</label>
-                <input
-                  v-model="form.confirmPassword"
-                  :type="showPw ? 'text' : 'password'"
-                  class="pd-input"
-                  :class="{ 'input-error': form.confirmPassword && form.newPassword !== form.confirmPassword }"
-                  placeholder="Repeat password"
-                  autocomplete="new-password"
-                />
-                <span v-if="form.confirmPassword && form.newPassword !== form.confirmPassword" class="pd-error-hint">Passwords do not match</span>
-              </div>
-
-              <div v-if="errorMsg" class="pd-alert pd-alert-error">
-                <AppIcon name="alert-triangle" :size="14" />{{ errorMsg }}
-              </div>
-              <div v-if="successMsg" class="pd-alert pd-alert-success">
-                <AppIcon name="check-circle" :size="14" />{{ successMsg }}
-              </div>
-
-              <button
-                type="submit"
-                class="pd-save-btn"
-                :disabled="saving || (form.newPassword && form.newPassword !== form.confirmPassword)"
-              >
-                <span v-if="saving" class="pd-spinner"></span>
-                <AppIcon v-else name="check" :size="15" />
-                {{ saving ? 'Saving…' : 'Save Changes' }}
-              </button>
-            </form>
+          <!-- Edit profile → Settings -->
+          <div class="pd-section pd-edit-cta-section">
+            <button class="pd-edit-cta" @click="goToSettings">
+              <AppIcon name="settings" :size="16" />
+              <span>Edit Profile in Settings</span>
+            </button>
           </div>
         </div>
       </div>
@@ -105,21 +60,21 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
-import api from '../../api'
+import { useScrollLock } from '../../composables/useScrollLock'
+import { toRef } from 'vue'
 
 const props = defineProps({
   modelValue: Boolean,
   user: { type: Object, default: null },
 })
-const emit = defineEmits(['update:modelValue', 'updated'])
+const emit = defineEmits(['update:modelValue'])
 
-const saving     = ref(false)
-const showPw     = ref(false)
-const errorMsg   = ref('')
-const successMsg = ref('')
-const form = ref({ name: '', newPassword: '', confirmPassword: '' })
+useScrollLock(toRef(props, 'modelValue'))
+
+const router = useRouter()
 
 const initials = computed(() =>
   (props.user?.name || 'U').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
@@ -135,37 +90,27 @@ const schoolName = computed(() =>
   props.user?.school?.name || props.user?.teacher?.school_name || null
 )
 
-// Reset form when modal opens
-watch(() => props.modelValue, (open) => {
-  if (open) {
-    form.value = { name: props.user?.name || '', newPassword: '', confirmPassword: '' }
-    errorMsg.value   = ''
-    successMsg.value = ''
-    showPw.value     = false
-  }
+// Show an actual profile photo if one is set on the account; otherwise
+// fall back to the initials avatar used throughout the rest of the app.
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+const avatarUrl = computed(() => {
+  const url = props.user?.avatar
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
 })
 
-async function save() {
-  errorMsg.value   = ''
-  successMsg.value = ''
-  if (form.value.newPassword && form.value.newPassword !== form.value.confirmPassword) {
-    errorMsg.value = 'Passwords do not match'
-    return
-  }
-  saving.value = true
-  try {
-    const payload = { name: form.value.name }
-    if (form.value.newPassword) payload.newPassword = form.value.newPassword
-    const updated = await api.put('/auth/profile', payload)
-    successMsg.value = 'Profile updated successfully!'
-    form.value.newPassword     = ''
-    form.value.confirmPassword = ''
-    emit('updated', updated)
-  } catch (e) {
-    errorMsg.value = e.response?.data?.message || 'Failed to update profile'
-  } finally {
-    saving.value = false
-  }
+const settingsRouteByRole = {
+  super_admin:  '/super/settings',
+  school_admin: '/school/settings',
+  teacher:      '/teacher/profile',
+}
+
+function goToSettings() {
+  emit('update:modelValue', false)
+  const target = settingsRouteByRole[props.user?.role] || '/teacher/profile'
+  router.push(target)
 }
 </script>
 
@@ -186,7 +131,6 @@ async function save() {
 /* Header */
 .pd-header {
   display: flex; align-items: center; gap: 14px;
-  /* padding: 28px 24px 22px; */
   height: 76px;
   padding-left: 20px;
   padding-right: 20px;
@@ -198,7 +142,9 @@ async function save() {
   background: linear-gradient(135deg, var(--primary), var(--accent));
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 20px; font-weight: 800;
+  overflow: hidden;
 }
+.pd-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 16px; }
 .pd-header-info { flex: 1; min-width: 0; }
 .pd-name { font-size: 17px; font-weight: 800; }
 .pd-role { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
@@ -227,52 +173,18 @@ async function save() {
 .pd-info-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
 .pd-info-val { font-size: 13px; font-weight: 600; }
 
-/* Form */
-.pd-form { display: flex; flex-direction: column; gap: 14px; }
-.pd-form-group { display: flex; flex-direction: column; gap: 6px; }
-.pd-label {
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--text-secondary);
+/* Edit-profile CTA → Settings */
+.pd-edit-cta-section { border-bottom: none; }
+.pd-edit-cta {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--surface-border);
+  background: var(--bg); color: var(--text);
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  font-family: var(--font); transition: all 0.2s;
 }
-.pd-optional { font-weight: 400; text-transform: none; color: var(--text-muted); font-size: 10px; }
-.pd-input-wrap { position: relative; }
-.pd-input {
-  width: 100%; padding: 10px 12px; background: var(--bg);
-  border: 1.5px solid var(--surface-border); border-radius: var(--radius-sm);
-  color: var(--text); font-size: 14px; font-family: var(--font);
-  transition: all 0.2s; box-sizing: border-box;
-}
-.pd-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
-.pd-input.input-error { border-color: var(--danger); }
-.pd-pw-toggle {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  background: none; border: none; cursor: pointer; display: flex; padding: 4px;
-}
-.pd-error-hint { font-size: 11px; color: var(--danger); }
-
-.pd-alert {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-radius: var(--radius-sm);
-  font-size: 13px; font-weight: 500;
-}
-.pd-alert-error   { background: rgba(239,68,68,0.07);  border: 1px solid rgba(239,68,68,0.2); color: var(--danger); }
-.pd-alert-success { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.2); color: var(--success); }
-
-.pd-save-btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 12px; border-radius: var(--radius-sm); border: none;
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
-  transition: all 0.2s; font-family: var(--font);
-  box-shadow: 0 4px 16px var(--primary-glow);
-}
-.pd-save-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 24px var(--primary-glow); }
-.pd-save-btn:disabled { opacity: 0.65; cursor: not-allowed; }
-.pd-spinner {
-  width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+.pd-edit-cta span { flex: 1; text-align: left; }
+.pd-edit-cta:hover { border-color: var(--primary); color: var(--primary); background: rgba(37,99,235,0.06); }
 
 /* Transition */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.25s; }

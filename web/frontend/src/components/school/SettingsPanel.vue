@@ -361,6 +361,9 @@
             </div>
           </div>
         </div>
+
+        <!-- Edit Profile Card -->
+        <EditProfileCard :user="auth.user" @updated="onProfileUpdated" />
       </div>
 
     </div><!-- end settings-layout -->
@@ -370,11 +373,22 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
+import EditProfileCard from '../ui/EditProfileCard.vue'
 import { useToast } from '../../composables/useToast'
+import { useAuthStore } from '../../stores/auth'
 import api from '../../api'
 
 defineProps({ schoolId: [Number, String] })
 const toast = useToast()
+const auth  = useAuthStore()
+
+function onProfileUpdated(updatedUser) {
+  if (updatedUser && auth.user) {
+    auth.user.name = updatedUser.name || auth.user.name
+    localStorage.setItem('esa_user', JSON.stringify(auth.user))
+  }
+  toast.success('Profile updated successfully')
+}
 
 // ── Desktop detection ──────────────────────────────────────────────────────
 const isDesktop = ref(typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron'))

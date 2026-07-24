@@ -33,7 +33,10 @@
 
 <script setup>
 import AppIcon from './AppIcon.vue'
-defineProps({
+import { toRef } from 'vue'
+import { useScrollLock } from '../../composables/useScrollLock'
+
+const props = defineProps({
   modelValue: Boolean,
   title: String,
   subtitle: String,
@@ -42,6 +45,8 @@ defineProps({
   maxWidth: String,
 })
 defineEmits(['update:modelValue'])
+
+useScrollLock(toRef(props, 'modelValue'))
 </script>
 
 <style>

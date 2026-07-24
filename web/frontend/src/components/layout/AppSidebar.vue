@@ -67,6 +67,7 @@ import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { disconnectSocket } from '../../socket'
 import AppIcon from '../ui/AppIcon.vue'
+import { useScrollLock } from '../../composables/useScrollLock'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -78,6 +79,10 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const isMobile = ref(false)
+
+// Only lock background scroll when the sidebar is acting as a mobile
+// overlay — on desktop it sits alongside the content, not on top of it.
+useScrollLock(computed(() => props.modelValue && isMobile.value))
 
 const user = computed(() => auth.user)
 const roleLabel = computed(() => ({
@@ -199,7 +204,7 @@ onUnmounted(() => window.removeEventListener('resize', checkMobile))
   cursor: pointer; position: relative;
   margin-bottom: 2px;
 }
-.nav-link:hover { background: var(--surface); color: var(--primary); }
+.nav-link:hover { color: var(--primary); }
 .nav-active {
   background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(6,182,212,0.07));
   color: var(--primary);

@@ -2,7 +2,7 @@
   <DashboardLayout
     :navSections="navSections"
     :pageTitle="currentPageTitle"
-    pageSubtitle="Super Admin Control Panel"
+    pageSubtitle="Super Admin"
   >
     <Transition name="page" mode="out-in">
       <SuperOverview
