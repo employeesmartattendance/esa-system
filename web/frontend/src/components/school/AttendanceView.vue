@@ -33,9 +33,9 @@
         <input v-model="filters.date" type="date" class="form-input filter-input" />
       </div>
       <div class="filter-group">
-        <label class="filter-label"><AppIcon name="user" :size="13" />Teacher</label>
+        <label class="filter-label"><AppIcon name="user" :size="13" />{{ vocab.personNoun }}</label>
         <select v-model="filters.teacherId" class="form-input form-select filter-input">
-          <option value="">All Teachers</option>
+          <option value="">All {{ vocab.personNounPlural }}</option>
           <option v-for="t in teachers" :key="t.id" :value="t.id">{{ t.name }}</option>
         </select>
       </div>
@@ -104,7 +104,7 @@
     <!-- View Attendance Modal -->
     <AppModal v-model="showViewModal" title="Attendance Details" icon="attendance" max-width="460px">
       <div v-if="viewTarget" class="view-detail-grid">
-        <div class="vd-row"><span class="vd-label">Teacher</span><span class="vd-val">{{ viewTarget.teacher_name }}</span></div>
+        <div class="vd-row"><span class="vd-label">{{ vocab.personNoun }}</span><span class="vd-val">{{ viewTarget.teacher_name }}</span></div>
         <div class="vd-row"><span class="vd-label">Date</span><span class="vd-val">{{ formatDate(viewTarget.date) }}</span></div>
         <div class="vd-row"><span class="vd-label">Check In</span><span class="vd-val">{{ viewTarget.check_in || '—' }}</span></div>
         <div class="vd-row"><span class="vd-label">Check Out</span><span class="vd-val">{{ viewTarget.check_out || '—' }}</span></div>
@@ -124,6 +124,7 @@ import AppBadge from '../ui/AppBadge.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import AppModal from '../ui/AppModal.vue'
 import { useToast } from '../../composables/useToast'
+import { useIndustry } from '../../composables/useIndustry'
 import api from '../../api'
 
 // jspdf + jspdf-autotable are only needed when the user clicks "Export PDF",
@@ -136,21 +137,22 @@ const showViewModal = ref(false)
 const viewTarget = ref(null)
 function openView(row) { viewTarget.value = row; showViewModal.value = true }
 const toast = useToast()
+const { vocab } = useIndustry()
 
 const filters = ref({ date: new Date().toISOString().split('T')[0], teacherId: '', status: '' })
 const appliedFilters = ref({ ...filters.value })
 const lastUpdate = ref(new Date().toLocaleTimeString())
 const exporting = ref(false)
 
-const cols = [
-  { key: 'teacher', label: 'Teacher', sortable: true },
+const cols = computed(() => [
+  { key: 'teacher', label: vocab.value.personNoun, sortable: true },
   { key: 'date', label: 'Date', sortable: true, hideMobile: true },
   { key: 'checkin', label: 'Check In', hideMobile: true },
   { key: 'checkout', label: 'Check Out', hideMobile: true },
   { key: 'status', label: 'Status', hideMobile: true },
   { key: 'verify', label: 'Verified', hideMobile: true },
   { key: 'actions', label: 'Actions' },
-]
+])
 
 const filteredRecords = computed(() => {
   let r = props.records

@@ -44,15 +44,20 @@ import { computed, inject } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { disconnectSocket } from '../socket'
+import { useIndustry } from '../composables/useIndustry'
 
 const props = defineProps({ modelValue: Boolean, currentSection: String, navSections: Array })
 const emit = defineEmits(['update:modelValue', 'section'])
 const auth = useAuthStore()
 const router = useRouter()
 const user = computed(() => auth.user)
+const { vocab } = useIndustry()
 
 const roleLabel = computed(() => {
-  const map = { super_admin: 'Super Admin', school_admin: 'School Admin', teacher: 'Teacher' }
+  // school_admin's title becomes industry-aware (e.g. "Company Admin");
+  // falls back to 'School Admin' automatically since useIndustry() defaults
+  // to the 'school' vocabulary when no industry is set on the user yet.
+  const map = { super_admin: 'Super Admin', school_admin: vocab.value.adminLabel, teacher: 'Teacher' }
   return map[user.value?.role] || ''
 })
 

@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="stats-grid">
-      <StatCard icon="teachers" label="Total Teachers" :value="stats.totalTeachers" value-color="var(--primary)" icon-color="var(--primary)" bg-color="rgba(37,99,235,0.1)" glow-color="rgba(37,99,235,0.08)" delay="0s" />
+      <StatCard icon="teachers" :label="`Total ${vocab.personNounPlural}`" :value="stats.totalTeachers" value-color="var(--primary)" icon-color="var(--primary)" bg-color="rgba(37,99,235,0.1)" glow-color="rgba(37,99,235,0.08)" delay="0s" />
       <StatCard icon="check-circle" label="Present Today" :value="stats.presentToday" value-color="var(--success)" icon-color="var(--success)" bg-color="rgba(16,185,129,0.1)" glow-color="rgba(16,185,129,0.08)" delay="0.05s" />
       <StatCard icon="clock" label="Late Today" :value="stats.lateToday" value-color="var(--warning)" icon-color="var(--warning)" bg-color="rgba(245,158,11,0.1)" glow-color="rgba(245,158,11,0.08)" delay="0.1s" />
       <StatCard icon="x-circle" label="Absent Today" :value="stats.absentToday" value-color="var(--danger)" icon-color="var(--danger)" bg-color="rgba(239,68,68,0.1)" glow-color="rgba(239,68,68,0.08)" delay="0.15s" />
@@ -13,7 +13,7 @@
         <div class="card-header">
           <div class="card-title">
             <AppIcon name="live" :size="18" color="var(--success)" />
-            Live Teacher Status
+            Live {{ vocab.personNoun }} Status
           </div>
           <div class="live-badge"><span class="pulse-dot"></span>Real-time</div>
         </div>
@@ -22,7 +22,7 @@
             <div class="ts-avatar">{{ t.name?.charAt(0) }}</div>
             <div class="ts-info">
               <div class="ts-name">{{ t.name }}</div>
-              <div class="ts-sub">{{ t.subject || 'Teacher' }}</div>
+              <div class="ts-sub">{{ t.subject || vocab.personNoun }}</div>
             </div>
             <div class="ts-right">
               <AppBadge :variant="t.today_status || 'absent'" :label="t.today_status || 'absent'" dot />
@@ -30,7 +30,7 @@
             </div>
           </div>
         </div>
-        <EmptyState v-else icon="teachers" title="No teachers" message="Add teachers to see live status" />
+        <EmptyState v-else icon="teachers" :title="`No ${vocab.personNounPlural.toLowerCase()}`" :message="`Add ${vocab.personNounPlural.toLowerCase()} to see live status`" />
       </div>
 
       <!-- Recent attendance -->
@@ -55,7 +55,7 @@
             <AppBadge :variant="r.status" :label="r.status" dot />
           </div>
         </div>
-        <EmptyState v-else icon="attendance" title="No check-ins yet" message="Teachers' attendance will appear here" />
+        <EmptyState v-else icon="attendance" title="No check-ins yet" :message="`${vocab.personNounPlural}' attendance will appear here`" />
       </div>
     </div>
   </div>
@@ -66,12 +66,14 @@ import StatCard from '../ui/StatCard.vue'
 import AppBadge from '../ui/AppBadge.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import EmptyState from '../ui/EmptyState.vue'
+import { useIndustry } from '../../composables/useIndustry'
 defineProps({
   stats: { type: Object, default: () => ({}) },
   teachers: { type: Array, default: () => [] },
   recentAttendance: { type: Array, default: () => [] },
 })
 defineEmits(['go-attendance'])
+const { vocab } = useIndustry()
 </script>
 
 <style scoped>

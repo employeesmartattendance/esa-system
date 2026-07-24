@@ -2,7 +2,7 @@
   <DashboardLayout
     :navSections="navSections"
     :pageTitle="currentPageTitle"
-    pageSubtitle="School Administration"
+    :pageSubtitle="vocab.dashboardSubtitle"
   >
     <Transition name="page" mode="out-in">
       <SchoolOverview
@@ -53,11 +53,13 @@ import SettingsPanel     from '../components/school/SettingsPanel.vue'
 import ReportsView      from '../components/school/ReportsView.vue'
 import { useAuthStore }  from '../stores/auth'
 import { getSocket }     from '../socket'
+import { useIndustry }   from '../composables/useIndustry'
 import api from '../api'
 
 const auth   = useAuthStore()
 const route  = useRoute()
 const router = useRouter()
+const { vocab } = useIndustry()
 
 /* ── Section ──────────────────────────────────────────────────────────── */
 const routeMap = {
@@ -91,15 +93,18 @@ const loadingTeachers   = ref(false)
 const loadingAttendance = ref(false)
 
 /* ── Nav ──────────────────────────────────────────────────────────────── */
-const navSections = [
+// Labels are industry-aware (e.g. "Teachers" -> "Employees" for a company);
+// routes/paths are intentionally left as-is so URLs, bookmarks, and the
+// router config stay stable regardless of industry.
+const navSections = computed(() => [
   { group: 'Overview',   items: [{ to: '/school/dashboard',  label: 'Dashboard',  icon: 'dashboard'  }] },
-  { group: 'Management', items: [{ to: '/school/teachers',   label: 'Teachers',   icon: 'teachers'   },
+  { group: 'Management', items: [{ to: '/school/teachers',   label: vocab.value.personNounPlural, icon: 'teachers'   },
                                   { to: '/school/attendance', label: 'Attendance', icon: 'attendance' }] },
   { group: 'Configure',  items: [{ to: '/school/settings',   label: 'Settings',   icon: 'settings'   }] },
   { group: 'Reports',    items: [{ to: '/school/reports',    label: 'Reports',    icon: 'analytics'  }] },
-]
-const pageTitles = { dashboard: 'Dashboard', teachers: 'Teachers', attendance: 'Attendance', settings: 'Settings', reports: 'Reports' }
-const currentPageTitle = computed(() => pageTitles[section.value] || 'Dashboard')
+])
+const pageTitles = computed(() => ({ dashboard: 'Dashboard', teachers: vocab.value.personNounPlural, attendance: 'Attendance', settings: 'Settings', reports: 'Reports' }))
+const currentPageTitle = computed(() => pageTitles.value[section.value] || 'Dashboard')
 
 /* ── Data fetchers ────────────────────────────────────────────────────── */
 // NOTE: api.js interceptor unwraps the { success, data, message } envelope,

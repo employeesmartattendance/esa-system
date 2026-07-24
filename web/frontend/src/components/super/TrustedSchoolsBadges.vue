@@ -3,18 +3,18 @@
     <!-- Header -->
     <div class="section-header">
       <div>
-        <h2 class="section-title">Trusted Schools</h2>
-        <p class="section-desc">Manage school badges displayed on the ESA website</p>
+        <h2 class="section-title">Trusted Clients</h2>
+        <p class="section-desc">Manage client badges displayed on the ESA website</p>
       </div>
       <button class="btn btn-primary" @click="openCreate">
-        <AppIcon name="plus" :size="16" />Add School Badge
+        <AppIcon name="plus" :size="16" />Add Client Badge
       </button>
     </div>
 
     <!-- Info banner -->
     <div class="info-banner glass">
       <AppIcon name="info" :size="18" color="var(--accent)" />
-      <span>Schools listed here appear on the ESA website. Upload a logo image or leave blank to show initials. Names appear on hover.</span>
+      <span>Clients listed here appear on the ESA website. Upload a logo image or leave blank to show initials. Names appear on hover.</span>
     </div>
 
     <!-- Loading -->
@@ -26,14 +26,14 @@
     <!-- Empty state -->
     <div v-else-if="schools.length === 0" class="ts-empty glass">
       <AppIcon name="school" :size="36" color="var(--text-muted)" />
-      <p style="color:var(--text-muted);font-size:15px;font-weight:600">No trusted school badges yet</p>
-      <p style="color:var(--text-muted);font-size:13px">Add schools to display them on the ESA website.</p>
+      <p style="color:var(--text-muted);font-size:15px;font-weight:600">No trusted client badges yet</p>
+      <p style="color:var(--text-muted);font-size:13px">Add clients to display them on the ESA website.</p>
       <button class="btn btn-primary" @click="openCreate">
-        <AppIcon name="plus" :size="15" /> Add First School
+        <AppIcon name="plus" :size="15" /> Add First Client
       </button>
     </div>
 
-    <!-- Grid of school cards -->
+    <!-- Grid of client cards -->
     <div v-else class="ts-grid">
       <div class="glass ts-card" v-for="s in schools" :key="s.id">
         <!-- Logo / initials -->
@@ -72,7 +72,7 @@
     <!-- ── CREATE / EDIT MODAL ── -->
     <AppModal
       v-model="showModal"
-      :title="editMode ? 'Edit School Badge' : 'Add School Badge'"
+      :title="editMode ? 'Edit Client Badge' : 'Add Client Badge'"
       icon="school"
       max-width="500px"
     >
@@ -80,7 +80,7 @@
 
         <!-- Name -->
         <div class="form-group">
-          <label class="form-label">School Name *</label>
+          <label class="form-label">Client Name *</label>
           <input
             class="form-input"
             v-model="form.name"
@@ -92,7 +92,7 @@
         <!-- Logo drag & drop -->
         <div class="form-group">
           <label class="form-label">
-            School Logo
+            Client Logo
             <span style="font-weight:400;color:var(--text-muted)">(optional)</span>
           </label>
 
@@ -162,7 +162,7 @@
             <div v-else class="ts-initial" style="font-size:22px;color:var(--text-muted)">?</div>
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:8px;font-weight:600">
-            {{ form.name || 'School Name' }}
+            {{ form.name || 'Client Name' }}
           </div>
         </div>
 
@@ -198,7 +198,7 @@
           >
             <div v-if="saving" class="spinner" style="width:16px;height:16px;border-color:rgba(255,255,255,.3);border-top-color:#fff"></div>
             <AppIcon v-else name="check" :size="16" />
-            {{ saving ? 'Saving…' : (editMode ? 'Save Changes' : 'Add School Badge') }}
+            {{ saving ? 'Saving…' : (editMode ? 'Save Changes' : 'Add Client Badge') }}
           </button>
         </div>
       </div>
@@ -207,13 +207,13 @@
     <!-- ── DELETE CONFIRMATION MODAL ── -->
     <AppModal
       v-model="showDeleteModal"
-      title="Remove School Badge"
+      title="Remove Client Badge"
       icon="trash"
       max-width="420px"
     >
       <div v-if="deleteTarget" style="display:flex;flex-direction:column;gap:20px">
         <div class="delete-confirm-body">
-          <!-- School logo/initials preview -->
+          <!-- Client logo/initials preview -->
           <div class="delete-school-preview">
             <img
               v-if="deleteTarget.logo_url && !brokenLogos.has(deleteTarget.id)"
@@ -384,7 +384,7 @@ async function uploadLogo() {
     uploadProgress.value = 100
     return r?.logo_url || null
   } catch {
-    uploadError.value = 'Logo upload failed. School will be saved without a logo.'
+    uploadError.value = 'Logo upload failed. Client will be saved without a logo.'
     return null
   } finally {
     uploading.value = false
@@ -464,7 +464,7 @@ async function saveSchool() {
     }
 
     saved = true
-    showToast({ type: 'success', message: editMode.value ? 'School badge updated' : 'School badge added' })
+    showToast({ type: 'success', message: editMode.value ? 'Client badge updated' : 'Client badge added' })
   } catch {
     showToast({ type: 'error', message: 'Save failed. Please try again.' })
   } finally {

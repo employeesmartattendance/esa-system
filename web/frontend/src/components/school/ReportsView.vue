@@ -24,7 +24,7 @@
           <AppIcon name="teachers" :size="22" color="var(--primary)" />
         </div>
         <div class="sc-val">{{ latestReport.total_teachers }}</div>
-        <div class="sc-lbl">Total Teachers</div>
+        <div class="sc-lbl">Total {{ vocab.personNounPlural }}</div>
       </div>
       <div class="glass summary-card">
         <div class="sc-icon" style="background:rgba(16,185,129,0.1)">
@@ -164,6 +164,8 @@ import AppModal from '../ui/AppModal.vue'
 import api from '../../api'
 import { useToast } from '../../composables/useToast'
 import { getSocket } from '../../socket'
+import { useIndustry } from '../../composables/useIndustry'
+const { vocab } = useIndustry()
 
 const { showToast } = useToast()
 const reports    = ref([])

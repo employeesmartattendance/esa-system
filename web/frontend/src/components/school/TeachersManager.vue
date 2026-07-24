@@ -2,16 +2,16 @@
   <div class="page-root">
     <div class="section-header">
       <div>
-        <h2 class="section-title">Teachers</h2>
-        <p class="section-desc">Manage teacher accounts and credentials</p>
+        <h2 class="section-title">{{ vocab.personNounPlural }}</h2>
+        <p class="section-desc">Manage {{ vocab.personNoun.toLowerCase() }} accounts and credentials</p>
       </div>
       <button class="btn btn-primary" @click="openCreate">
-        <AppIcon name="plus" :size="16" />Add Teacher
+        <AppIcon name="plus" :size="16" />Add {{ vocab.personNoun }}
       </button>
     </div>
 
     <div class="glass">
-      <DataTable :columns="cols" :rows="teachers" :loading="loading" searchable search-placeholder="Search teachers..." empty-icon="teachers" empty-title="No teachers yet" empty-message="Add your first teacher to get started.">
+      <DataTable :columns="cols" :rows="teachers" :loading="loading" searchable :search-placeholder="`Search ${vocab.personNounPlural.toLowerCase()}...`" empty-icon="teachers" :empty-title="`No ${vocab.personNounPlural.toLowerCase()} yet`" :empty-message="`Add your first ${vocab.personNoun.toLowerCase()} to get started.`">
         <template #actions>
           <button class="btn btn-ghost btn-sm" @click="$emit('refresh')"><AppIcon name="refresh" :size="14" />Refresh</button>
         </template>
@@ -50,7 +50,7 @@
     </div>
 
     <!-- View Details Modal -->
-    <AppModal v-model="showViewModal" title="Teacher Details" icon="user" max-width="480px">
+    <AppModal v-model="showViewModal" :title="`${vocab.personNoun} Details`" icon="user" max-width="480px">
       <div v-if="viewTarget" class="view-detail-grid">
         <div class="vd-row"><span class="vd-label">Name</span><span class="vd-val">{{ viewTarget.name }}</span></div>
         <div class="vd-row"><span class="vd-label">Email</span><span class="vd-val">{{ viewTarget.email }}</span></div>
@@ -64,12 +64,12 @@
     </AppModal>
 
     <!-- Create/Edit Modal -->
-    <AppModal v-model="showModal" :title="editing ? 'Edit Teacher' : 'Add Teacher'" icon="user" max-width="580px">
+    <AppModal v-model="showModal" :title="editing ? `Edit ${vocab.personNoun}` : `Add ${vocab.personNoun}`" icon="user" max-width="580px">
       <form @submit.prevent="save" class="modal-form">
         <div class="form-row two-col">
           <div class="form-group">
             <label class="form-label">Full Name *</label>
-            <input v-model="form.name" class="form-input" placeholder="Teacher's full name" required />
+            <input v-model="form.name" class="form-input" :placeholder="`${vocab.personNoun}'s full name`" required />
           </div>
           <div class="form-group">
             <label class="form-label">Email *</label>
@@ -98,16 +98,16 @@
           <button type="button" class="btn btn-ghost" @click="showModal=false">Cancel</button>
           <button type="submit" class="btn btn-primary" :disabled="saving">
             <span v-if="saving" class="btn-spinner-sm"></span>
-            {{ editing ? 'Save Changes' : 'Add Teacher' }}
+            {{ editing ? 'Save Changes' : `Add ${vocab.personNoun}` }}
           </button>
         </div>
       </form>
     </AppModal>
 
     <!-- Delete confirm -->
-    <AppModal v-model="showDeleteModal" title="Remove Teacher" subtitle="This cannot be undone" icon="trash" icon-color="var(--danger)">
+    <AppModal v-model="showDeleteModal" :title="`Remove ${vocab.personNoun}`" subtitle="This cannot be undone" icon="trash" icon-color="var(--danger)">
       <p style="font-size:14px;color:var(--text-secondary);margin-bottom:20px">
-        Remove <strong>{{ deleteTarget?.name }}</strong> from this school? Their attendance records will be kept.
+        Remove <strong>{{ deleteTarget?.name }}</strong> from this {{ vocab.orgNoun.toLowerCase() }}? Their attendance records will be kept.
       </p>
       <div class="form-actions">
         <button class="btn btn-ghost" @click="showDeleteModal=false">Cancel</button>
@@ -118,17 +118,19 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import DataTable from '../ui/DataTable.vue'
 import AppModal from '../ui/AppModal.vue'
 import AppBadge from '../ui/AppBadge.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import { useToast } from '../../composables/useToast'
+import { useIndustry } from '../../composables/useIndustry'
 import api from '../../api'
 
 const props = defineProps({ teachers: { type: Array, default: () => [] }, loading: Boolean, schoolId: [Number, String] })
 const emit = defineEmits(['refresh'])
 const toast = useToast()
+const { vocab } = useIndustry()
 
 const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
 const apiBase = API.replace('/api', '')
@@ -149,14 +151,14 @@ const form = ref({ name: '', email: '', phone: '', subject: '', password: '' })
 
 function openView(row) { viewTarget.value = row; showViewModal.value = true }
 
-const cols = [
-  { key: 'name', label: 'Teacher', sortable: true },
+const cols = computed(() => [
+  { key: 'name', label: vocab.value.personNoun, sortable: true },
   { key: 'subject', label: 'Subject', hideMobile: true },
   { key: 'phone', label: 'Phone', hideMobile: true },
   { key: 'today', label: "Today's Status", hideMobile: true },
   { key: 'status', label: 'Account', hideMobile: true },
   { key: 'actions', label: 'Actions' },
-]
+])
 
 function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '' }; showModal.value = true }
 function openEdit(row) { editing.value = true; form.value = { ...row, password: '' }; showModal.value = true }
@@ -167,9 +169,9 @@ async function save() {
   try {
     if (editing.value) await api.put(`/teachers/${form.value.id}`, form.value)
     else await api.post('/teachers', form.value)
-    toast.success(editing.value ? 'Teacher updated' : 'Teacher added successfully')
+    toast.success(editing.value ? `${vocab.value.personNoun} updated` : `${vocab.value.personNoun} added successfully`)
     showModal.value = false; emit('refresh')
-  } catch (e) { toast.error(e.response?.data?.message || e.response?.data?.error || 'Failed to save teacher') }
+  } catch (e) { toast.error(e.response?.data?.message || e.response?.data?.error || `Failed to save ${vocab.value.personNoun.toLowerCase()}`) }
   finally { saving.value = false }
 }
 
@@ -177,9 +179,9 @@ async function doDelete() {
   saving.value = true
   try {
     await api.delete(`/teachers/${deleteTarget.value.id}`)
-    toast.success('Teacher removed')
+    toast.success(`${vocab.value.personNoun} removed`)
     showDeleteModal.value = false; emit('refresh')
-  } catch { toast.error('Failed to remove teacher') }
+  } catch { toast.error(`Failed to remove ${vocab.value.personNoun.toLowerCase()}`) }
   finally { saving.value = false }
 }
 </script>

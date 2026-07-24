@@ -163,7 +163,7 @@ const avatarUpload = multer({ storage: mkStorage('avatars'), limits: { fileSize:
 const { Schema, Types: { ObjectId } } = mongoose;
 const vOpts = { timestamps: true, toJSON: { virtuals: true } };
 
-const SchoolSchema = new Schema({ name: { type: String, required: true }, address: String, phone: String, email: String, status: { type: String, enum: ['active','inactive'], default: 'active' } }, vOpts);
+const SchoolSchema = new Schema({ name: { type: String, required: true }, address: String, phone: String, email: String, status: { type: String, enum: ['active','inactive'], default: 'active' }, industry: { type: String, default: 'school' } }, vOpts);
 SchoolSchema.index({ status: 1 });
 
 const UserSchema = new Schema({ name: { type: String, required: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true }, password: { type: String, required: true }, role: { type: String, enum: ['super_admin','school_admin','teacher'], required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', default: null }, phone: String, avatar: String, status: { type: String, enum: ['active','inactive'], default: 'active' }, last_login: Date }, vOpts);
@@ -532,11 +532,12 @@ async function createSchool(req, res) {
   const adminName     = req.body.adminName     || req.body.admin_name;
   const adminEmail    = req.body.adminEmail    || req.body.admin_email;
   const adminPassword = req.body.adminPassword || req.body.admin_password;
+  const industry       = req.body.industry || 'school';
   if (!name || !adminName || !adminEmail || !adminPassword) return sendError(res, 'School name, admin name, email, and password are required');
   if (await User.findOne({ email: adminEmail.toLowerCase() })) return sendError(res, 'Admin email already in use');
   let school;
   try {
-    school = await School.create({ name, address: address || null, phone: phone || null, email: email || null });
+    school = await School.create({ name, address: address || null, phone: phone || null, email: email || null, industry });
     await User.create({ name: adminName, email: adminEmail.toLowerCase(), password: await bcrypt.hash(adminPassword, 12), role: 'school_admin', school_id: school._id });
     await Settings.create({ school_id: school._id });
     await logAction('CREATE_SCHOOL', req.user._id, `Created school: ${name}`, req.ip);
@@ -591,9 +592,11 @@ app.post('/api/super/schools', SA, async (req, res) => { try { return await crea
 app.post('/api/schools', SA, async (req, res) => { try { return await createSchool(req, res); } catch (err) { return sendError(res, err.message || 'Server error', 500); } });
 
 async function updateSchool(req, res) {
-  const { name, address, phone, email, status } = req.body;
+  const { name, address, phone, email, status, industry } = req.body;
   if (!name) return sendError(res, 'School name required');
-  await School.updateOne({ _id: req.params.id }, { name, address: address || null, phone: phone || null, email: email || null, status: status || 'active' });
+  const update = { name, address: address || null, phone: phone || null, email: email || null, status: status || 'active' };
+  if (industry) update.industry = industry;
+  await School.updateOne({ _id: req.params.id }, update);
   await logAction('UPDATE_SCHOOL', req.user._id, `Updated school ID: ${req.params.id}`, req.ip);
   emitToSuperAdmin('school_updated', { schoolId: req.params.id });
   return sendSuccess(res, null, 'School updated successfully');
@@ -1007,7 +1010,7 @@ app.get('/api/school/info', authMiddleware(['school_admin','teacher']), async (r
   try {
     let schoolId = req.user.school_id;
     if (req.user.role === 'teacher') { const t = await Teacher.findOne({ user_id: req.user._id }).lean(); if (!t) return sendError(res, 'Teacher not found', 404); schoolId = toId(t.school_id); }
-    const sc = await School.findById(schoolId).select('id name address phone email').lean();
+    const sc = await School.findById(schoolId).select('id name address phone email industry').lean();
     return sendSuccess(res, sc ? { ...sc, id: toId(sc._id) } : null);
   } catch { return sendError(res, 'Server error', 500); }
 });

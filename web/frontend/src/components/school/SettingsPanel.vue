@@ -17,7 +17,7 @@
     <!-- Status alert -->
     <div v-if="saved" class="save-alert">
       <AppIcon name="check-circle" :size="16" color="var(--success)" />
-      Settings saved successfully · Active for all teachers
+      Settings saved successfully · Active for all {{ vocab.personNounPlural.toLowerCase() }}
     </div>
 
     <div class="settings-layout">
@@ -55,7 +55,7 @@
             </div>
             <div class="card-head-text">
               <div class="card-title">GPS Geofencing</div>
-              <div class="card-desc">Teachers must be within the radius to check in</div>
+              <div class="card-desc">{{ vocab.personNounPlural }} must be within the radius to check in</div>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" v-model="form.gps_enabled" />
@@ -66,11 +66,11 @@
           <div class="card-body" :class="{ 'card-disabled': !form.gps_enabled }">
             <div class="form-row-2">
               <div class="form-group">
-                <label class="form-label">School Latitude</label>
+                <label class="form-label">{{ vocab.orgNoun }} Latitude</label>
                 <input v-model="form.school_lat" type="number" step="0.000001" class="form-input mono-font" placeholder="-1.9441" />
               </div>
               <div class="form-group">
-                <label class="form-label">School Longitude</label>
+                <label class="form-label">{{ vocab.orgNoun }} Longitude</label>
                 <input v-model="form.school_lng" type="number" step="0.000001" class="form-input mono-font" placeholder="30.0619" />
               </div>
             </div>
@@ -95,7 +95,7 @@
             <button class="btn btn-ghost btn-sm full-w" @click="detectLocation" :disabled="detectingGPS">
               <span v-if="detectingGPS" class="btn-spinner-xs"></span>
               <AppIcon v-else name="location" :size="14" />
-              {{ detectingGPS ? 'Detecting your location...' : 'Use My Current Location as School' }}
+              {{ detectingGPS ? 'Detecting your location...' : `Use My Current Location as ${vocab.orgNoun}` }}
             </button>
           </div>
         </div><!-- end GPS card -->
@@ -107,7 +107,7 @@
             </div>
             <div class="card-head-text">
               <div class="card-title">Wi-Fi Validation</div>
-              <div class="card-desc">Require school network connection to check in</div>
+              <div class="card-desc">Require {{ vocab.orgNoun.toLowerCase() }} network connection to check in</div>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" v-model="form.wifi_enabled" />
@@ -128,7 +128,7 @@
             </div>
             <div class="info-box">
               <AppIcon name="info" :size="13" color="var(--primary)" />
-              <span>Find your router's BSSID in network settings. Teachers must be on this Wi-Fi to check in.</span>
+              <span>Find your router's BSSID in network settings. {{ vocab.personNounPlural }} must be on this Wi-Fi to check in.</span>
             </div>
           </div>
         </div>
@@ -254,7 +254,7 @@
             </div>
             <div class="card-head-text">
               <div class="card-title">Automatic Check-Out</div>
-              <div class="card-desc">Auto-close attendance at end of school day</div>
+              <div class="card-desc">Auto-close attendance at end of {{ vocab.orgNoun.toLowerCase() }} day</div>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" v-model="form.auto_checkout_enabled" />
@@ -264,9 +264,9 @@
 
           <div class="card-body" :class="{ 'card-disabled': !form.auto_checkout_enabled }">
             <div class="form-group">
-              <label class="form-label">School Day End Time</label>
+              <label class="form-label">{{ vocab.orgNoun }} Day End Time</label>
               <input v-model="form.checkout_time" type="time" class="form-input mono-font" />
-              <p class="field-hint">All teachers still checked in will be automatically checked out at this time</p>
+              <p class="field-hint">All {{ vocab.personNounPlural.toLowerCase() }} still checked in will be automatically checked out at this time</p>
             </div>
 
             <!-- How it works -->
@@ -275,7 +275,7 @@
               <div class="hiw-steps">
                 <div class="hiw-step">
                   <div class="step-num">1</div>
-                  <span>At <strong>{{ fmt(form.checkout_time) }}</strong>, the system scans for teachers still checked in</span>
+                  <span>At <strong>{{ fmt(form.checkout_time) }}</strong>, the system scans for {{ vocab.personNounPlural.toLowerCase() }} still checked in</span>
                 </div>
                 <div class="hiw-step">
                   <div class="step-num">2</div>
@@ -283,7 +283,7 @@
                 </div>
                 <div class="hiw-step">
                   <div class="step-num">3</div>
-                  <span v-if="form.notify_admin_checkout">You receive a real-time notification with the list of auto-checked-out teachers</span>
+                  <span v-if="form.notify_admin_checkout">You receive a real-time notification with the list of auto-checked-out {{ vocab.personNounPlural.toLowerCase() }}</span>
                   <span v-else>Notifications are disabled — toggle below to enable</span>
                 </div>
               </div>
@@ -310,7 +310,7 @@
               <button class="btn btn-ghost btn-sm full-w" @click="triggerManualCheckout" :disabled="triggering">
                 <span v-if="triggering" class="btn-spinner-xs"></span>
                 <AppIcon v-else name="checkout" :size="14" />
-                {{ triggering ? 'Processing...' : 'Checkout All Currently Checked-In Teachers Now' }}
+                {{ triggering ? 'Processing...' : `Checkout All Currently Checked-In ${vocab.personNounPlural} Now` }}
               </button>
             </div>
           </div>
@@ -376,9 +376,11 @@ import AppIcon from '../ui/AppIcon.vue'
 import EditProfileCard from '../ui/EditProfileCard.vue'
 import { useToast } from '../../composables/useToast'
 import { useAuthStore } from '../../stores/auth'
+import { useIndustry } from '../../composables/useIndustry'
 import api from '../../api'
 
 defineProps({ schoolId: [Number, String] })
+const { vocab } = useIndustry()
 const toast = useToast()
 const auth  = useAuthStore()
 
@@ -514,9 +516,9 @@ async function triggerManualCheckout() {
     const r = await api.post('/school/auto-checkout/trigger')
     const d = (r && typeof r === 'object') ? r : {}
     if (d.count === 0) {
-      toast.info('No teachers currently checked in — nothing to do')
+      toast.info(`No ${vocab.value.personNounPlural.toLowerCase()} currently checked in — nothing to do`)
     } else {
-      toast.success(`${d.count} teacher(s) checked out: ${d.teachers?.join(', ')}`)
+      toast.success(`${d.count} ${vocab.value.personNoun.toLowerCase()}(s) checked out: ${d.teachers?.join(', ')}`)
     }
   } catch (e) {
     toast.error(e.response?.data?.message || 'Trigger failed')
