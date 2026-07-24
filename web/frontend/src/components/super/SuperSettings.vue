@@ -335,20 +335,20 @@ onMounted(fetchAdmins)
 .ss-title  { font-size: 22px; font-weight: 800; }
 .ss-desc   { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-.ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; min-width: 0; }
 .ss-full { grid-column: span 2; }
 
-.ss-card { padding: 22px; border-radius: var(--radius-lg); }
+.ss-card { padding: 22px; border-radius: var(--radius-lg); min-width: 0; box-sizing: border-box; }
 
 .ss-card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
 .ss-card-icon { width: 44px; height: 44px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .ss-card-title { font-size: 15px; font-weight: 700; }
 .ss-card-desc  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
-/* Profile preview */
+/* Profile preview — centered avatar/name/email/role block */
 .profile-preview {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px; margin-bottom: 18px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px;
+  padding: 20px 14px; margin-bottom: 18px;
   background: rgba(37,99,235,0.05);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius);
@@ -359,11 +359,12 @@ onMounted(fetchAdmins)
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 20px; font-weight: 800; flex-shrink: 0;
 }
-.pp-name  { font-size: 15px; font-weight: 700; }
-.pp-email { font-size: 12px; color: var(--text-muted); margin: 2px 0; }
+.pp-info  { min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; margin-top: 6px; }
+.pp-name  { font-size: 15px; font-weight: 700; word-break: break-word; }
+.pp-email { font-size: 12px; color: var(--text-muted); margin: 2px 0; word-break: break-word; max-width: 100%; }
 .pp-role  {
   font-size: 11px; color: var(--primary); font-weight: 600;
-  display: flex; align-items: center; gap: 4px; margin-top: 4px;
+  display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 4px;
 }
 
 /* Form */
@@ -432,4 +433,10 @@ onMounted(fetchAdmins)
 @keyframes ssSpin { to { transform: rotate(360deg); } }
 
 @media (max-width: 900px) { .ss-grid { grid-template-columns: 1fr; } .ss-full { grid-column: span 1; } }
+
+@media (max-width: 480px) {
+  .ss-card { padding: 16px; }
+  .admin-row { flex-wrap: wrap; }
+  .pp-name, .pp-email { word-break: break-word; }
+}
 </style>

@@ -301,7 +301,12 @@
           <!-- Profile card -->
           <div class="glass profile-card">
             <div class="profile-hero">
-              <div class="profile-avatar-xl">{{ initials }}</div>
+              <AvatarUploader
+                :avatar="user?.avatar"
+                :name="user?.name"
+                size="lg"
+                @uploaded="onProfileUpdated"
+              />
               <div class="profile-hero-info">
                 <h2>{{ user?.name }}</h2>
                 <p>{{ user?.email }}</p>
@@ -372,6 +377,7 @@ import AppBadge           from '../components/ui/AppBadge.vue'
 import AppIcon            from '../components/ui/AppIcon.vue'
 import EmptyState         from '../components/ui/EmptyState.vue'
 import EditProfileCard    from '../components/ui/EditProfileCard.vue'
+import AvatarUploader     from '../components/ui/AvatarUploader.vue'
 import { useAuthStore }   from '../stores/auth'
 import { getSocket }      from '../socket'
 import api from '../api'
@@ -770,11 +776,11 @@ onUnmounted(() => {
   .profile-stats-col { display:flex; min-width:300px; }
 }
 .profile-card   { padding:24px; border-radius:var(--radius-xl); }
-.profile-hero   { display:flex; align-items:center; gap:18px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--surface-border); flex-wrap:wrap; }
-.profile-avatar-xl { width:72px; height:72px; border-radius:18px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:26px; font-weight:800; flex-shrink:0; }
-.profile-hero-info h2{ font-size:20px; font-weight:700; margin-bottom:3px; }
-.profile-hero-info p { font-size:13px; color:var(--text-muted); margin-bottom:8px; }
-.profile-badges { display:flex; gap:8px; flex-wrap:wrap; }
+.profile-hero   { display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--surface-border); }
+.profile-hero-info { min-width:0; max-width:100%; display:flex; flex-direction:column; align-items:center; }
+.profile-hero-info h2{ font-size:20px; font-weight:700; margin-bottom:3px; word-break:break-word; }
+.profile-hero-info p { font-size:13px; color:var(--text-muted); margin-bottom:8px; word-break:break-word; }
+.profile-badges { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
 .profile-fields { display:flex; flex-direction:column; gap:8px; }
 .profile-edit-wrap { margin-top:20px; }
 .pf-row { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--surface); border:1px solid var(--surface-border); border-radius:var(--radius-sm); }

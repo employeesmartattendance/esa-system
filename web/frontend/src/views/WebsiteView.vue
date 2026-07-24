@@ -918,6 +918,8 @@ async function submitContact() {
   background: var(--bg);
   color: var(--text);
   height: 100vh;
+  height: 100dvh;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;

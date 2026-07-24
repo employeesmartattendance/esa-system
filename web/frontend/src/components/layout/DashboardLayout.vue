@@ -147,25 +147,25 @@ provide('toast', {
 
 <style scoped>
 .app-layout {
-  display: flex; height: 100vh;
+  display: flex; height: 100vh; height: 100dvh; max-height: 100%;
   background: var(--bg); position: relative;
-  overflow: hidden;
+  overflow: hidden; max-width: 100vw;
 }
 .layout-main {
-  flex: 1; margin-left: 264px; height: 100vh;
+  flex: 1; margin-left: 264px; height: 100vh; height: 100dvh;
   display: flex; flex-direction: column;
   transition: margin-left var(--transition);
   position: relative; z-index: 1;
-  min-height: 0;
+  min-height: 0; max-width: 100%; min-width: 0;
 }
-.layout-content { flex: 1; padding: 28px; padding-right: 28px; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; min-height: 0; }
+.layout-content { flex: 1; padding: 28px; padding-right: 28px; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; min-height: 0; min-width: 0; max-width: 100%; padding-bottom: max(28px, env(safe-area-inset-bottom)); }
 
 .page-enter-active, .page-leave-active { transition: all 0.28s cubic-bezier(0.4,0,0.2,1); }
 .page-enter-from { opacity: 0; transform: translateY(10px); }
 .page-leave-to   { opacity: 0; transform: translateY(-8px); }
 
 @media (max-width: 768px) {
-  .layout-main   { margin-left: 0; }
-  .layout-content { padding: 16px; }
+  .layout-main   { margin-left: 0; width: 100%; max-width: 100vw; }
+  .layout-content { padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); width: 100%; }
 }
 </style>

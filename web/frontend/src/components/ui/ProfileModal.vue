@@ -122,7 +122,7 @@ function goToSettings() {
 }
 
 .profile-drawer {
-  width: 100%; max-width: 380px; height: 100vh;
+  width: 100%; max-width: 380px; height: 100vh; height: 100dvh;
   background: var(--surface); border-left: 1px solid var(--surface-border);
   overflow-y: auto; display: flex; flex-direction: column; gap: 0;
   box-shadow: -12px 0 48px rgba(0,0,0,0.2);
