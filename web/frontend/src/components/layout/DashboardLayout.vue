@@ -10,6 +10,7 @@
         :subtitle="pageSubtitle"
         :isDark="isDark"
         :userName="user?.name || ''"
+        :userAvatar="user?.avatar || ''"
         :notifCount="0"
         @toggle-sidebar="sidebarOpen = !sidebarOpen"
         @toggle-theme="toggleDark"
@@ -17,7 +18,7 @@
         @open-profile="showProfile = true"
       />
 
-      <main class="layout-content">
+      <main ref="layoutContentRef" class="layout-content" @scroll.passive="onContentScroll">
         <!-- Transition removed to fix freezing during navigation -->
         <slot />
       </main>
@@ -54,7 +55,9 @@ const isMobile    = ref(window.innerWidth < 768)
 const toastRef    = ref(null)
 const showNotif   = ref(false)
 const showProfile = ref(false)
+const layoutContentRef = ref(null)
 let lastApiErrorAt = 0
+let scrollFadeTimer = null
 
 function checkMobile() {
   isMobile.value = window.innerWidth < 768
@@ -69,26 +72,57 @@ function handleApiError(event) {
   toastRef.value?.add({ type: 'error', message })
 }
 
+// ── Mobile scrollbar fade ────────────────────────────────────────────────
+// On mobile the right scrollbar should only be visible while actively
+// scrolling, then fade out shortly after. Desktop keeps the scrollbar
+// always visible (see CSS — the fade rules only apply below 768px).
+function onContentScroll() {
+  if (!isMobile.value) return
+  const el = layoutContentRef.value
+  if (!el) return
+  el.classList.add('is-scrolling')
+  clearTimeout(scrollFadeTimer)
+  scrollFadeTimer = setTimeout(() => {
+    el.classList.remove('is-scrolling')
+  }, 900)
+}
+
 onMounted(() => {
   window.addEventListener('resize', checkMobile)
   window.addEventListener('esa:api-error', handleApiError)
+  // Dashboard pages should only ever scroll inside .layout-content (below
+  // the topbar). Locking the document here is a fallback for environments
+  // where the CSS `:has()` rule in main.css isn't supported, so the native
+  // scrollbar never ends up spanning the full page/behind the topbar.
+  document.documentElement.classList.add('dashboard-active')
+  document.body.classList.add('dashboard-active')
 })
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
   window.removeEventListener('esa:api-error', handleApiError)
+  document.documentElement.classList.remove('dashboard-active')
+  document.body.classList.remove('dashboard-active')
+  clearTimeout(scrollFadeTimer)
 })
 
 // ── Swipe gesture to open/close sidebar ──────────────────────────────────
 let touchStartX = 0
 let touchStartY = 0
+let touchStartInMap = false
+
+// Elements matching this selector own their own horizontal drag gestures
+// (map pan/zoom, etc.) — swipes starting inside them shouldn't also try
+// to open/close the sidebar.
+const SWIPE_EXCLUDE_SELECTOR = '.map-wrapper, .mobile-map-component, .maplibregl-map'
 
 function onTouchStart(e) {
   touchStartX = e.touches[0].clientX
   touchStartY = e.touches[0].clientY
+  touchStartInMap = !!e.target.closest?.(SWIPE_EXCLUDE_SELECTOR)
 }
 
 function onTouchEnd(e) {
-  if (!isMobile.value) return
+  if (!isMobile.value || touchStartInMap) return
   const dx = e.changedTouches[0].clientX - touchStartX
   const dy = e.changedTouches[0].clientY - touchStartY
   // Only trigger if horizontal swipe is dominant (avoid scroll conflicts)

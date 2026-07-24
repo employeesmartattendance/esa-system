@@ -21,7 +21,10 @@
 
     <!-- User pill -->
     <div class="user-pill">
-      <div class="user-avatar">{{ initials }}</div>
+      <div class="user-avatar">
+        <img v-if="avatarUrl" :src="avatarUrl" :alt="user?.name" class="user-avatar-img" />
+        <span v-else>{{ initials }}</span>
+      </div>
       <div class="user-info">
         <div class="user-name">{{ user?.name }}</div>
         <div class="user-role">{{ roleLabel }}</div>
@@ -94,6 +97,15 @@ const roleLabel = computed(() => ({
 const initials = computed(() =>
   user.value?.name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'U'
 )
+
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+const avatarUrl = computed(() => {
+  const url = user.value?.avatar
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+})
 
 function isActive(item) {
   return route.path === item.to || route.path.startsWith(item.to + '/')
@@ -176,7 +188,9 @@ onUnmounted(() => window.removeEventListener('resize', checkMobile))
   background: linear-gradient(135deg, var(--primary), var(--accent));
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-weight: 700; font-size: 13px; flex-shrink: 0;
+  overflow: hidden;
 }
+.user-avatar-img { width: 100%; height: 100%; object-fit: cover; }
 .user-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
 .user-role { font-size: 11px; color: var(--text-muted); }
 .user-status-dot {

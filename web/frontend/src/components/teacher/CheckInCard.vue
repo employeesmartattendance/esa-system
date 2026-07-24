@@ -3,7 +3,10 @@
     <!-- Header row -->
     <div class="card-header">
       <div class="teacher-greeting">
-        <div class="greeting-avatar">{{ initials }}</div>
+        <div class="greeting-avatar">
+          <img v-if="avatarUrl" :src="avatarUrl" :alt="user?.name" class="greeting-avatar-img" />
+          <span v-else>{{ initials }}</span>
+        </div>
         <div>
           <div class="greeting-text">Good {{ greeting }},</div>
           <div class="teacher-name">{{ user?.name }}</div>
@@ -112,13 +115,21 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import api from '../../api'
 
-const props  = defineProps({ todayRecord: { type: Object, default: null } })
+const props  = defineProps({
+  todayRecord: { type: Object, default: null },
+  // The mobile and desktop layouts both keep a CheckInCard mounted at all
+  // times (toggled purely via CSS media queries), so without this guard
+  // both instances would independently watch GPS and fire their own
+  // auto check-in/out — causing duplicate toasts and duplicate API calls.
+  // Only the instance meant for the active breakpoint should auto-watch.
+  autoWatch: { type: Boolean, default: true },
+})
 const emit   = defineEmits(['refresh'])
 const auth   = useAuthStore()
 const toast  = useToast()
@@ -128,6 +139,15 @@ const isDesktop = ref(typeof navigator !== 'undefined' && navigator.userAgent.to
 
 const user        = computed(() => auth.user)
 const initials    = computed(() => user.value?.name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'T')
+
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+const avatarUrl = computed(() => {
+  const url = user.value?.avatar
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+})
 const loading          = ref(false)
 const detectingLocation = ref(false)
 const currentPosition  = ref(null)
@@ -325,7 +345,7 @@ async function checkOut() {
 }
 
 onMounted(async () => {
-  if (!isDesktop.value) {
+  if (!isDesktop.value && props.autoWatch) {
     detectLocation()
     await loadSchoolSettings()
     startAutoWatch()
@@ -333,6 +353,19 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   stopAutoWatch()
+})
+
+// If the viewport crosses the mobile/desktop breakpoint at runtime, hand
+// GPS auto-watch duty over to whichever CheckInCard instance is now active.
+watch(() => props.autoWatch, async (active) => {
+  if (isDesktop.value) return
+  if (active) {
+    detectLocation()
+    if (!schoolSettings.value) await loadSchoolSettings()
+    if (autoWatchId === null) startAutoWatch()
+  } else {
+    stopAutoWatch()
+  }
 })
 </script>
 
@@ -347,7 +380,9 @@ onUnmounted(() => {
   background:linear-gradient(135deg, var(--primary), var(--accent));
   display:flex; align-items:center; justify-content:center;
   color:#fff; font-size:17px; font-weight:800; flex-shrink:0;
+  overflow: hidden;
 }
+.greeting-avatar-img { width: 100%; height: 100%; object-fit: cover; }
 .greeting-text { font-size:12px; color:var(--text-muted); }
 .teacher-name  { font-size:17px; font-weight:700; line-height:1.2; }
 .date-pill {

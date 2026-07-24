@@ -18,7 +18,7 @@
     <!-- Table -->
     <div class="table-scroll">
       <table>
-        <thead>
+        <thead v-if="!loading">
           <tr>
             <th
               v-for="col in columns"
@@ -62,9 +62,10 @@
                 :key="col.key"
                 :class="{ 'hide-mobile': col.hideMobile, 'col-actions': col.key === 'actions' }"
               >
-                <div class="td-content" :title="row[col.key]">
-                  <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]">
-                    {{ truncateText(row[col.key], col.truncateLength || 8) ?? '–' }}
+                <div class="td-content" :title="col.rowIndex ? undefined : row[col.key]">
+                  <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]" :index="startRow + idx">
+                    <template v-if="col.rowIndex">{{ startRow + idx }}</template>
+                    <template v-else>{{ truncateText(row[col.key], col.truncateLength || 8) ?? '–' }}</template>
                   </slot>
                 </div>
               </td>

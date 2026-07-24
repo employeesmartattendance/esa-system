@@ -24,7 +24,12 @@
 
         <!-- Avatar preview -->
         <div class="profile-preview">
-          <div class="pp-avatar">{{ initials }}</div>
+          <AvatarUploader
+            :avatar="auth.user?.avatar"
+            :name="auth.user?.name"
+            size="lg"
+            @uploaded="onAvatarUploaded"
+          />
           <div class="pp-info">
             <div class="pp-name">{{ auth.user?.name }}</div>
             <div class="pp-email">{{ auth.user?.email }}</div>
@@ -200,6 +205,7 @@ import AppIcon    from '../ui/AppIcon.vue'
 import AppModal   from '../ui/AppModal.vue'
 import AppBadge   from '../ui/AppBadge.vue'
 import EmptyState from '../ui/EmptyState.vue'
+import AvatarUploader from '../ui/AvatarUploader.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToast }     from '../../composables/useToast'
 import api from '../../api'
@@ -210,6 +216,14 @@ const toast = useToast()
 const initials = computed(() =>
   auth.user?.name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'SA'
 )
+
+function onAvatarUploaded(updatedUser) {
+  if (updatedUser && auth.user) {
+    auth.user.avatar = updatedUser.avatar
+    localStorage.setItem('esa_user', JSON.stringify(auth.user))
+  }
+  toast.success('Profile photo updated')
+}
 
 /* ── Profile ──────────────────────────────────────────────────────── */
 const profileForm   = ref({ name: auth.user?.name || '', email: auth.user?.email || '' })

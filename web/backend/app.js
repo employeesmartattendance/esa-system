@@ -144,7 +144,7 @@ app.use(morgan('dev'));
 app.use('/api', apiLimiter);
 app.use('/uploads', express.static(UPLOADS_DIR));
 
-['', 'school-logos', 'trusted-logos', 'app-releases'].forEach(d => {
+['', 'school-logos', 'trusted-logos', 'app-releases', 'avatars'].forEach(d => {
   const p = path.join(UPLOADS_DIR, d);
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 });
@@ -156,6 +156,8 @@ const mkStorage = dir => multer.diskStorage({
 });
 const logoUpload = multer({ storage: mkStorage('school-logos'), limits: { fileSize: 5*1024*1024 } });
 const trustedLogoUpload = multer({ storage: mkStorage('trusted-logos'), limits: { fileSize: 5*1024*1024 } });
+const imageFileFilter = (r, f, cb) => f.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Only image files are allowed'));
+const avatarUpload = multer({ storage: mkStorage('avatars'), limits: { fileSize: 3*1024*1024 }, fileFilter: imageFileFilter });
 
 // ── SCHEMAS ──
 const { Schema, Types: { ObjectId } } = mongoose;
@@ -357,7 +359,7 @@ app.put('/api/auth/change-password', authMiddleware(), async (req, res) => {
 
 app.get('/api/auth/profile', authMiddleware(), async (req, res) => {
   try {
-    const u = await User.findById(req.user._id).select('id name email role school_id status created_at').lean();
+    const u = await User.findById(req.user._id).select('id name email role school_id status avatar created_at').lean();
     return sendSuccess(res, u ? { ...u, id: toId(u._id), school_id: toId(u.school_id) } : null);
   } catch { return sendError(res, 'Server error', 500); }
 });
@@ -372,9 +374,29 @@ app.put('/api/auth/profile', authMiddleware(), async (req, res) => {
     }
     await User.updateOne({ _id: req.user._id }, updates);
     await logAction('UPDATE_PROFILE', req.user._id, 'Profile updated', req.ip);
-    const u = await User.findById(req.user._id).select('id name email role school_id').lean();
+    const u = await User.findById(req.user._id).select('id name email role school_id avatar').lean();
     return sendSuccess(res, { ...u, id: toId(u._id) }, 'Profile updated successfully');
   } catch { return sendError(res, 'Server error', 500); }
+});
+
+app.post('/api/auth/avatar', authMiddleware(), avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return sendError(res, 'No image file provided');
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    // Remove the previous avatar file from disk, if any, so uploads don't accumulate.
+    const prev = await User.findById(req.user._id).select('avatar').lean();
+    if (prev?.avatar && prev.avatar.startsWith('/uploads/avatars/')) {
+      const prevPath = path.join(UPLOADS_DIR, prev.avatar.replace('/uploads/', ''));
+      fs.unlink(prevPath, () => {});
+    }
+    await User.updateOne({ _id: req.user._id }, { avatar: avatarUrl });
+    await logAction('UPDATE_PROFILE', req.user._id, 'Profile photo updated', req.ip);
+    const u = await User.findById(req.user._id).select('id name email role school_id avatar').lean();
+    return sendSuccess(res, { ...u, id: toId(u._id) }, 'Profile photo updated successfully');
+  } catch (err) {
+    console.error(err);
+    return sendError(res, err.message || 'Failed to upload photo', 500);
+  }
 });
 
 // ── FORGOT PASSWORD OTP FLOW ──
@@ -722,10 +744,10 @@ app.get('/api/school/stats', SCH, async (req, res) => {
 
 async function getTeachersForSchool(schoolId) {
   const td = today();
-  const teachers = await Teacher.find({ school_id: schoolId }).populate({ path: 'user_id', select: 'name email status last_login created_at phone' }).lean();
+  const teachers = await Teacher.find({ school_id: schoolId }).populate({ path: 'user_id', select: 'name email status last_login created_at phone avatar' }).lean();
   return Promise.all(teachers.filter(t => t.user_id).sort((a,b) => (a.user_id.name||'').localeCompare(b.user_id.name||'')).map(async t => {
     const att = await Attendance.findOne({ teacher_id: t._id, date: td }).lean();
-    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, today_status: att?.status || null, check_in: fmtTime(att?.check_in) };
+    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, avatar: t.user_id.avatar || null, today_status: att?.status || null, check_in: fmtTime(att?.check_in) };
   }));
 }
 

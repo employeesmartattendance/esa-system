@@ -385,9 +385,9 @@ const auth  = useAuthStore()
 function onProfileUpdated(updatedUser) {
   if (updatedUser && auth.user) {
     auth.user.name = updatedUser.name || auth.user.name
+    if (updatedUser.avatar !== undefined) auth.user.avatar = updatedUser.avatar
     localStorage.setItem('esa_user', JSON.stringify(auth.user))
   }
-  toast.success('Profile updated successfully')
 }
 
 // ── Desktop detection ──────────────────────────────────────────────────────

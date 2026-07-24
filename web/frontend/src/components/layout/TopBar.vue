@@ -36,7 +36,10 @@
 
       <!-- User avatar — click to open profile -->
       <div class="user-chip" @click="$emit('open-profile')" title="View Profile">
-        <div class="user-chip-avatar">{{ initials }}</div>
+        <div class="user-chip-avatar">
+          <img v-if="avatarUrl" :src="avatarUrl" :alt="userName" class="user-chip-avatar-img" />
+          <span v-else>{{ initials }}</span>
+        </div>
         <span class="user-chip-name">{{ userName }}</span>
       </div>
     </div>
@@ -52,6 +55,7 @@ const props = defineProps({
   subtitle: { type: String, default: '' },
   isDark: Boolean,
   userName: { type: String, default: '' },
+  userAvatar: { type: String, default: '' },
   notifCount: { type: Number, default: 0 },
 })
 defineEmits(['toggle-sidebar', 'toggle-theme', 'notifications', 'open-profile'])
@@ -60,6 +64,15 @@ defineEmits(['toggle-sidebar', 'toggle-theme', 'notifications', 'open-profile'])
 const initials = computed(() =>
   props.userName?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'U'
 )
+
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+const avatarUrl = computed(() => {
+  const url = props.userAvatar
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+})
 
 const dateStr = computed(() =>
   new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -151,7 +164,9 @@ const dateStr = computed(() =>
   background: linear-gradient(135deg, var(--primary), var(--accent));
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 11px; font-weight: 700;
+  overflow: hidden; flex-shrink: 0;
 }
+.user-chip-avatar-img { width: 100%; height: 100%; object-fit: cover; }
 .user-chip-name { font-size: 13px; font-weight: 600; }
 
 /* Icon swap transition */

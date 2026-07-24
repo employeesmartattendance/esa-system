@@ -17,7 +17,10 @@
         </template>
         <template #cell-name="{ row }">
           <div class="teacher-cell">
-            <div class="t-avatar">{{ row.name?.charAt(0) }}</div>
+            <div class="t-avatar">
+              <img v-if="resolveAvatar(row.avatar)" :src="resolveAvatar(row.avatar)" :alt="row.name" class="t-avatar-img" />
+              <span v-else>{{ row.name?.charAt(0) }}</span>
+            </div>
             <div>
               <div class="fw-600">{{ row.name }}</div>
               <div class="text-muted text-xs">{{ row.email }}</div>
@@ -127,6 +130,14 @@ const props = defineProps({ teachers: { type: Array, default: () => [] }, loadin
 const emit = defineEmits(['refresh'])
 const toast = useToast()
 
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+function resolveAvatar(url) {
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+}
+
 const showModal = ref(false)
 const showDeleteModal = ref(false)
 const showViewModal = ref(false)
@@ -180,7 +191,8 @@ async function doDelete() {
 .section-title { font-size: 22px; font-weight: 800; }
 .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 .teacher-cell { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
-.t-avatar { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.t-avatar { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; flex-shrink: 0; overflow: hidden; }
+.t-avatar-img { width: 100%; height: 100%; object-fit: cover; }
 .fw-600 { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: normal; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .text-muted { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: normal; word-break: break-word; }
 .text-xs { font-size: 11px; }

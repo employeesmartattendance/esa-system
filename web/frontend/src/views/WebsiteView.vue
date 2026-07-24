@@ -49,6 +49,11 @@
       </div>
     </nav>
 
+    <!-- Scrollable content — starts below the fixed nav so the native
+         scrollbar appears under the topbar instead of running the full
+         page height behind it (same approach used on the dashboard). -->
+    <div class="site-scroll" ref="siteScrollEl">
+
     <!-- ══════════════════════ HERO ══════════════════════ -->
     <section class="hero" id="home">
       <div class="orb hero-orb-1"></div>
@@ -314,7 +319,16 @@
             v-for="(s, i) in trustedDouble"
             :key="i"
           >
-            <img v-if="s.logo_url" :src="websiteLogoSrc(s.logo_url)" :alt="s.name" class="school-logo" />
+            <img
+              v-if="s.logo_url"
+              :src="websiteLogoSrc(s.logo_url)"
+              :alt="s.name"
+              class="school-logo"
+              width="90"
+              height="46"
+              loading="lazy"
+              decoding="async"
+            />
             <div v-else class="school-initial-wrap">
               <div class="school-initial">{{ initials(s.name) }}</div>
               <div class="school-short">{{ s.name.length > 14 ? s.name.slice(0,13)+'…' : s.name }}</div>
@@ -448,6 +462,9 @@
       </div>
     </footer>
 
+    </div>
+    <!-- /.site-scroll -->
+
     <!-- ══════════ BACK TO TOP ══════════ -->
     <button class="back-top" :class="{ visible: showBackTop }" @click.prevent="scrollTop">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
@@ -488,6 +505,7 @@ const showBackTop   = ref(false)
 const mobileOpen    = ref(false)
 const activeSection = ref('home')
 const sectionIds    = ['home','how-it-works','features','download','trusted','contact']
+const siteScrollEl  = ref(null)
 const headState = {
   title: '',
   description: '',
@@ -496,16 +514,17 @@ const headState = {
   structuredDataEl: null,
 }
 
-// Cheap, DOM-read-free scroll state (just arithmetic on window.scrollY —
-// no getBoundingClientRect, so this never forces a synchronous layout pass).
-// rAF-gated so it runs at most once per rendered frame, no matter how many
-// scroll events the browser fires in between.
+// Cheap, DOM-read-free scroll state (just arithmetic on the scroll
+// container's scrollTop — no getBoundingClientRect, so this never forces
+// a synchronous layout pass). rAF-gated so it runs at most once per
+// rendered frame, no matter how many scroll events the browser fires in
+// between.
 let scrollRafId = null
 function onScroll() {
   if (scrollRafId !== null) return
   scrollRafId = requestAnimationFrame(() => {
     scrollRafId = null
-    const y = window.scrollY
+    const y = siteScrollEl.value?.scrollTop || 0
     scrolled.value    = y > 20
     showBackTop.value = y > 400
   })
@@ -532,6 +551,7 @@ function setupSectionObserver() {
   }, {
     // Mirrors the old "top <= 80" check: treat a section as active once
     // it's crossed 80px below the fixed nav, until the next one does.
+    root: siteScrollEl.value,
     rootMargin: '-80px 0px -60% 0px',
     threshold: [0, 0.25, 0.5, 0.75, 1],
   })
@@ -544,15 +564,11 @@ function scrollTop() {
   mobileOpen.value = false
   activeSection.value = 'home'
   showBackTop.value = false
-  const root = document.scrollingElement || document.documentElement
-  const fallbackTop = () => {
-    window.scrollTo(0, 0)
-    if (typeof root?.scrollTo === 'function') root.scrollTo({ top: 0 })
-    document.documentElement.scrollTop = 0
-    document.body.scrollTop = 0
+  const el = siteScrollEl.value
+  if (el) {
+    el.scrollTo({ top: 0 }) /* Use immediate jump for better performance */
+    el.scrollTop = 0
   }
-
-  fallbackTop() /* Use immediate jump for better performance */
 }
 
 // Smooth scroll with 68px navbar offset
@@ -560,10 +576,11 @@ function navTo(hash, closeMob = false) {
   if (closeMob) mobileOpen.value = false
   const id = hash.replace('#', '')
   const el = document.getElementById(id)
-  if (el) {
-    const top = el.getBoundingClientRect().top + window.scrollY - 68
+  const container = siteScrollEl.value
+  if (el && container) {
+    const top = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 68
     // Using immediate jump instead of smooth behavior to avoid lag and white flashes
-    window.scrollTo({ top, behavior: 'auto' })
+    container.scrollTo({ top, behavior: 'auto' })
   }
 }
 
@@ -645,14 +662,23 @@ function restoreWebsiteSeoMeta() {
 onMounted(() => {
   onScroll()
   applyWebsiteSeoMeta()
-  window.addEventListener('scroll', onScroll, { passive: true })
+  siteScrollEl.value?.addEventListener('scroll', onScroll, { passive: true })
   setupSectionObserver()
+  setupTrackObserver()
+  // The site-scroll container is now the real scrolling element — lock
+  // the document itself so its native scrollbar never appears (mirrors
+  // the same approach used for dashboard pages).
+  document.documentElement.classList.add('website-active')
+  document.body.classList.add('website-active')
 })
 onUnmounted(() => {
-  window.removeEventListener('scroll', onScroll)
+  siteScrollEl.value?.removeEventListener('scroll', onScroll)
   if (scrollRafId !== null) cancelAnimationFrame(scrollRafId)
   if (sectionObserver) { sectionObserver.disconnect(); sectionObserver = null }
+  if (trackObserver) { trackObserver.disconnect(); trackObserver = null }
   restoreWebsiteSeoMeta()
+  document.documentElement.classList.remove('website-active')
+  document.body.classList.remove('website-active')
 })
 
 // ── API base ─────────────────────────────────────────────────
@@ -670,6 +696,7 @@ onMounted(async () => {
 
 // ── Trusted schools ──────────────────────────────────────────
 const trustedSchools = ref([])
+const trackRef       = ref(null)
 const trustedDouble  = computed(() => {
   let list = trustedSchools.value.length ? trustedSchools.value : [
     { name: 'Green Hills Academy' }, { name: 'College of Excellence' },
@@ -679,9 +706,27 @@ const trustedDouble  = computed(() => {
   ]
   // Ensure at least 8 items so marquee always looks full
   while (list.length < 8) list = [...list, ...list]
-  // Triple the list: first copy scrolls away, second+third stay visible = endless loop
-  return [...list, ...list, ...list]
+  // Double the list: first copy scrolls away, second stays visible = endless loop.
+  // (Kept to 2x rather than 3x to reduce the number of simultaneously
+  // rendered/animated badges and images on low-end mobile devices.)
+  return [...list, ...list]
 })
+
+// Pause the marquee's infinite CSS animation while it's scrolled off-screen
+// — otherwise the browser keeps animating/compositing it even when the
+// user can't see it, which wastes GPU work and can contribute to jank on
+// low-end mobile devices.
+let trackObserver = null
+function setupTrackObserver() {
+  const el = trackRef.value
+  if (!el || typeof IntersectionObserver === 'undefined') return
+  trackObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      entry.target.style.animationPlayState = entry.isIntersecting ? 'running' : 'paused'
+    }
+  }, { root: siteScrollEl.value, threshold: 0 })
+  trackObserver.observe(el)
+}
 
 onMounted(async () => {
   try {
@@ -872,9 +917,32 @@ async function submitContact() {
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* The nav is fixed/always visible; this is the single scroll container for
+   everything below it, so the native scrollbar starts under the topbar
+   instead of running the full page height behind it. */
+.site-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   overflow-x: hidden;
+  padding-top: 64px; /* matches .nav-inner height so content starts below the fixed nav */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fallback for environments without :has() support — locks the document
+   itself while the website page is mounted, since .site-scroll is now the
+   real scrolling element (mirrors the same pattern used on the dashboard). */
+:global(html.website-active), :global(body.website-active),
+:global(html:has(.esa-website)), :global(body:has(.esa-website)) {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Defensive fallback: guarantees the correct page color shows through
@@ -963,7 +1031,16 @@ img { max-width:100%; }
 .section-header-center { text-align:center; margin-bottom:48px; }
 
 /* Orbs */
-.orb { position:absolute; border-radius:50%; filter:blur(80px); pointer-events:none; z-index:0; }
+.orb {
+  position:absolute; border-radius:50%; filter:blur(80px); pointer-events:none; z-index:0;
+  /* Isolate into its own compositor layer — without this, a large blurred
+     element can force the browser to repaint the whole stacking context
+     it sits in on every scroll frame, which is a common cause of janky
+     scrolling and visible white flashes on low-end mobile GPUs. */
+  contain: layout style paint;
+  will-change: transform;
+  transform: translateZ(0);
+}
 
 /* ══════════ NAV ══════════ */
 .site-nav {
@@ -1126,7 +1203,7 @@ img { max-width:100%; }
   width:max-content; padding:10px 0; will-change:transform;
 }
 .trusted-track:hover { animation-play-state:paused; }
-@keyframes scroll-left { from{transform:translateX(0)} to{transform:translateX(-33.333%)} }
+@keyframes scroll-left { from{transform:translateX(0)} to{transform:translateX(-50%)} }
 
 .school-badge {
   width:140px; height:78px; border-radius:var(--radius); display:flex; align-items:center;
@@ -1134,7 +1211,7 @@ img { max-width:100%; }
   transition:all var(--transition); cursor:default;
 }
 .school-badge:hover { transform:scale(1.06); box-shadow:var(--card-shadow-lg); }
-.school-logo  { max-width:90px; max-height:46px; object-fit:contain; }
+.school-logo  { max-width:90px; max-height:46px; object-fit:contain; background:transparent; }
 .school-initial-wrap { display:flex; flex-direction:column; align-items:center; gap:4px; }
 .school-initial { font-size:22px; font-weight:800; color:var(--primary); }
 .school-short   { font-size:9px; color:var(--text-muted); text-align:center; }

@@ -64,7 +64,7 @@ const viewTarget = ref(null)
 function openView(row) { viewTarget.value = row; showViewModal.value = true }
 
 const cols = [
-  { key: 'id', label: '#', hideMobile: true, width: '6%' },
+  { key: 'id', label: '#', hideMobile: true, width: '6%', rowIndex: true },
   { key: 'action', label: 'Action', sortable: true, width: '28%' },
   { key: 'user', label: 'User', hideMobile: true, width: '18%' },
   { key: 'role', label: 'Role', hideMobile: true, width: '12%' },

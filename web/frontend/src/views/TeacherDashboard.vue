@@ -9,7 +9,7 @@
 
         <!-- ── MOBILE layout (≤768px): stacked simple cards ── -->
         <div class="mobile-layout">
-          <CheckInCard :todayRecord="todayRecord" @refresh="fetchToday" />
+          <CheckInCard :todayRecord="todayRecord" :autoWatch="isMobileViewport" @refresh="fetchToday" />
 
           <!-- Live GPS Map — mobile only -->
           <div class="mobile-map-section">
@@ -71,7 +71,7 @@
 
           <!-- LEFT: main column -->
           <div class="desk-main">
-            <CheckInCard :todayRecord="todayRecord" @refresh="fetchToday" />
+            <CheckInCard :todayRecord="todayRecord" :autoWatch="!isMobileViewport" @refresh="fetchToday" />
 
             <!-- Week summary chart bar -->
             <div class="glass desk-card">
@@ -389,6 +389,7 @@ const initials = computed(() => user.value?.name?.split(' ').map(n => n[0]).join
 function onProfileUpdated(updatedUser) {
   if (updatedUser && auth.user) {
     auth.user.name = updatedUser.name || auth.user.name
+    if (updatedUser.avatar !== undefined) auth.user.avatar = updatedUser.avatar
     localStorage.setItem('esa_user', JSON.stringify(auth.user))
   }
 }
@@ -396,6 +397,13 @@ function onProfileUpdated(updatedUser) {
 /* ── Section ── */
 const routeMap = { '/teacher/dashboard': 'dashboard', '/teacher/map': 'map', '/teacher/history': 'history', '/teacher/profile': 'profile' }
 const section  = ref(routeMap[route.path] || 'dashboard')
+
+// Mobile-layout and desktop-layout are both kept mounted at once (toggled
+// purely via CSS media query), so each keeps its own CheckInCard. Track
+// which breakpoint is active — matching the CSS's 768px cutoff — so only
+// the currently-visible CheckInCard runs GPS auto-checkin/out.
+const isMobileViewport = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
+function updateViewport() { isMobileViewport.value = window.innerWidth <= 768 }
 
 // On desktop, the Live GPS Map page does not exist — redirect to dashboard
 function guardMapRoute(path) {
@@ -611,6 +619,8 @@ onMounted(async () => {
     socket.on('settings_updated', fetchSchool)
     socket.on('auto_checkout_complete', fetchToday)
   }
+
+  window.addEventListener('resize', updateViewport)
 })
 onUnmounted(() => {
   const socket = getSocket()
@@ -619,6 +629,7 @@ onUnmounted(() => {
     socket.off('settings_updated', fetchSchool)
     socket.off('auto_checkout_complete', fetchToday)
   }
+  window.removeEventListener('resize', updateViewport)
 })
 </script>
 

@@ -5,7 +5,7 @@
         <h2 class="section-title">Schools Management</h2>
         <p class="section-desc">Create and manage all schools on the platform</p>
       </div>
-      <button class="btn btn-primary" @click="openCreate">
+      <button class="btn btn-primary btn-new-school" @click="openCreate">
         <AppIcon name="plus" :size="16" />New School
       </button>
     </div>
@@ -34,12 +34,12 @@
             <AppIcon name="refresh" :size="14" />Refresh
           </button>
         </template>
-        <template #cell-name="{ row }">
+        <template #cell-name="{ row, index }">
           <div class="school-name-cell">
             <div class="school-avatar">{{ row.name?.charAt(0) }}</div>
             <div>
               <div class="fw-600">{{ row.name }}</div>
-              <div class="text-muted text-xs">ID #{{ row.id }}</div>
+              <div class="text-muted text-xs">ID #{{ index }}</div>
             </div>
           </div>
         </template>
@@ -218,8 +218,19 @@ function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { mo
 </script>
 
 <style scoped>
-.page-root { width: 100%; max-width: 100%; overflow-x: hidden; box-sizing: border-box; padding-right: 4px; }
+.page-root { width: 100%; max-width: 100%; overflow-x: hidden; box-sizing: border-box; padding-right: 4px; padding-top: 4px; }
 .section-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; padding-right: 12px; }
+
+/* Override the global translateY hover for this button — it sits at the
+   very top of the scroll area, so moving it upward on hover could clip
+   under the topbar. Use a non-shifting scale + glow effect instead. */
+.btn.btn-primary.btn-new-school:hover:not(:disabled) {
+  transform: scale(1.035);
+  box-shadow: 0 6px 22px var(--primary-glow);
+}
+.btn.btn-primary.btn-new-school:active:not(:disabled) {
+  transform: scale(0.98);
+}
 .section-title { font-size: 22px; font-weight: 800; }
 .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 .schools-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; width: 100%; box-sizing: border-box; padding-right: 12px; }

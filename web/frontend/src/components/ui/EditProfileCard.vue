@@ -6,7 +6,20 @@
       </div>
       <div>
         <div class="epc-title">Edit Profile</div>
-        <div class="epc-subtitle">Update your name or change your password</div>
+        <div class="epc-subtitle">Update your photo, name, or password</div>
+      </div>
+    </div>
+
+    <div class="epc-avatar-row">
+      <AvatarUploader
+        :avatar="props.user?.avatar"
+        :name="form.name"
+        size="lg"
+        @uploaded="onAvatarUploaded"
+      />
+      <div class="epc-avatar-hint">
+        <div class="epc-avatar-hint-title">Profile photo</div>
+        <div class="epc-avatar-hint-desc">JPG or PNG, up to 3MB</div>
       </div>
     </div>
 
@@ -67,6 +80,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
+import AvatarUploader from './AvatarUploader.vue'
 import api from '../../api'
 
 const props = defineProps({
@@ -83,6 +97,11 @@ const form = ref({ name: props.user?.name || '', newPassword: '', confirmPasswor
 watch(() => props.user?.name, (name) => {
   if (name && !form.value.name) form.value.name = name
 })
+
+function onAvatarUploaded(updatedUser) {
+  successMsg.value = 'Profile photo updated successfully!'
+  emit('updated', updatedUser)
+}
 
 async function save() {
   errorMsg.value   = ''
@@ -119,6 +138,14 @@ async function save() {
 }
 .epc-title { font-size: 15px; font-weight: 700; }
 .epc-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.epc-avatar-row {
+  display: flex; align-items: center; gap: 16px;
+  padding-bottom: 20px; margin-bottom: 20px;
+  border-bottom: 1px solid var(--surface-border);
+}
+.epc-avatar-hint-title { font-size: 13px; font-weight: 600; }
+.epc-avatar-hint-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
 .epc-form { display: flex; flex-direction: column; gap: 14px; max-width: 420px; }
 .epc-form-group { display: flex; flex-direction: column; gap: 6px; }

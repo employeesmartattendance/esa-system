@@ -68,6 +68,7 @@ const icons = {
   checkout: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><path d="M8 17l-2-2 2-2"/>',
   'info': '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
   overview: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',
+  camera: '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>',
 }
 
 const iconPath = computed(() => icons[props.name] || icons['info'])
