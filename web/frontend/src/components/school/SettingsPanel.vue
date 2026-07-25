@@ -132,6 +132,83 @@
             </div>
           </div>
         </div>
+
+        <!-- Attendance Days Card -->
+        <div class="glass settings-card">
+          <div class="card-head">
+            <div class="card-icon-wrap" style="background:rgba(37,99,235,0.12)">
+              <AppIcon name="calendar" :size="20" color="var(--primary)" />
+            </div>
+            <div class="card-head-text">
+              <div class="card-title">Allowed Attendance Days</div>
+              <div class="card-desc">Only these days will count for attendance tracking</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="days-grid">
+              <button
+                v-for="(label, i) in DAY_LABELS"
+                :key="i"
+                type="button"
+                class="day-btn"
+                :class="{ active: form.allowed_days.includes(i) }"
+                @click="toggleDay(i)"
+              >
+                {{ label }}
+              </button>
+            </div>
+            <div class="info-box" style="margin-top:4px">
+              <AppIcon name="info" :size="13" color="var(--primary)" />
+              <span>Check-ins on <strong>unselected days</strong> will be blocked. Default is Mon–Fri.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Summary Card -->
+        <div class="glass settings-card summary-card">
+          <div class="card-head">
+            <div class="card-icon-wrap" style="background:rgba(139,92,246,0.12)">
+              <AppIcon name="analytics" :size="20" color="var(--info)" />
+            </div>
+            <div class="card-head-text">
+              <div class="card-title">Active Configuration</div>
+              <div class="card-desc">Current settings at a glance</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" @click="loadSettings">
+              <AppIcon name="refresh" :size="13" />
+            </button>
+          </div>
+
+          <div class="card-body">
+            <div class="config-grid">
+              <div class="config-chip" :class="form.gps_enabled ? 'chip-on' : 'chip-off'">
+                <AppIcon name="location" :size="14" />
+                GPS {{ form.gps_enabled ? 'ON' : 'OFF' }}
+                <span v-if="form.gps_enabled" class="chip-sub">{{ form.radius }}m radius</span>
+              </div>
+              <div class="config-chip" :class="form.wifi_enabled ? 'chip-on' : 'chip-off'">
+                <AppIcon name="wifi" :size="14" />
+                Wi-Fi {{ form.wifi_enabled ? 'ON' : 'OFF' }}
+              </div>
+              <div class="config-chip chip-time">
+                <AppIcon name="check-circle" :size="14" color="var(--success)" />
+                Present by {{ fmt(form.late_threshold) }}
+              </div>
+              <div class="config-chip chip-time">
+                <AppIcon name="clock" :size="14" color="var(--warning)" />
+                Late until {{ fmt(form.absent_threshold) }}
+              </div>
+              <div class="config-chip" :class="form.auto_checkout_enabled ? 'chip-on' : 'chip-off'">
+                <AppIcon name="checkout" :size="14" />
+                Auto-out {{ form.auto_checkout_enabled ? fmt(form.checkout_time) : 'OFF' }}
+              </div>
+              <div class="config-chip chip-time">
+                <AppIcon name="clock" :size="14" color="var(--primary)" />
+                Opens {{ fmt(form.checkin_start) }}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ── RIGHT COLUMN ── -->
@@ -215,37 +292,6 @@
           </div>
         </div>
 
-        <!-- Attendance Days Card -->
-        <div class="glass settings-card">
-          <div class="card-head">
-            <div class="card-icon-wrap" style="background:rgba(37,99,235,0.12)">
-              <AppIcon name="calendar" :size="20" color="var(--primary)" />
-            </div>
-            <div class="card-head-text">
-              <div class="card-title">Allowed Attendance Days</div>
-              <div class="card-desc">Only these days will count for attendance tracking</div>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="days-grid">
-              <button
-                v-for="(label, i) in DAY_LABELS"
-                :key="i"
-                type="button"
-                class="day-btn"
-                :class="{ active: form.allowed_days.includes(i) }"
-                @click="toggleDay(i)"
-              >
-                {{ label }}
-              </button>
-            </div>
-            <div class="info-box" style="margin-top:4px">
-              <AppIcon name="info" :size="13" color="var(--primary)" />
-              <span>Check-ins on <strong>unselected days</strong> will be blocked. Default is Mon–Fri.</span>
-            </div>
-          </div>
-        </div>
-
         <!-- Auto Check-Out Card -->
         <div class="glass settings-card">
           <div class="card-head">
@@ -312,52 +358,6 @@
                 <AppIcon v-else name="checkout" :size="14" />
                 {{ triggering ? 'Processing...' : `Checkout All Currently Checked-In ${vocab.personNounPlural} Now` }}
               </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Live Summary Card -->
-        <div class="glass settings-card summary-card">
-          <div class="card-head">
-            <div class="card-icon-wrap" style="background:rgba(139,92,246,0.12)">
-              <AppIcon name="analytics" :size="20" color="var(--info)" />
-            </div>
-            <div class="card-head-text">
-              <div class="card-title">Active Configuration</div>
-              <div class="card-desc">Current settings at a glance</div>
-            </div>
-            <button class="btn btn-ghost btn-sm" @click="loadSettings">
-              <AppIcon name="refresh" :size="13" />
-            </button>
-          </div>
-
-          <div class="card-body">
-            <div class="config-grid">
-              <div class="config-chip" :class="form.gps_enabled ? 'chip-on' : 'chip-off'">
-                <AppIcon name="location" :size="14" />
-                GPS {{ form.gps_enabled ? 'ON' : 'OFF' }}
-                <span v-if="form.gps_enabled" class="chip-sub">{{ form.radius }}m radius</span>
-              </div>
-              <div class="config-chip" :class="form.wifi_enabled ? 'chip-on' : 'chip-off'">
-                <AppIcon name="wifi" :size="14" />
-                Wi-Fi {{ form.wifi_enabled ? 'ON' : 'OFF' }}
-              </div>
-              <div class="config-chip chip-time">
-                <AppIcon name="check-circle" :size="14" color="var(--success)" />
-                Present by {{ fmt(form.late_threshold) }}
-              </div>
-              <div class="config-chip chip-time">
-                <AppIcon name="clock" :size="14" color="var(--warning)" />
-                Late until {{ fmt(form.absent_threshold) }}
-              </div>
-              <div class="config-chip" :class="form.auto_checkout_enabled ? 'chip-on' : 'chip-off'">
-                <AppIcon name="checkout" :size="14" />
-                Auto-out {{ form.auto_checkout_enabled ? fmt(form.checkout_time) : 'OFF' }}
-              </div>
-              <div class="config-chip chip-time">
-                <AppIcon name="clock" :size="14" color="var(--primary)" />
-                Opens {{ fmt(form.checkin_start) }}
-              </div>
             </div>
           </div>
         </div>

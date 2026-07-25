@@ -5,7 +5,7 @@
         <h2 class="section-title">{{ groupVocab.personNounPlural }}</h2>
         <p class="section-desc">Manage {{ groupVocab.personNoun.toLowerCase() }} accounts and credentials</p>
       </div>
-      <button class="btn btn-primary" @click="openCreate">
+      <button class="btn btn-primary btn-add-person" @click="openCreate">
         <AppIcon name="plus" :size="16" />Add {{ groupVocab.personNoun }}
       </button>
     </div>
@@ -217,6 +217,17 @@ async function doDelete() {
 .page-root { width: 100%; max-width: 100%; overflow-x: hidden; box-sizing: border-box; padding-right: 4px; }
 .glass { width: 100%; min-width: 0; overflow: hidden; box-sizing: border-box; margin-right: 12px; }
 .section-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; padding-right: 12px; }
+/* Override the global translateY hover for this button — it sits at the
+   very top of the scroll area, so moving it upward on hover could clip
+   under the topbar. Use a non-shifting scale + glow effect instead
+   (matches the "+ New Company" button on the super admin Companies page). */
+.btn.btn-primary.btn-add-person:hover:not(:disabled) {
+  transform: scale(1.035);
+  box-shadow: 0 6px 22px var(--primary-glow);
+}
+.btn.btn-primary.btn-add-person:active:not(:disabled) {
+  transform: scale(0.98);
+}
 .section-title { font-size: 22px; font-weight: 800; }
 .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 .teacher-cell { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
