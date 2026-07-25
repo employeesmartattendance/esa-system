@@ -119,7 +119,7 @@
             <div class="ss-card-title">Super Admin Team</div>
             <div class="ss-card-desc">Manage system admins</div>
           </div>
-          <button class="btn btn-primary btn-sm" style="margin-left:auto" @click="showAddModal = true">
+          <button class="btn btn-primary btn-sm btn-add-admin" style="margin-left:auto" @click="showAddModal = true">
             <AppIcon name="plus" :size="14" />Admin
           </button>
         </div>
@@ -345,13 +345,24 @@ onMounted(fetchAdmins)
 <style scoped>
 .ss-page { }
 .ss-header { margin-bottom: 24px; }
+/* Override the global translateY hover — this button sits at the top of a
+   card near the page's upper scroll boundary, so moving it upward on hover
+   could clip under the topbar. Use a non-shifting scale + glow effect
+   instead (matches the "+ New Company" button on the Companies page). */
+.btn.btn-primary.btn-add-admin:hover:not(:disabled) {
+  transform: scale(1.035);
+  box-shadow: 0 6px 22px var(--primary-glow);
+}
+.btn.btn-primary.btn-add-admin:active:not(:disabled) {
+  transform: scale(0.98);
+}
 .ss-title  { font-size: 22px; font-weight: 800; }
 .ss-desc   { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-.ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; min-width: 0; }
+.ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; min-width: 0; }
 .ss-full { grid-column: span 2; }
 
-.ss-card { padding: 22px; border-radius: var(--radius-lg); min-width: 0; box-sizing: border-box; }
+.ss-card { padding: 22px; border-radius: var(--radius-lg); min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; }
 
 .ss-card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
 .ss-card-icon { width: 44px; height: 44px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -381,7 +392,8 @@ onMounted(fetchAdmins)
 }
 
 /* Form */
-.ss-form { display: flex; flex-direction: column; gap: 14px; }
+.ss-form { display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.ss-form > button[type="submit"] { margin-top: auto; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
 

@@ -15,6 +15,7 @@ const multer = require('multer');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { makeUploader, resolveUploadedFileUrl, deleteFromCloudinaryByUrl, CLOUDINARY_ENABLED } = require('./cloudinaryStorage');
 
 // ── EMAIL TRANSPORTER ──
 // Uses Resend HTTP API if RESEND_API_KEY is set (recommended on Render — SMTP ports are blocked).
@@ -150,14 +151,16 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 });
 app.use('/uploads/trusted-logos', express.static(path.join(UPLOADS_DIR, 'trusted-logos')));
 
-const mkStorage = dir => multer.diskStorage({
-  destination: (r, f, cb) => cb(null, path.join(UPLOADS_DIR, dir)),
-  filename: (r, f, cb) => cb(null, `${dir.split('-')[0]}-${Date.now()}${path.extname(f.originalname)}`)
-});
-const logoUpload = multer({ storage: mkStorage('school-logos'), limits: { fileSize: 5*1024*1024 } });
-const trustedLogoUpload = multer({ storage: mkStorage('trusted-logos'), limits: { fileSize: 5*1024*1024 } });
 const imageFileFilter = (r, f, cb) => f.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Only image files are allowed'));
-const avatarUpload = multer({ storage: mkStorage('avatars'), limits: { fileSize: 3*1024*1024 }, fileFilter: imageFileFilter });
+// Cloudinary-backed uploaders — automatically fall back to local disk
+// storage under UPLOADS_DIR if Cloudinary env vars aren't set (see
+// cloudinaryStorage.js). This is why uploaded avatars/logos were being
+// wiped whenever the Render instance spun down: local disk isn't
+// persistent there. Once CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET are set,
+// images are stored permanently on Cloudinary instead.
+const logoUpload = makeUploader({ folder: 'school-logos', uploadsDir: UPLOADS_DIR, limits: { fileSize: 5*1024*1024 } });
+const trustedLogoUpload = makeUploader({ folder: 'trusted-logos', uploadsDir: UPLOADS_DIR, limits: { fileSize: 5*1024*1024 } });
+const avatarUpload = makeUploader({ folder: 'avatars', uploadsDir: UPLOADS_DIR, limits: { fileSize: 3*1024*1024 }, fileFilter: imageFileFilter });
 
 // ── SCHEMAS ──
 const { Schema, Types: { ObjectId } } = mongoose;
@@ -382,12 +385,17 @@ app.put('/api/auth/profile', authMiddleware(), async (req, res) => {
 app.post('/api/auth/avatar', authMiddleware(), avatarUpload.single('avatar'), async (req, res) => {
   try {
     if (!req.file) return sendError(res, 'No image file provided');
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-    // Remove the previous avatar file from disk, if any, so uploads don't accumulate.
+    const avatarUrl = await resolveUploadedFileUrl(req, 'avatars');
+    // Remove the previous avatar (disk file or Cloudinary asset), if any,
+    // so uploads don't accumulate.
     const prev = await User.findById(req.user._id).select('avatar').lean();
-    if (prev?.avatar && prev.avatar.startsWith('/uploads/avatars/')) {
-      const prevPath = path.join(UPLOADS_DIR, prev.avatar.replace('/uploads/', ''));
-      fs.unlink(prevPath, () => {});
+    if (prev?.avatar) {
+      if (prev.avatar.startsWith('/uploads/avatars/')) {
+        const prevPath = path.join(UPLOADS_DIR, prev.avatar.replace('/uploads/', ''));
+        fs.unlink(prevPath, () => {});
+      } else if (CLOUDINARY_ENABLED && prev.avatar.startsWith('http')) {
+        deleteFromCloudinaryByUrl(prev.avatar);
+      }
     }
     await User.updateOne({ _id: req.user._id }, { avatar: avatarUrl });
     await logAction('UPDATE_PROFILE', req.user._id, 'Profile photo updated', req.ip);
@@ -629,7 +637,7 @@ app.patch('/api/schools/:id/status', SA, async (req, res) => { try { return awai
 async function uploadSchoolLogo(req, res) {
   try {
     if (!req.file) return sendError(res, 'No file uploaded');
-    const relative_logo_url = `/uploads/school-logos/${req.file.filename}`;
+    const relative_logo_url = await resolveUploadedFileUrl(req, 'school-logos');
     const logo_url = toPublicUploadUrl(req, relative_logo_url);
     return sendSuccess(res, { logo_url, relative_logo_url }, 'Company photo uploaded successfully');
   } catch { return sendError(res, 'Server error', 500); }
@@ -723,7 +731,7 @@ app.delete('/api/super/trusted-schools/:id', SA, async (req, res) => {
 app.post('/api/super/trusted-schools/upload-logo', SA, trustedLogoUpload.single('logo'), async (req, res) => {
   try {
     if (!req.file) return sendError(res, 'No file uploaded');
-    const relative_logo_url = `/uploads/trusted-logos/${req.file.filename}`;
+    const relative_logo_url = await resolveUploadedFileUrl(req, 'trusted-logos');
     const logo_url = toPublicUploadUrl(req, relative_logo_url);
     return sendSuccess(res, { logo_url, relative_logo_url }, 'Logo uploaded successfully');
   } catch { return sendError(res, 'Server error', 500); }

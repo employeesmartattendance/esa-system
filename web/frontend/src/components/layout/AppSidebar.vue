@@ -120,9 +120,15 @@ function handleNavClick() {
 }
 
 function handleLogout() {
+  auth.signingOut = true
   disconnectSocket()
-  auth.logout()
-  router.push('/login')
+  // Let the signing-out overlay paint over the current page before the
+  // user/session state clears, so nobody sees a flash of "undefined user"
+  // in the sidebar during the brief window before the route changes.
+  setTimeout(() => {
+    auth.logout()
+    router.push('/login').finally(() => { auth.signingOut = false })
+  }, 300)
 }
 
 function checkMobile() {

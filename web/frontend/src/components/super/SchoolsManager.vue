@@ -337,7 +337,7 @@ const miniStats = computed(() => {
     { icon: 'building', label: 'Total Companies', val: props.schools.length, color: 'var(--primary)' },
     { icon: 'check-circle', label: 'Active', val: active, color: 'var(--success)' },
     { icon: 'x-circle', label: 'Inactive', val: props.schools.length - active, color: 'var(--danger)' },
-    { icon: 'teachers', label: 'Total People Tracked', val: props.schools.reduce((a, s) => a + (s.teacher_count || 0), 0), color: 'var(--accent)' },
+    { icon: 'teachers', label: 'People Tracked', val: props.schools.reduce((a, s) => a + (s.teacher_count || 0), 0), color: 'var(--accent)' },
   ]
 })
 

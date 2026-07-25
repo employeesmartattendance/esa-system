@@ -1,33 +1,35 @@
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="modal-overlay" @click.self="$emit('update:modelValue', false)">
-      <div
-        class="modal-box"
-        :style="maxWidth ? `max-width:${maxWidth}` : ''"
-        @click.stop
-      >
-        <div class="modal-header">
-          <div class="modal-header-left">
-            <div v-if="icon" class="modal-icon-wrap">
-              <AppIcon :name="icon" :size="20" :color="iconColor || 'var(--primary)'" />
+    <Transition name="genie" @enter="onEnter" @before-leave="onBeforeLeave">
+      <div v-if="modelValue" class="modal-overlay" @click.self="$emit('update:modelValue', false)">
+        <div
+          class="modal-box"
+          :style="maxWidth ? `max-width:${maxWidth}` : ''"
+          @click.stop
+        >
+          <div class="modal-header">
+            <div class="modal-header-left">
+              <div v-if="icon" class="modal-icon-wrap">
+                <AppIcon :name="icon" :size="20" :color="iconColor || 'var(--primary)'" />
+              </div>
+              <div>
+                <h3 class="modal-title">{{ title }}</h3>
+                <p v-if="subtitle" class="modal-subtitle">{{ subtitle }}</p>
+              </div>
             </div>
-            <div>
-              <h3 class="modal-title">{{ title }}</h3>
-              <p v-if="subtitle" class="modal-subtitle">{{ subtitle }}</p>
-            </div>
+            <button class="modal-close" @click="$emit('update:modelValue', false)">
+              <AppIcon name="close" :size="18" />
+            </button>
           </div>
-          <button class="modal-close" @click="$emit('update:modelValue', false)">
-            <AppIcon name="close" :size="18" />
-          </button>
-        </div>
-        <div class="modal-body" ref="modalBodyRef" @scroll="onModalBodyScroll">
-          <slot />
-        </div>
-        <div v-if="$slots.footer" class="modal-footer">
-          <slot name="footer" />
+          <div class="modal-body" ref="modalBodyRef" @scroll="onModalBodyScroll">
+            <slot />
+          </div>
+          <div v-if="$slots.footer" class="modal-footer">
+            <slot name="footer" />
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -35,6 +37,7 @@
 import AppIcon from './AppIcon.vue'
 import { toRef, ref, onBeforeUnmount } from 'vue'
 import { useScrollLock } from '../../composables/useScrollLock'
+import { useGenieOrigin } from '../../composables/useGenieOrigin'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -47,6 +50,33 @@ const props = defineProps({
 defineEmits(['update:modelValue'])
 
 useScrollLock(toRef(props, 'modelValue'))
+
+// ── Genie effect ─────────────────────────────────────────────────────────
+// Mimics the macOS Dock "genie" minimize/restore: the modal scales in/out
+// from the exact button that opened it (Add/Edit/Delete/View triggers)
+// instead of just fading in centered on screen.
+const genieOrigin = useGenieOrigin()
+
+function applyOriginVars(el) {
+  const rect = el.getBoundingClientRect()
+  const ox = genieOrigin.x ?? (rect.left + rect.width / 2)
+  const oy = genieOrigin.y ?? (rect.top + rect.height / 2)
+  // Origin expressed relative to the modal box itself, so transform-origin
+  // (which is local to the element) lines up with the button on screen.
+  const relX = ox - rect.left
+  const relY = oy - rect.top
+  el.style.setProperty('--genie-x', `${relX}px`)
+  el.style.setProperty('--genie-y', `${relY}px`)
+}
+
+function onEnter(el) {
+  const box = el.querySelector('.modal-box')
+  if (box) applyOriginVars(box)
+}
+function onBeforeLeave(el) {
+  const box = el.querySelector('.modal-box')
+  if (box) applyOriginVars(box)
+}
 
 // ── Mobile scrollbar fade ────────────────────────────────────────────────
 // Same pattern used for the dashboard's .layout-content: the modal body's
@@ -78,7 +108,6 @@ onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
   align-items: center !important;
   justify-content: center !important;
   padding: 20px;
-  animation: modalFadeIn 0.2s ease;
 }
 .modal-box {
   background: var(--bg);
@@ -91,7 +120,7 @@ onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
-  animation: modalSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: var(--genie-x, 50%) var(--genie-y, 50%);
 }
 .modal-header {
   display: flex;
@@ -135,8 +164,38 @@ onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
   border-top: 1px solid var(--surface-border);
   flex-shrink: 0;
 }
-@keyframes modalFadeIn   { from { opacity: 0 } to { opacity: 1 } }
-@keyframes modalSlideUp  { from { transform: translateY(20px) scale(0.96); opacity: 0 } to { transform: translateY(0) scale(1); opacity: 1 } }
+
+/* ── Genie / Scale Effect ────────────────────────────────────────────────
+   Mimics the macOS Dock genie animation: the modal grows out of (and
+   shrinks back into) the button that triggered it — set per-open via
+   --genie-x / --genie-y (see AppModal script, applied on the Transition's
+   enter/before-leave hooks) — while the backdrop does a simple fade. */
+.genie-enter-active .modal-box {
+  animation: genieOpen 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+.genie-leave-active .modal-box {
+  animation: genieOpen 0.22s cubic-bezier(0.4, 0, 0.7, 0.2) reverse;
+}
+.genie-enter-active.modal-overlay,
+.genie-enter-active,
+.genie-leave-active {
+  transition: opacity 0.22s ease;
+}
+.genie-enter-from,
+.genie-leave-to {
+  opacity: 0;
+}
+@keyframes genieOpen {
+  0%   { transform: scale(0.06); opacity: 0; border-radius: 50%; }
+  55%  { opacity: 1; }
+  100% { transform: scale(1); opacity: 1; border-radius: var(--radius-xl); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .genie-enter-active .modal-box,
+  .genie-leave-active .modal-box { animation: modalFadeScale 0.15s ease; }
+  @keyframes modalFadeScale { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+}
 
 /* Mobile: keep the modal from ever stretching toward full viewport height —
    give it a flexible, shorter max-height so short-content modals stay

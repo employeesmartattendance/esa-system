@@ -7,7 +7,7 @@
         <h2 class="page-title">Attendance Settings</h2>
         <p class="page-desc">Configure Wi-Fi validation, check-in windows, allowed days, and automatic checkout rules</p>
       </div>
-      <button class="btn btn-primary" @click="saveSettings" :disabled="saving">
+      <button class="btn btn-primary btn-save-settings" @click="saveSettings" :disabled="saving">
         <span v-if="saving" class="btn-spinner"></span>
         <AppIcon v-else name="check" :size="16" />
         {{ saving ? 'Saving...' : 'Save All Settings' }}
@@ -540,6 +540,17 @@ onMounted(loadSettings)
 /* ── Page ── */
 .settings-page { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
 .settings-page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; gap:12px; flex-wrap:wrap; max-width:100%; box-sizing:border-box; }
+/* Override the global translateY hover for this button — it sits at the
+   very top of the scroll area, so moving it upward on hover could clip
+   under the topbar. Use a non-shifting scale + glow effect instead
+   (matches the "+ New Company" button on the super admin Companies page). */
+.btn.btn-primary.btn-save-settings:hover:not(:disabled) {
+  transform: scale(1.035);
+  box-shadow: 0 6px 22px var(--primary-glow);
+}
+.btn.btn-primary.btn-save-settings:active:not(:disabled) {
+  transform: scale(0.98);
+}
 .page-title { font-size:22px; font-weight:800; }
 .page-desc  { font-size:13px; color:var(--text-muted); margin-top:4px; max-width:520px; }
 .save-alert { display:flex; align-items:center; gap:10px; padding:12px 16px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:var(--radius-sm); font-size:13px; font-weight:600; color:var(--success); margin-bottom:20px; animation:fadeIn 0.3s ease; }
@@ -547,8 +558,14 @@ onMounted(loadSettings)
 
 
 /* ── Layout ── */
-.settings-layout { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; max-width:100%; box-sizing:border-box; }
+.settings-layout { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:stretch; max-width:100%; box-sizing:border-box; }
 .settings-col    { display:flex; flex-direction:column; gap:16px; min-width:0; overflow:hidden; }
+/* Now that .settings-layout stretches both columns to equal height, let the
+   last card in each column absorb the leftover space so the two columns'
+   bottoms line up flush instead of leaving a ragged white gap under the
+   shorter column (matches the super admin dashboard's grid-2 look). */
+.settings-col > :last-child { flex: 1; display: flex; flex-direction: column; }
+.settings-col > :last-child .card-body { flex: 1; }
 
 /* ── Card ── */
 .settings-card { padding:0; border-radius:var(--radius-lg); overflow:hidden; max-width:100%; box-sizing:border-box; }

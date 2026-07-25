@@ -39,6 +39,18 @@
       </div>
     </div>
   </Teleport>
+
+  <!-- ── Signing Out Overlay ──────────────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="signout-fade">
+      <div v-if="auth.signingOut" class="signout-overlay">
+        <div class="signout-box">
+          <span class="signout-spinner"></span>
+          <div class="signout-text">Signing out…</div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
@@ -298,4 +310,32 @@ onUnmounted(async () => {
   from { opacity: 0; transform: translateY(30px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Signing Out ─────────────────────────────────────────────────────────── */
+.signout-overlay {
+  position: fixed; inset: 0;
+  background: var(--bg, #0b1220);
+  z-index: 999999;
+  display: flex; align-items: center; justify-content: center;
+}
+.signout-box {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.signout-spinner {
+  width: 40px; height: 40px;
+  border: 3px solid rgba(37,99,235,0.18);
+  border-top-color: var(--primary, #2563eb);
+  border-radius: 50%;
+  animation: signoutSpin 0.75s linear infinite;
+}
+.signout-text {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  letter-spacing: 0.01em;
+}
+@keyframes signoutSpin { to { transform: rotate(360deg); } }
+
+.signout-fade-enter-active { transition: opacity 0.15s ease; }
+.signout-fade-leave-active { transition: opacity 0.25s ease; }
+.signout-fade-enter-from, .signout-fade-leave-to { opacity: 0; }
 </style>

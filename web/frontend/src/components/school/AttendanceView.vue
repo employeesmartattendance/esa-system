@@ -7,7 +7,7 @@
       </div>
       <div class="header-actions">
         <button class="btn btn-ghost btn-sm" @click="$emit('refresh')"><AppIcon name="refresh" :size="14" />Refresh</button>
-        <button class="btn btn-accent btn-sm" :disabled="exporting" @click="exportPDF">
+        <button class="btn btn-accent btn-sm btn-export" :disabled="exporting" @click="exportPDF">
           <AppIcon name="export" :size="14" />{{ exporting ? 'Preparing…' : 'Export PDF' }}
         </button>
       </div>
@@ -323,6 +323,16 @@ async function exportPDF() {
 
 <style scoped>
 .section-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+/* Override the global translateY hover for this button — it sits at the
+   very top of the scroll area, so moving it upward on hover could clip
+   under the topbar. Use a non-shifting scale + glow effect instead
+   (matches the "+ New Company" button on the super admin Companies page). */
+.btn.btn-accent.btn-export:hover:not(:disabled) {
+  transform: scale(1.035);
+}
+.btn.btn-accent.btn-export:active:not(:disabled) {
+  transform: scale(0.98);
+}
 .section-title { font-size: 22px; font-weight: 800; }
 .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 .header-actions { display: flex; gap: 8px; }

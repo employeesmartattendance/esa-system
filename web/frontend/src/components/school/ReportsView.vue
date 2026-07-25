@@ -9,7 +9,7 @@
         <button class="btn btn-ghost btn-sm" @click="load" :disabled="loading">
           <AppIcon name="refresh" :size="15" />Refresh
         </button>
-        <button class="btn btn-primary btn-sm" @click="generateToday" :disabled="generating">
+        <button class="btn btn-primary btn-sm btn-generate" @click="generateToday" :disabled="generating">
           <div v-if="generating" class="spinner-sm"></div>
           <AppIcon v-else name="analytics" :size="15" />
           {{ generating ? 'Generating…' : 'Generate Today' }}
@@ -264,6 +264,17 @@ function dayLabel(d) {
 
 <style scoped>
 .section-header  { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+/* Override the global translateY hover for this button — it sits at the
+   very top of the scroll area, so moving it upward on hover could clip
+   under the topbar. Use a non-shifting scale + glow effect instead
+   (matches the "+ New Company" button on the super admin Companies page). */
+.btn.btn-primary.btn-generate:hover:not(:disabled) {
+  transform: scale(1.035);
+  box-shadow: 0 6px 22px var(--primary-glow);
+}
+.btn.btn-primary.btn-generate:active:not(:disabled) {
+  transform: scale(0.98);
+}
 .section-title   { font-size:22px; font-weight:800; }
 .section-desc    { font-size:13px; color:var(--text-muted); margin-top:2px; }
 .header-actions  { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }

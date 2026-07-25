@@ -66,9 +66,14 @@ const initials = computed(() => {
 })
 
 function handleLogout() {
+  auth.signingOut = true
   disconnectSocket()
-  auth.logout()
-  router.push('/login')
+  // Let the signing-out overlay paint before session state clears, so the
+  // sidebar never briefly shows an undefined user during the redirect.
+  setTimeout(() => {
+    auth.logout()
+    router.push('/login').finally(() => { auth.signingOut = false })
+  }, 300)
 }
 </script>
 
