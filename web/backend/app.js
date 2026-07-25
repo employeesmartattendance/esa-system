@@ -163,13 +163,13 @@ const avatarUpload = multer({ storage: mkStorage('avatars'), limits: { fileSize:
 const { Schema, Types: { ObjectId } } = mongoose;
 const vOpts = { timestamps: true, toJSON: { virtuals: true } };
 
-const SchoolSchema = new Schema({ name: { type: String, required: true }, address: String, phone: String, email: String, status: { type: String, enum: ['active','inactive'], default: 'active' }, industry: { type: String, default: 'school' } }, vOpts);
+const SchoolSchema = new Schema({ name: { type: String, required: true }, address: String, phone: String, email: String, status: { type: String, enum: ['active','inactive'], default: 'active' }, industry: { type: String, default: 'school' }, logo_url: String }, vOpts);
 SchoolSchema.index({ status: 1 });
 
 const UserSchema = new Schema({ name: { type: String, required: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true }, password: { type: String, required: true }, role: { type: String, enum: ['super_admin','school_admin','teacher'], required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', default: null }, phone: String, avatar: String, status: { type: String, enum: ['active','inactive'], default: 'active' }, last_login: Date }, vOpts);
 UserSchema.index({ role: 1 }); UserSchema.index({ school_id: 1 });
 
-const TeacherSchema = new Schema({ user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, employee_id: String, department: String, position: String, hire_date: String, phone: String, subject: String }, vOpts);
+const TeacherSchema = new Schema({ user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, employee_id: String, department: String, position: String, hire_date: String, phone: String, subject: String, group: { type: String, default: 'primary' } }, vOpts);
 TeacherSchema.index({ school_id: 1 });
 
 const SettingsSchema = new Schema({ school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true, unique: true }, school_lat: { type: Number, default: 0 }, school_lng: { type: Number, default: 0 }, radius: { type: Number, default: 200 }, wifi_bssid: String, gps_enabled: { type: Boolean, default: true }, wifi_enabled: { type: Boolean, default: false }, late_threshold: { type: String, default: '08:00:00' }, work_start: { type: String, default: '07:30:00' }, work_end: { type: String, default: '17:00:00' }, absent_threshold: { type: String, default: '09:00:00' }, checkin_start: { type: String, default: '06:00:00' }, checkout_time: { type: String, default: '17:00:00' }, auto_checkout_enabled: { type: Boolean, default: true }, notify_admin_checkout: { type: Boolean, default: true }, allowed_days: { type: [Number], default: [1,2,3,4,5] } }, vOpts);
@@ -324,7 +324,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     let extra = {};
     if (user.role === 'teacher') {
       const t = await Teacher.findOne({ user_id: user._id }).lean();
-      if (t) { const sc = await School.findById(t.school_id).select('name').lean(); extra.teacher = { ...t, id: toId(t._id), user_id: uid, school_id: toId(t.school_id), school_name: sc?.name }; }
+      if (t) { const sc = await School.findById(t.school_id).select('name industry').lean(); extra.teacher = { ...t, id: toId(t._id), user_id: uid, school_id: toId(t.school_id), school_name: sc?.name, industry: sc?.industry || 'school' }; }
     }
     if (user.role === 'school_admin' && user.school_id) { const sc = await School.findById(user.school_id).lean(); if (sc) extra.school = { ...sc, id: toId(sc._id) }; }
     const { password: _, ...safeUser } = user;
@@ -338,7 +338,7 @@ app.get('/api/auth/me', authMiddleware(), async (req, res) => {
     let extra = {};
     if (req.user.role === 'teacher') {
       const t = await Teacher.findOne({ user_id: req.user._id }).lean();
-      if (t) { const sc = await School.findById(t.school_id).select('name').lean(); extra.teacher = { ...t, id: toId(t._id), user_id: req.user.id, school_id: toId(t.school_id), school_name: sc?.name }; }
+      if (t) { const sc = await School.findById(t.school_id).select('name industry').lean(); extra.teacher = { ...t, id: toId(t._id), user_id: req.user.id, school_id: toId(t.school_id), school_name: sc?.name, industry: sc?.industry || 'school' }; }
     }
     if (req.user.role === 'school_admin' && req.user.school_id) { const sc = await School.findById(req.user.school_id).lean(); if (sc) extra.school = { ...sc, id: toId(sc._id) }; }
     return sendSuccess(res, { ...safe, ...extra });
@@ -527,7 +527,7 @@ app.get('/api/schools', SA, async (req, res) => {
 });
 
 async function createSchool(req, res) {
-  const { name, address, phone, email } = req.body;
+  const { name, address, phone, email, logo_url } = req.body;
   // Accept both camelCase (API clients) and snake_case (Vue frontend)
   const adminName     = req.body.adminName     || req.body.admin_name;
   const adminEmail    = req.body.adminEmail    || req.body.admin_email;
@@ -537,7 +537,7 @@ async function createSchool(req, res) {
   if (await User.findOne({ email: adminEmail.toLowerCase() })) return sendError(res, 'Admin email already in use');
   let school;
   try {
-    school = await School.create({ name, address: address || null, phone: phone || null, email: email || null, industry });
+    school = await School.create({ name, address: address || null, phone: phone || null, email: email || null, industry, logo_url: logo_url || null });
     await User.create({ name: adminName, email: adminEmail.toLowerCase(), password: await bcrypt.hash(adminPassword, 12), role: 'school_admin', school_id: school._id });
     await Settings.create({ school_id: school._id });
     await logAction('CREATE_SCHOOL', req.user._id, `Created school: ${name}`, req.ip);
@@ -592,10 +592,11 @@ app.post('/api/super/schools', SA, async (req, res) => { try { return await crea
 app.post('/api/schools', SA, async (req, res) => { try { return await createSchool(req, res); } catch (err) { return sendError(res, err.message || 'Server error', 500); } });
 
 async function updateSchool(req, res) {
-  const { name, address, phone, email, status, industry } = req.body;
+  const { name, address, phone, email, status, industry, logo_url } = req.body;
   if (!name) return sendError(res, 'School name required');
   const update = { name, address: address || null, phone: phone || null, email: email || null, status: status || 'active' };
   if (industry) update.industry = industry;
+  if (logo_url !== undefined) update.logo_url = logo_url || null;
   await School.updateOne({ _id: req.params.id }, update);
   await logAction('UPDATE_SCHOOL', req.user._id, `Updated school ID: ${req.params.id}`, req.ip);
   emitToSuperAdmin('school_updated', { schoolId: req.params.id });
@@ -624,6 +625,17 @@ async function toggleSchoolStatus(req, res) {
 }
 app.patch('/api/super/schools/:id/status', SA, async (req, res) => { try { return await toggleSchoolStatus(req, res); } catch { return sendError(res, 'Server error', 500); } });
 app.patch('/api/schools/:id/status', SA, async (req, res) => { try { return await toggleSchoolStatus(req, res); } catch { return sendError(res, 'Server error', 500); } });
+
+async function uploadSchoolLogo(req, res) {
+  try {
+    if (!req.file) return sendError(res, 'No file uploaded');
+    const relative_logo_url = `/uploads/school-logos/${req.file.filename}`;
+    const logo_url = toPublicUploadUrl(req, relative_logo_url);
+    return sendSuccess(res, { logo_url, relative_logo_url }, 'Company photo uploaded successfully');
+  } catch { return sendError(res, 'Server error', 500); }
+}
+app.post('/api/super/schools/upload-logo', SA, logoUpload.single('logo'), uploadSchoolLogo);
+app.post('/api/schools/upload-logo', SA, logoUpload.single('logo'), uploadSchoolLogo);
 
 app.get('/api/super/teachers', SA, async (req, res) => {
   try {
@@ -750,7 +762,7 @@ async function getTeachersForSchool(schoolId) {
   const teachers = await Teacher.find({ school_id: schoolId }).populate({ path: 'user_id', select: 'name email status last_login created_at phone avatar' }).lean();
   return Promise.all(teachers.filter(t => t.user_id).sort((a,b) => (a.user_id.name||'').localeCompare(b.user_id.name||'')).map(async t => {
     const att = await Attendance.findOne({ teacher_id: t._id, date: td }).lean();
-    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, avatar: t.user_id.avatar || null, today_status: att?.status || null, check_in: fmtTime(att?.check_in) };
+    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, group: t.group || 'primary', id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, avatar: t.user_id.avatar || null, today_status: att?.status || null, check_in: fmtTime(att?.check_in) };
   }));
 }
 
@@ -762,13 +774,13 @@ app.get('/api/teachers', SCH, async (req, res) => {
 });
 
 async function createTeacher(req, res) {
-  const { name, email, password, phone, department, position, employeeId, hireDate, subject } = req.body;
+  const { name, email, password, phone, department, position, employeeId, hireDate, subject, group } = req.body;
   if (!name || !email || !password) return sendError(res, 'Name, email, and password required');
   if (await User.findOne({ email: email.toLowerCase() })) return sendError(res, 'Email already in use');
   let user;
   try {
     user = await User.create({ name, email: email.toLowerCase(), password: await bcrypt.hash(password, 12), role: 'teacher', school_id: req.user.school_id, phone: phone || null });
-    await Teacher.create({ user_id: user._id, school_id: req.user.school_id, employee_id: employeeId || null, department: department || null, position: position || null, hire_date: hireDate || null, subject: subject || null });
+    await Teacher.create({ user_id: user._id, school_id: req.user.school_id, employee_id: employeeId || null, department: department || null, position: position || null, hire_date: hireDate || null, subject: subject || null, group: group || 'primary' });
     await logAction('CREATE_TEACHER', req.user._id, `Created teacher: ${name}`, req.ip);
     emitToSchool(req.user.school_id, 'teacher_updated', { action: 'created', teacherName: name });
     return sendSuccess(res, { userId: toId(user._id) }, 'Teacher created successfully', 201);
@@ -785,11 +797,13 @@ app.post('/api/school/teachers', SCH, async (req, res) => { try { return await c
 app.post('/api/teachers', SCH, async (req, res) => { try { return await createTeacher(req, res); } catch (err) { return sendError(res, err.message || 'Server error', 500); } });
 
 async function updateTeacher(req, res) {
-  const { name, email, phone, department, position, employeeId, hireDate, subject, status } = req.body;
+  const { name, email, phone, department, position, employeeId, hireDate, subject, status, group } = req.body;
   const t = await Teacher.findOne({ user_id: req.params.id, school_id: req.user.school_id });
   if (!t) return sendError(res, 'Teacher not found', 404);
   await User.updateOne({ _id: req.params.id }, { name, email: email?.toLowerCase(), phone: phone || null, status: status || 'active' });
-  await Teacher.updateOne({ user_id: req.params.id }, { department: department || null, position: position || null, employee_id: employeeId || null, hire_date: hireDate || null, subject: subject || null });
+  const teacherUpdate = { department: department || null, position: position || null, employee_id: employeeId || null, hire_date: hireDate || null, subject: subject || null };
+  if (group) teacherUpdate.group = group;
+  await Teacher.updateOne({ user_id: req.params.id }, teacherUpdate);
   emitToSchool(req.user.school_id, 'teacher_updated', { action: 'updated', teacherId: req.params.id });
   return sendSuccess(res, null, 'Teacher updated successfully');
 }

@@ -19,6 +19,16 @@
         :teachers="teachers"
         :loading="loadingTeachers"
         :schoolId="auth.user?.school_id"
+        group="primary"
+        @refresh="fetchTeachers"
+      />
+      <TeachersManager
+        v-else-if="section === 'secondary'"
+        key="secondary"
+        :teachers="teachers"
+        :loading="loadingTeachers"
+        :schoolId="auth.user?.school_id"
+        :group="vocab.secondaryGroup?.key || 'secondary'"
         @refresh="fetchTeachers"
       />
       <AttendanceView
@@ -68,18 +78,19 @@ const routeMap = {
   '/school/attendance': 'attendance',
   '/school/settings':   'settings',
   '/school/reports':    'reports',
+  '/school/secondary-group': 'secondary',
 }
 const section = ref(routeMap[route.path] || 'dashboard')
 
 function goSection(s) {
-  const pathMap = { dashboard:'/school/dashboard', teachers:'/school/teachers', attendance:'/school/attendance', settings:'/school/settings', reports:'/school/reports' }
+  const pathMap = { dashboard:'/school/dashboard', teachers:'/school/teachers', attendance:'/school/attendance', settings:'/school/settings', reports:'/school/reports', secondary:'/school/secondary-group' }
   router.push(pathMap[s] || '/school/dashboard')
 }
 
 watch(() => route.path, (p) => {
   const s = routeMap[p] || 'dashboard'
   section.value = s
-  if (s === 'teachers')   fetchTeachers()
+  if (s === 'teachers' || s === 'secondary') fetchTeachers()
   if (s === 'attendance') fetchAttendance()
   if (s === 'dashboard')  fetchStats()
 }, { immediate: false })
@@ -96,14 +107,27 @@ const loadingAttendance = ref(false)
 // Labels are industry-aware (e.g. "Teachers" -> "Employees" for a company);
 // routes/paths are intentionally left as-is so URLs, bookmarks, and the
 // router config stay stable regardless of industry.
-const navSections = computed(() => [
-  { group: 'Overview',   items: [{ to: '/school/dashboard',  label: 'Dashboard',  icon: 'dashboard'  }] },
-  { group: 'Management', items: [{ to: '/school/teachers',   label: vocab.value.personNounPlural, icon: 'teachers'   },
-                                  { to: '/school/attendance', label: 'Attendance', icon: 'attendance' }] },
-  { group: 'Configure',  items: [{ to: '/school/settings',   label: 'Settings',   icon: 'settings'   }] },
-  { group: 'Reports',    items: [{ to: '/school/reports',    label: 'Reports',    icon: 'analytics'  }] },
-])
-const pageTitles = computed(() => ({ dashboard: 'Dashboard', teachers: vocab.value.personNounPlural, attendance: 'Attendance', settings: 'Settings', reports: 'Reports' }))
+const navSections = computed(() => {
+  const managementItems = [{ to: '/school/teachers', label: vocab.value.personNounPlural, icon: 'teachers' }]
+  if (vocab.value.secondaryGroup) {
+    managementItems.push({ to: '/school/secondary-group', label: vocab.value.secondaryGroup.labelPlural, icon: 'teachers' })
+  }
+  managementItems.push({ to: '/school/attendance', label: 'Attendance', icon: 'attendance' })
+  return [
+    { group: 'Overview',   items: [{ to: '/school/dashboard',  label: 'Dashboard',  icon: 'dashboard'  }] },
+    { group: 'Management', items: managementItems },
+    { group: 'Configure',  items: [{ to: '/school/settings',   label: 'Settings',   icon: 'settings'   }] },
+    { group: 'Reports',    items: [{ to: '/school/reports',    label: 'Reports',    icon: 'analytics'  }] },
+  ]
+})
+const pageTitles = computed(() => ({
+  dashboard: 'Dashboard',
+  teachers: vocab.value.personNounPlural,
+  secondary: vocab.value.secondaryGroup?.labelPlural || 'Team',
+  attendance: 'Attendance',
+  settings: 'Settings',
+  reports: 'Reports',
+}))
 const currentPageTitle = computed(() => pageTitles.value[section.value] || 'Dashboard')
 
 /* ── Data fetchers ────────────────────────────────────────────────────── */
@@ -146,7 +170,7 @@ onMounted(async () => {
     fetchStats()
     fetchAttendance() // Recent list is on dashboard
     fetchTeachers()   // Live list is on dashboard
-  } else if (cur === 'teachers') {
+  } else if (cur === 'teachers' || cur === 'secondary') {
     fetchTeachers()
   } else if (cur === 'attendance' || cur === 'reports') {
     fetchAttendance()

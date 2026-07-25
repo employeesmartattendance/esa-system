@@ -12,8 +12,8 @@ const routes = [
     component: () => import('../views/WebsiteView.vue'),
     meta: {
       guest: true,
-      title: 'ESA Attendance System for Schools | GPS Teacher Attendance Tracking',
-      description: 'ESA is an employee smart attendance system for schools with GPS geolocation, Wi-Fi validation, real-time dashboard, and automated attendance reports.',
+      title: 'ESA Attendance System | GPS Employee Attendance Tracking',
+      description: 'ESA is a multi-industry smart attendance system with GPS geolocation, Wi-Fi validation, real-time dashboard, and automated attendance reports.',
       robots: 'index,follow',
     },
   },
@@ -41,10 +41,10 @@ const routes = [
     meta: { requiresAuth: true, role: 'super_admin', title: 'Super Admin Dashboard | ESA', robots: 'noindex,nofollow' },
   },
   {
-    path: '/super/schools',
+    path: '/super/companies',
     name: 'SuperSchools',
     component: () => import('../views/SuperAdminDashboard.vue'),
-    meta: { requiresAuth: true, role: 'super_admin', title: 'Schools Management | ESA', robots: 'noindex,nofollow' },
+    meta: { requiresAuth: true, role: 'super_admin', title: 'Companies Management | ESA', robots: 'noindex,nofollow' },
   },
   {
     path: '/super/logs',
@@ -65,10 +65,10 @@ const routes = [
     meta: { requiresAuth: true, role: 'super_admin', title: 'Contact Requests | ESA', robots: 'noindex,nofollow' },
   },
   {
-    path: '/super/trusted-schools',
+    path: '/super/trusted-clients',
     name: 'SuperTrustedSchools',
     component: () => import('../views/SuperAdminDashboard.vue'),
-    meta: { requiresAuth: true, role: 'super_admin', title: 'Trusted Schools | ESA', robots: 'noindex,nofollow' },
+    meta: { requiresAuth: true, role: 'super_admin', title: 'Trusted Clients | ESA', robots: 'noindex,nofollow' },
   },
 
   // ── School Admin ─────────────────────────────────────────────────────────
@@ -105,6 +105,12 @@ const routes = [
     name: 'SchoolReports',
     component: () => import('../views/SchoolAdminDashboard.vue'),
     meta: { requiresAuth: true, role: 'school_admin', title: 'Attendance Reports | ESA', robots: 'noindex,nofollow' },
+  },
+  {
+    path: '/school/secondary-group',
+    name: 'SchoolSecondaryGroup',
+    component: () => import('../views/SchoolAdminDashboard.vue'),
+    meta: { requiresAuth: true, role: 'school_admin', title: 'Team Management | ESA', robots: 'noindex,nofollow' },
   },
 
   // ── Teacher ──────────────────────────────────────────────────────────────

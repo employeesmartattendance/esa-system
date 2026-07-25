@@ -57,7 +57,7 @@ const roleLabel = computed(() => {
   // school_admin's title becomes industry-aware (e.g. "Company Admin");
   // falls back to 'School Admin' automatically since useIndustry() defaults
   // to the 'school' vocabulary when no industry is set on the user yet.
-  const map = { super_admin: 'Super Admin', school_admin: vocab.value.adminLabel, teacher: 'Teacher' }
+  const map = { super_admin: 'Super Admin', school_admin: vocab.value.adminLabel, teacher: vocab.value.personNoun }
   return map[user.value?.role] || ''
 })
 

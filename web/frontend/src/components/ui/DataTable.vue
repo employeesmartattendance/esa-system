@@ -18,7 +18,7 @@
     <!-- Table -->
     <div class="table-scroll">
       <table>
-        <thead v-if="!loading">
+        <thead v-if="!loading && paginatedRows.length">
           <tr>
             <th
               v-for="col in columns"

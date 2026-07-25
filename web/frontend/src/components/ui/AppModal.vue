@@ -20,7 +20,7 @@
             <AppIcon name="close" :size="18" />
           </button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body" ref="modalBodyRef" @scroll="onModalBodyScroll">
           <slot />
         </div>
         <div v-if="$slots.footer" class="modal-footer">
@@ -33,7 +33,7 @@
 
 <script setup>
 import AppIcon from './AppIcon.vue'
-import { toRef } from 'vue'
+import { toRef, ref, onBeforeUnmount } from 'vue'
 import { useScrollLock } from '../../composables/useScrollLock'
 
 const props = defineProps({
@@ -47,6 +47,24 @@ const props = defineProps({
 defineEmits(['update:modelValue'])
 
 useScrollLock(toRef(props, 'modelValue'))
+
+// ── Mobile scrollbar fade ────────────────────────────────────────────────
+// Same pattern used for the dashboard's .layout-content: the modal body's
+// scrollbar only appears while actively scrolling, then fades out shortly
+// after — desktop keeps it always visible (see CSS, fade rules are scoped
+// to the sub-768px media query).
+const modalBodyRef = ref(null)
+let scrollFadeTimer = null
+function onModalBodyScroll() {
+  const el = modalBodyRef.value
+  if (!el) return
+  el.classList.add('is-scrolling')
+  clearTimeout(scrollFadeTimer)
+  scrollFadeTimer = setTimeout(() => {
+    el.classList.remove('is-scrolling')
+  }, 900)
+}
+onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
 </script>
 
 <style>
@@ -69,7 +87,9 @@ useScrollLock(toRef(props, 'modelValue'))
   width: 100%;
   max-width: 540px;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
   animation: modalSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -80,6 +100,7 @@ useScrollLock(toRef(props, 'modelValue'))
   padding: 22px 24px 18px;
   border-bottom: 1px solid var(--surface-border);
   gap: 12px;
+  flex-shrink: 0;
 }
 .modal-header-left { display: flex; align-items: center; gap: 12px; }
 .modal-icon-wrap {
@@ -103,12 +124,43 @@ useScrollLock(toRef(props, 'modelValue'))
   transition: all 0.2s;
 }
 .modal-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
-.modal-body   { padding: 20px 24px 24px; }
+/* Scrolling lives here — not on .modal-box — so the header and footer stay
+   fixed in place and the scrollbar only ever runs alongside the body
+   content, never next to the title (which produced an extra scrollbar
+   line spanning the whole modal height). */
+.modal-body   { padding: 20px 24px 24px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .modal-footer {
   padding: 14px 24px 20px;
   display: flex; justify-content: flex-end; gap: 10px;
   border-top: 1px solid var(--surface-border);
+  flex-shrink: 0;
 }
 @keyframes modalFadeIn   { from { opacity: 0 } to { opacity: 1 } }
 @keyframes modalSlideUp  { from { transform: translateY(20px) scale(0.96); opacity: 0 } to { transform: translateY(0) scale(1); opacity: 1 } }
+
+/* Mobile: keep the modal from ever stretching toward full viewport height —
+   give it a flexible, shorter max-height so short-content modals stay
+   compact instead of growing tall, matching the page-level dashboard
+   scroll behavior. The scrollbar on .modal-body auto-hides here the same
+   way .layout-content's does, fading in only while actively scrolling. */
+@media (max-width: 768px) {
+  .modal-overlay { padding: 16px; }
+  .modal-box { max-height: min(80vh, 640px); }
+  .modal-body::-webkit-scrollbar-thumb {
+    background: transparent;
+    transition: background-color 0.6s ease;
+  }
+  .modal-body.is-scrolling::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    transition: background-color 0.15s ease;
+  }
+  .modal-body {
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.6s ease;
+  }
+  .modal-body.is-scrolling {
+    scrollbar-color: var(--primary) transparent;
+    transition: scrollbar-color 0.15s ease;
+  }
+}
 </style>

@@ -2,16 +2,16 @@
   <div class="page-root">
     <div class="section-header">
       <div>
-        <h2 class="section-title">{{ vocab.personNounPlural }}</h2>
-        <p class="section-desc">Manage {{ vocab.personNoun.toLowerCase() }} accounts and credentials</p>
+        <h2 class="section-title">{{ groupVocab.personNounPlural }}</h2>
+        <p class="section-desc">Manage {{ groupVocab.personNoun.toLowerCase() }} accounts and credentials</p>
       </div>
       <button class="btn btn-primary" @click="openCreate">
-        <AppIcon name="plus" :size="16" />Add {{ vocab.personNoun }}
+        <AppIcon name="plus" :size="16" />Add {{ groupVocab.personNoun }}
       </button>
     </div>
 
     <div class="glass">
-      <DataTable :columns="cols" :rows="teachers" :loading="loading" searchable :search-placeholder="`Search ${vocab.personNounPlural.toLowerCase()}...`" empty-icon="teachers" :empty-title="`No ${vocab.personNounPlural.toLowerCase()} yet`" :empty-message="`Add your first ${vocab.personNoun.toLowerCase()} to get started.`">
+      <DataTable :columns="cols" :rows="visibleTeachers" :loading="loading" searchable :search-placeholder="`Search ${groupVocab.personNounPlural.toLowerCase()}...`" empty-icon="teachers" :empty-title="`No ${groupVocab.personNounPlural.toLowerCase()} yet`" :empty-message="`Add your first ${groupVocab.personNoun.toLowerCase()} to get started.`">
         <template #actions>
           <button class="btn btn-ghost btn-sm" @click="$emit('refresh')"><AppIcon name="refresh" :size="14" />Refresh</button>
         </template>
@@ -50,7 +50,7 @@
     </div>
 
     <!-- View Details Modal -->
-    <AppModal v-model="showViewModal" :title="`${vocab.personNoun} Details`" icon="user" max-width="480px">
+    <AppModal v-model="showViewModal" :title="`${groupVocab.personNoun} Details`" icon="user" max-width="480px">
       <div v-if="viewTarget" class="view-detail-grid">
         <div class="vd-row"><span class="vd-label">Name</span><span class="vd-val">{{ viewTarget.name }}</span></div>
         <div class="vd-row"><span class="vd-label">Email</span><span class="vd-val">{{ viewTarget.email }}</span></div>
@@ -64,12 +64,12 @@
     </AppModal>
 
     <!-- Create/Edit Modal -->
-    <AppModal v-model="showModal" :title="editing ? `Edit ${vocab.personNoun}` : `Add ${vocab.personNoun}`" icon="user" max-width="580px">
+    <AppModal v-model="showModal" :title="editing ? `Edit ${groupVocab.personNoun}` : `Add ${groupVocab.personNoun}`" icon="user" max-width="580px">
       <form @submit.prevent="save" class="modal-form">
         <div class="form-row two-col">
           <div class="form-group">
             <label class="form-label">Full Name *</label>
-            <input v-model="form.name" class="form-input" :placeholder="`${vocab.personNoun}'s full name`" required />
+            <input v-model="form.name" class="form-input" :placeholder="`${groupVocab.personNoun}'s full name`" required />
           </div>
           <div class="form-group">
             <label class="form-label">Email *</label>
@@ -98,14 +98,14 @@
           <button type="button" class="btn btn-ghost" @click="showModal=false">Cancel</button>
           <button type="submit" class="btn btn-primary" :disabled="saving">
             <span v-if="saving" class="btn-spinner-sm"></span>
-            {{ editing ? 'Save Changes' : `Add ${vocab.personNoun}` }}
+            {{ editing ? 'Save Changes' : `Add ${groupVocab.personNoun}` }}
           </button>
         </div>
       </form>
     </AppModal>
 
     <!-- Delete confirm -->
-    <AppModal v-model="showDeleteModal" :title="`Remove ${vocab.personNoun}`" subtitle="This cannot be undone" icon="trash" icon-color="var(--danger)">
+    <AppModal v-model="showDeleteModal" :title="`Remove ${groupVocab.personNoun}`" subtitle="This cannot be undone" icon="trash" icon-color="var(--danger)">
       <p style="font-size:14px;color:var(--text-secondary);margin-bottom:20px">
         Remove <strong>{{ deleteTarget?.name }}</strong> from this {{ vocab.orgNoun.toLowerCase() }}? Their attendance records will be kept.
       </p>
@@ -125,12 +125,39 @@ import AppBadge from '../ui/AppBadge.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import { useToast } from '../../composables/useToast'
 import { useIndustry } from '../../composables/useIndustry'
+import { getIndustry } from '../../industries'
 import api from '../../api'
 
-const props = defineProps({ teachers: { type: Array, default: () => [] }, loading: Boolean, schoolId: [Number, String] })
+const props = defineProps({
+  teachers: { type: Array, default: () => [] },
+  loading: Boolean,
+  schoolId: [Number, String],
+  // Which tracked-people group this instance manages. 'primary' is the
+  // original/default group (all pre-existing teachers already have this
+  // via the backend's default), so passing nothing preserves the exact
+  // original behavior — every teacher shows, nothing is filtered out.
+  group: { type: String, default: 'primary' },
+})
 const emit = defineEmits(['refresh'])
 const toast = useToast()
 const { vocab } = useIndustry()
+
+// When this instance manages the secondary group (e.g. "Contractors" for a
+// company), all the person-noun text should reflect that group's label
+// instead of the industry's primary person-noun.
+const groupVocab = computed(() => {
+  const sg = vocab.value.secondaryGroup
+  if (props.group !== 'primary' && sg) {
+    return { personNoun: sg.label, personNounPlural: sg.labelPlural }
+  }
+  return { personNoun: vocab.value.personNoun, personNounPlural: vocab.value.personNounPlural }
+})
+
+const visibleTeachers = computed(() =>
+  props.group === 'primary'
+    ? props.teachers
+    : props.teachers.filter(t => t.group === props.group)
+)
 
 const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
 const apiBase = API.replace('/api', '')
@@ -147,12 +174,12 @@ const viewTarget = ref(null)
 const editing = ref(false)
 const saving = ref(false)
 const deleteTarget = ref(null)
-const form = ref({ name: '', email: '', phone: '', subject: '', password: '' })
+const form = ref({ name: '', email: '', phone: '', subject: '', password: '', group: 'primary' })
 
 function openView(row) { viewTarget.value = row; showViewModal.value = true }
 
 const cols = computed(() => [
-  { key: 'name', label: vocab.value.personNoun, sortable: true },
+  { key: 'name', label: groupVocab.value.personNoun, sortable: true },
   { key: 'subject', label: 'Subject', hideMobile: true },
   { key: 'phone', label: 'Phone', hideMobile: true },
   { key: 'today', label: "Today's Status", hideMobile: true },
@@ -160,7 +187,7 @@ const cols = computed(() => [
   { key: 'actions', label: 'Actions' },
 ])
 
-function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '' }; showModal.value = true }
+function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '', group: props.group }; showModal.value = true }
 function openEdit(row) { editing.value = true; form.value = { ...row, password: '' }; showModal.value = true }
 function confirmDelete(row) { deleteTarget.value = row; showDeleteModal.value = true }
 
@@ -169,9 +196,9 @@ async function save() {
   try {
     if (editing.value) await api.put(`/teachers/${form.value.id}`, form.value)
     else await api.post('/teachers', form.value)
-    toast.success(editing.value ? `${vocab.value.personNoun} updated` : `${vocab.value.personNoun} added successfully`)
+    toast.success(editing.value ? `${groupVocab.value.personNoun} updated` : `${groupVocab.value.personNoun} added successfully`)
     showModal.value = false; emit('refresh')
-  } catch (e) { toast.error(e.response?.data?.message || e.response?.data?.error || `Failed to save ${vocab.value.personNoun.toLowerCase()}`) }
+  } catch (e) { toast.error(e.response?.data?.message || e.response?.data?.error || `Failed to save ${groupVocab.value.personNoun.toLowerCase()}`) }
   finally { saving.value = false }
 }
 
@@ -179,9 +206,9 @@ async function doDelete() {
   saving.value = true
   try {
     await api.delete(`/teachers/${deleteTarget.value.id}`)
-    toast.success(`${vocab.value.personNoun} removed`)
+    toast.success(`${groupVocab.value.personNoun} removed`)
     showDeleteModal.value = false; emit('refresh')
-  } catch { toast.error(`Failed to remove ${vocab.value.personNoun.toLowerCase()}`) }
+  } catch { toast.error(`Failed to remove ${groupVocab.value.personNoun.toLowerCase()}`) }
   finally { saving.value = false }
 }
 </script>

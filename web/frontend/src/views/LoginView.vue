@@ -24,8 +24,8 @@
         </div>
 
         <div class="left-content">
-          <h1>Smart <span class="gradient-text">Attendance</span><br>for Modern Schools</h1>
-          <p>Multi-school platform with GPS &amp; Wi-Fi verified check-ins, real-time dashboards, and automated reporting.</p>
+          <h1>Smart <span class="gradient-text">Attendance</span><br>for Modern Organizations</h1>
+          <p>Multi-industry platform with GPS &amp; Wi-Fi verified check-ins, real-time dashboards, and automated reporting.</p>
           <div class="feature-list">
             <div class="feature-item" v-for="f in features" :key="f.text">
               <div class="feature-icon" :style="`background:${f.bg}`">
@@ -264,7 +264,7 @@ const features = [
   { icon: 'location', text: 'GPS Geofence Verification', bg: 'rgba(37,99,235,0.12)', color: 'var(--primary)' },
   { icon: 'wifi', text: 'Wi-Fi BSSID Validation', bg: 'rgba(6,182,212,0.12)', color: 'var(--accent)' },
   { icon: 'activity', text: 'Real-time Socket.io Updates', bg: 'rgba(16,185,129,0.12)', color: 'var(--success)' },
-  { icon: 'layers', text: 'Multi-school Management', bg: 'rgba(139,92,246,0.12)', color: 'var(--info)' },
+  { icon: 'layers', text: 'Multi-organization Management', bg: 'rgba(139,92,246,0.12)', color: 'var(--info)' },
   { icon: 'bar-chart', text: 'Analytics & CSV Export', bg: 'rgba(245,158,11,0.12)', color: 'var(--warning)' },
 ]
 const stats = [
@@ -272,10 +272,13 @@ const stats = [
   { val: '<50ms', label: 'Real-time' },
   { val: 'AES-256', label: 'Encrypted' },
 ]
+// Generic, industry-neutral labels — the role pills render before login,
+// so the actual organization's industry vocabulary (School Admin vs Company
+// Admin vs Facility Admin, etc.) isn't known yet.
 const roles = [
   { key: 'super_admin', label: 'Super Admin', icon: 'shield' },
-  { key: 'school_admin', label: 'School Admin', icon: 'school' },
-  { key: 'teacher', label: 'Teacher', icon: 'user' },
+  { key: 'school_admin', label: 'Admin', icon: 'school' },
+  { key: 'teacher', label: 'Staff', icon: 'user' },
 ]
 
 // ── Login ──

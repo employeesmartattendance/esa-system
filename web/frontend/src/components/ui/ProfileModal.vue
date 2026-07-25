@@ -32,7 +32,7 @@
               <div v-if="schoolName" class="pd-info-row">
                 <AppIcon name="school" :size="14" color="var(--text-muted)" />
                 <div>
-                  <div class="pd-info-label">School</div>
+                  <div class="pd-info-label">{{ vocab.orgNoun }}</div>
                   <div class="pd-info-val">{{ schoolName }}</div>
                 </div>
               </div>
@@ -64,6 +64,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import { useScrollLock } from '../../composables/useScrollLock'
+import { useIndustry } from '../../composables/useIndustry'
 import { toRef } from 'vue'
 
 const props = defineProps({
@@ -80,10 +81,13 @@ const initials = computed(() =>
   (props.user?.name || 'U').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
 )
 
+// Global-industry-aware role label — falls back to 'School Administrator' /
+// 'Teacher' automatically since useIndustry() defaults to the 'school' vocabulary.
+const { vocab } = useIndustry()
 const roleLabel = computed(() => ({
   super_admin:  'Super Administrator',
-  school_admin: 'School Administrator',
-  teacher:      'Teacher',
+  school_admin: vocab.value.adminLabel,
+  teacher:      vocab.value.personNoun,
 }[props.user?.role] || props.user?.role || ''))
 
 const schoolName = computed(() =>

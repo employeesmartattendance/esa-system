@@ -1,5 +1,5 @@
 <template>
-  <DashboardLayout :navSections="navSections" :pageTitle="currentPageTitle" pageSubtitle="Teacher Portal">
+  <DashboardLayout :navSections="navSections" :pageTitle="currentPageTitle" :pageSubtitle="`${vocab.personNoun} Portal`">
     <Transition name="page" mode="out-in">
 
       <!-- ══════════════════════════════════════════════
@@ -108,7 +108,7 @@
                 </div>
                 <div class="rate-info">
                   <div class="rate-title">Monthly Attendance Rate</div>
-                  <div class="rate-sub">{{ monthStats.find(s=>s.label==='Present')?.val || 0 }} present out of {{ monthRecordsAll.length }} school days this month</div>
+                  <div class="rate-sub">{{ monthStats.find(s=>s.label==='Present')?.val || 0 }} present out of {{ monthRecordsAll.length }} days this month</div>
                   <div class="rate-trend" :class="monthAttendanceRate >= 80 ? 'good' : monthAttendanceRate >= 60 ? 'ok' : 'bad'">
                     {{ monthAttendanceRate >= 80 ? 'Excellent' : monthAttendanceRate >= 60 ? 'Needs improvement' : 'Low attendance' }}
                   </div>
@@ -127,7 +127,7 @@
             <div class="glass desk-card">
               <div class="card-title-row">
                 <AppIcon name="school" :size="17" color="var(--accent)" />
-                <span class="card-title-text">My School</span>
+                <span class="card-title-text">My {{ vocab.orgNoun }}</span>
               </div>
               <div class="school-info-card">
                 <div class="school-avatar-lg">{{ schoolName?.charAt(0) || 'S' }}</div>
@@ -179,7 +179,7 @@
                 <div>
                   <div class="pm-name">{{ user?.name }}</div>
                   <div class="pm-email">{{ user?.email }}</div>
-                  <AppBadge variant="primary" label="Teacher" style="margin-top:6px" />
+                  <AppBadge variant="primary" :label="vocab.personNoun" style="margin-top:6px" />
                 </div>
               </div>
             </div>
@@ -202,14 +202,14 @@
             </div>
             <div>
               <h2 class="map-sec-title">Live Location Tracking</h2>
-              <p class="map-sec-sub">Real-time GPS · Route to school · Distance estimate</p>
+              <p class="map-sec-sub">Real-time GPS · Route to {{ vocab.orgNoun.toLowerCase() }} · Distance estimate</p>
             </div>
           </div>
           <div class="map-sec-badge" :class="schoolInfo?.lat ? 'badge-ok' : 'badge-warn'">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" :stroke="schoolInfo?.lat ? '#10b981' : '#f59e0b'" stroke-width="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
-            {{ schoolInfo?.name || 'School not configured' }}
+            {{ schoolInfo?.name || `${vocab.orgNoun} not configured` }}
           </div>
         </div>
 
@@ -220,8 +220,8 @@
             <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
           <div>
-            <div class="warn-title">School GPS not configured</div>
-            <div class="warn-sub">Ask your school admin to set the school location in Settings. The map will still show your position.</div>
+            <div class="warn-title">{{ vocab.orgNoun }} GPS not configured</div>
+            <div class="warn-sub">Ask your {{ vocab.adminLabel.toLowerCase() }} to set the location in Settings. The map will still show your position.</div>
           </div>
         </div>
 
@@ -249,7 +249,7 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
             <div>
-              <div class="mic-label">School</div>
+              <div class="mic-label">{{ vocab.orgNoun }}</div>
               <div class="mic-val">{{ schoolInfo?.name || schoolName || '—' }}</div>
             </div>
           </div>
@@ -311,7 +311,7 @@
                 <h2>{{ user?.name }}</h2>
                 <p>{{ user?.email }}</p>
                 <div class="profile-badges">
-                  <AppBadge variant="primary" label="Teacher" />
+                  <AppBadge variant="primary" :label="vocab.personNoun" />
                   <AppBadge :variant="todayRecord?.status || 'absent'" :label="todayRecord?.status || 'Not checked in today'" dot />
                 </div>
               </div>
@@ -350,7 +350,7 @@
             <div class="glass desk-card">
               <div class="card-title-row">
                 <AppIcon name="school" :size="17" color="var(--accent)" />
-                <span class="card-title-text">School Details</span>
+                <span class="card-title-text">{{ vocab.orgNoun }} Details</span>
               </div>
               <div class="school-detail-row" v-for="d in schoolDetails" :key="d.label">
                 <AppIcon :name="d.icon" :size="13" color="var(--text-muted)" />
@@ -380,11 +380,13 @@ import EditProfileCard    from '../components/ui/EditProfileCard.vue'
 import AvatarUploader     from '../components/ui/AvatarUploader.vue'
 import { useAuthStore }   from '../stores/auth'
 import { getSocket }      from '../socket'
+import { useIndustry }    from '../composables/useIndustry'
 import api from '../api'
 
 const auth   = useAuthStore()
 const route  = useRoute()
 const router = useRouter()
+const { vocab } = useIndustry()
 
 // ── Desktop detection ────────────────────────────────────────────────────────
 const isDesktop = ref(typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron'))
@@ -544,8 +546,8 @@ const weekDays = computed(() => {
 
 /* ── School details ── */
 const schoolDetails = computed(() => [
-  { icon: 'school',  label: 'School Name', val: schoolName.value  || '—' },
-  { icon: 'shield',  label: 'Role',        val: 'Teacher'               },
+  { icon: 'school',  label: `${vocab.value.orgNoun} Name`, val: schoolName.value  || '—' },
+  { icon: 'shield',  label: 'Role',        val: vocab.value.personNoun               },
   { icon: 'clock',   label: 'Check-in by', val: fmtTime(schoolConfig.value?.late_threshold)   || '—' },
   { icon: 'location',label: 'GPS Check',   val: schoolConfig.value?.gps_enabled ? 'Required' : 'Optional', color: schoolConfig.value?.gps_enabled ? 'var(--warning)' : 'var(--text-muted)' },
 ])
@@ -554,8 +556,8 @@ const schoolDetails = computed(() => [
 const profileFields = computed(() => [
   { icon: 'user',       label: 'Full Name',    val: user.value?.name  || '—' },
   { icon: 'user',       label: 'Email Address', val: user.value?.email || '—' },
-  { icon: 'school',     label: 'School',       val: schoolName.value  || '—' },
-  { icon: 'shield',     label: 'Role',         val: 'Teacher'               },
+  { icon: 'school',     label: vocab.value.orgNoun, val: schoolName.value  || '—' },
+  { icon: 'shield',     label: 'Role',         val: vocab.value.personNoun               },
   { icon: 'attendance', label: 'Total Records', val: `${records.value.length} days` },
 ])
 

@@ -14,7 +14,7 @@
       <div class="hud-pill">
         <div class="hud-dot school-dot"></div>
         <div class="hud-info">
-          <div class="hud-label">School</div>
+          <div class="hud-label">{{ vocab.orgNoun }}</div>
           <div class="hud-val">{{ schoolName || 'Not configured' }}</div>
         </div>
       </div>
@@ -59,6 +59,8 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import api from '../../api'
 import { getSocket } from '../../socket'
+import { useIndustry } from '../../composables/useIndustry'
+const { vocab } = useIndustry()
 
 // maplibre-gl is a large WebGL mapping library (~150KB+) that was previously
 // bundled directly into every dashboard route. It's only needed when this map

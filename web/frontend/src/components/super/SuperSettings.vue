@@ -131,7 +131,10 @@
 
         <div v-else-if="admins.length" class="admins-list">
           <div v-for="a in admins" :key="a.id" class="admin-row">
-            <div class="admin-av">{{ a.name?.charAt(0)?.toUpperCase() }}</div>
+            <div class="admin-av">
+              <img v-if="a.avatar" :src="resolveAvatarUrl(a.avatar)" :alt="a.name || 'Admin photo'" class="admin-av-img" />
+              <span v-else>{{ a.name?.charAt(0)?.toUpperCase() }}</span>
+            </div>
             <div class="admin-details">
               <div class="admin-name">
                 {{ a.name }}
@@ -216,6 +219,16 @@ const toast = useToast()
 const initials = computed(() =>
   auth.user?.name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'SA'
 )
+
+// Resolve a stored avatar path (e.g. /uploads/avatars/xxx.jpg) to an absolute
+// URL — same pattern used by AvatarUploader.vue and ProfileModal.vue.
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+function resolveAvatarUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+}
 
 function onAvatarUploaded(updatedUser) {
   if (updatedUser && auth.user) {
@@ -398,7 +411,9 @@ onMounted(fetchAdmins)
   background: linear-gradient(135deg, var(--primary), var(--accent));
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 15px; font-weight: 700; flex-shrink: 0;
+  overflow: hidden;
 }
+.admin-av-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .admin-details { flex: 1; min-width: 0; }
 .admin-name  { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .admin-email { font-size: 12px; color: var(--text-muted); margin: 2px 0; }

@@ -71,6 +71,7 @@ import { useAuthStore } from '../../stores/auth'
 import { disconnectSocket } from '../../socket'
 import AppIcon from '../ui/AppIcon.vue'
 import { useScrollLock } from '../../composables/useScrollLock'
+import { useIndustry } from '../../composables/useIndustry'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -88,10 +89,13 @@ const isMobile = ref(false)
 useScrollLock(computed(() => props.modelValue && isMobile.value))
 
 const user = computed(() => auth.user)
+// Global-industry-aware role label — falls back to 'School Admin' / 'Teacher'
+// automatically since useIndustry() defaults to the 'school' vocabulary.
+const { vocab } = useIndustry()
 const roleLabel = computed(() => ({
   super_admin: 'Super Admin',
-  school_admin: 'School Admin',
-  teacher: 'Teacher',
+  school_admin: vocab.value.adminLabel,
+  teacher: vocab.value.personNoun,
 })[user.value?.role] || '')
 
 const initials = computed(() =>

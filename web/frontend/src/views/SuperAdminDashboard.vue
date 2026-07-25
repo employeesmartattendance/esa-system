@@ -54,22 +54,22 @@ const router = useRouter()
 /* ── Section detection from route ─────────────────────────────────────── */
 const routeMap = {
   '/super/dashboard':         'dashboard',
-  '/super/schools':           'schools',
+  '/super/companies':         'schools',
   '/super/logs':              'logs',
   '/super/settings':          'settings',
   '/super/contact-requests':  'contact-requests',
-  '/super/trusted-schools':   'trusted-schools',
+  '/super/trusted-clients':   'trusted-schools',
 }
 const section = ref(routeMap[route.path] || 'dashboard')
 
 function goSection(s) {
   const pathMap = {
     dashboard: '/super/dashboard',
-    schools: '/super/schools',
+    schools: '/super/companies',
     logs: '/super/logs',
     settings: '/super/settings',
     'contact-requests': '/super/contact-requests',
-    'trusted-schools': '/super/trusted-schools',
+    'trusted-schools': '/super/trusted-clients',
   }
   router.push(pathMap[s] || '/super/dashboard')
 }
@@ -95,10 +95,10 @@ let   pollInterval   = null
 /* ── Nav ──────────────────────────────────────────────────────────────── */
 const navSections = [
   { group: 'Overview',    items: [{ to: '/super/dashboard', label: 'Dashboard',         icon: 'dashboard' }] },
-  { group: 'Management',  items: [{ to: '/super/schools',   label: 'Companies',         icon: 'building'  },
+  { group: 'Management',  items: [{ to: '/super/companies',   label: 'Companies',         icon: 'building'  },
                                    { to: '/super/logs',      label: 'System Logs',       icon: 'log'       }] },
   { group: 'Website',     items: [{ to: '/super/contact-requests', label: 'Contact Requests', icon: 'bell' },
-                                   { to: '/super/trusted-schools',  label: 'Trusted Clients',  icon: 'check-circle' }] },
+                                   { to: '/super/trusted-clients',  label: 'Trusted Clients',  icon: 'check-circle' }] },
   { group: 'System',      items: [{ to: '/super/settings',  label: 'Settings',          icon: 'settings'  }] },
 ]
 const pageTitles = { dashboard: 'Dashboard', schools: 'Companies', logs: 'System Logs', settings: 'Settings', 'contact-requests': 'Contact Requests', 'trusted-schools': 'Trusted Clients' }

@@ -36,7 +36,10 @@
         </template>
         <template #cell-name="{ row, index }">
           <div class="school-name-cell">
-            <div class="school-avatar">{{ row.name?.charAt(0) }}</div>
+            <div class="school-avatar">
+              <img v-if="row.logo_url" :src="resolveLogoUrl(row.logo_url)" :alt="row.name" class="school-avatar-img" />
+              <span v-else>{{ row.name?.charAt(0) }}</span>
+            </div>
             <div>
               <div class="fw-600">{{ row.name }}</div>
               <div class="text-muted text-xs">{{ getIndustry(row.industry).label }}</div>
@@ -76,6 +79,9 @@
     <!-- View School Modal -->
     <AppModal v-model="showViewModal" title="Company Details" icon="building" max-width="460px">
       <div v-if="viewTarget" class="view-detail-grid">
+        <div v-if="viewTarget.logo_url" class="view-logo-preview">
+          <img :src="resolveLogoUrl(viewTarget.logo_url)" :alt="viewTarget.name" />
+        </div>
         <div class="vd-row"><span class="vd-label">Company</span><span class="vd-val">{{ viewTarget.name }}</span></div>
         <div class="vd-row"><span class="vd-label">Industry</span><span class="vd-val">{{ getIndustry(viewTarget.industry).label }}</span></div>
         <div class="vd-row"><span class="vd-label">Admin</span><span class="vd-val">{{ viewTarget.admin_name || '—' }}</span></div>
@@ -125,11 +131,43 @@
           {{ getIndustry(form.industry).label }}
           <button type="button" class="chip-change-btn" @click="createStep = 'industry'">Change</button>
         </div>
+        <div v-if="editing" class="form-row">
+          <div class="form-group">
+            <label class="form-label">Industry</label>
+            <select v-model="form.industry" class="form-input form-select">
+              <option v-for="ind in industryList" :key="ind.key" :value="ind.key">{{ ind.label }}</option>
+            </select>
+            <p v-if="industryChanged" class="field-warning">
+              <AppIcon name="alert-triangle" :size="13" />
+              Changing industry only relabels this {{ getIndustry(editingOriginalIndustry).orgNoun.toLowerCase() }} —
+              existing {{ getIndustry(editingOriginalIndustry).personNounPlural.toLowerCase() }} and attendance
+              records are kept and will simply display under the new terminology.
+            </p>
+          </div>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">{{ getIndustry(form.industry).orgNoun }} Name *</label>
             <input v-model="form.name" class="form-input" :placeholder="`e.g. ${namePlaceholder}`" required />
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ getIndustry(form.industry).orgNoun }} Photo</label>
+          <div class="logo-upload-row">
+            <div class="logo-preview">
+              <img v-if="logoPreviewUrl" :src="logoPreviewUrl" alt="Company photo" class="logo-preview-img" />
+              <AppIcon v-else name="building" :size="22" color="var(--text-muted)" />
+              <div v-if="uploadingLogo" class="logo-uploading"><span class="btn-spinner-sm" style="border-color:rgba(255,255,255,0.4);border-top-color:#fff"></span></div>
+            </div>
+            <div class="logo-upload-actions">
+              <button type="button" class="btn btn-ghost btn-sm" :disabled="uploadingLogo" @click="triggerLogoPicker">
+                <AppIcon name="camera" :size="13" />{{ form.logo_url ? 'Change Photo' : 'Upload Photo' }}
+              </button>
+              <button v-if="form.logo_url" type="button" class="btn-link-remove" :disabled="uploadingLogo" @click="removeLogo">Remove</button>
+              <input ref="logoFileInput" type="file" accept="image/*" class="hidden-file-input" @change="onLogoSelected" />
+            </div>
+          </div>
+          <p v-if="logoError" class="field-warning"><AppIcon name="alert-triangle" :size="13" />{{ logoError }}</p>
         </div>
         <div class="form-divider"><span>Admin Account</span></div>
         <div class="form-row two-col">
@@ -193,14 +231,84 @@ const viewTarget = ref(null)
 const editing = ref(false)
 const saving = ref(false)
 const deleteTarget = ref(null)
-const form = ref({ name: '', admin_name: '', admin_email: '', admin_password: '', industry: '' })
+const form = ref({ name: '', admin_name: '', admin_email: '', admin_password: '', industry: '', logo_url: '' })
+
+// ── Company photo upload ────────────────────────────────────────────
+const logoFileInput = ref(null)
+const uploadingLogo = ref(false)
+const logoError     = ref('')
+// Local data-URL preview shown instantly while the upload is in flight —
+// swapped for the real saved URL once the upload response comes back.
+const localLogoPreview = ref('')
+
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+function resolveLogoUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:')) return url
+  return `${apiBase}${url}`
+}
+const logoPreviewUrl = computed(() => resolveLogoUrl(localLogoPreview.value || form.value.logo_url))
+
+function triggerLogoPicker() {
+  logoError.value = ''
+  logoFileInput.value?.click()
+}
+
+async function onLogoSelected(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  logoError.value = ''
+
+  if (!file.type.startsWith('image/')) {
+    logoError.value = 'Please select an image file'
+    e.target.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    logoError.value = 'Image must be under 5MB'
+    e.target.value = ''
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = (ev) => { localLogoPreview.value = ev.target.result }
+  reader.readAsDataURL(file)
+
+  uploadingLogo.value = true
+  try {
+    const fd = new FormData()
+    fd.append('logo', file)
+    const r = await api.post('/schools/upload-logo', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    form.value.logo_url = r?.relative_logo_url || r?.logo_url || ''
+    localLogoPreview.value = ''
+  } catch (err) {
+    localLogoPreview.value = ''
+    logoError.value = err.response?.data?.message || 'Failed to upload photo'
+  } finally {
+    uploadingLogo.value = false
+    e.target.value = ''
+  }
+}
+
+function removeLogo() {
+  form.value.logo_url = ''
+  localLogoPreview.value = ''
+  logoError.value = ''
+}
 
 // 'industry' = step 0 (choose industry, create flow only), 'details' = the
-// existing company/admin fields. Editing skips straight to 'details' since
-// changing an existing company's industry is a bigger, separate operation
-// (would affect its already-tracked people) and isn't handled here.
+// existing company/admin fields. Editing skips straight to 'details' and
+// exposes industry as a plain dropdown instead of the picker grid, since
+// changing it on an existing company is just a relabeling — attendance
+// records and existing tracked people are keyed by IDs, not by industry,
+// so nothing is deleted or reassigned when it changes.
 const createStep = ref('industry')
 const industryList = INDUSTRY_LIST
+const editingOriginalIndustry = ref('school')
+const industryChanged = computed(() => editing.value && form.value.industry !== editingOriginalIndustry.value)
 
 function selectIndustry(key) {
   form.value.industry = key
@@ -233,8 +341,8 @@ const miniStats = computed(() => {
   ]
 })
 
-function openCreate() { editing.value = false; createStep.value = 'industry'; form.value = { name: '', admin_name: '', admin_email: '', admin_password: '', industry: '' }; showModal.value = true }
-function openEdit(row) { editing.value = true; createStep.value = 'details'; form.value = { ...row, admin_password: '', industry: row.industry || 'school' }; showModal.value = true }
+function openCreate() { editing.value = false; createStep.value = 'industry'; form.value = { name: '', admin_name: '', admin_email: '', admin_password: '', industry: '', logo_url: '' }; showModal.value = true }
+function openEdit(row) { editing.value = true; createStep.value = 'details'; editingOriginalIndustry.value = row.industry || 'school'; form.value = { ...row, admin_password: '', industry: row.industry || 'school', logo_url: row.logo_url || '' }; showModal.value = true }
 function confirmDelete(row) { deleteTarget.value = row; showDeleteModal.value = true }
 
 async function saveSchool() {
@@ -291,7 +399,8 @@ function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { mo
 .mini-val { font-size: 20px; font-weight: 800; line-height: 1; }
 .mini-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .school-name-cell { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
-.school-avatar { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+.school-avatar { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0; overflow: hidden; }
+.school-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .fw-600 { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: normal; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .fw-500 { font-weight: 500; font-size: 13px; }
 .text-muted { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: normal; word-break: break-word; }
@@ -308,12 +417,34 @@ function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { mo
 .two-col { flex-direction: row; }
 .form-divider { display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin: 4px 0; }
 .form-divider::before, .form-divider::after { content: ''; flex: 1; height: 1px; background: var(--surface-border); }
+.field-warning { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--warning, #d97706); margin-top: 8px; line-height: 1.5; }
+.field-warning :deep(svg) { flex-shrink: 0; margin-top: 2px; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .btn-spinner-sm { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
 .view-detail-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.view-logo-preview { display: flex; justify-content: center; margin-bottom: 4px; }
+.view-logo-preview img { width: 72px; height: 72px; border-radius: var(--radius); object-fit: cover; border: 1px solid var(--surface-border); }
 .vd-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); overflow: hidden; }
 .vd-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; min-width: 80px; flex-shrink: 0; }
 .vd-val { font-size: 13px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; word-break: break-word; }
+
+/* Company photo upload */
+.logo-upload-row { display: flex; align-items: center; gap: 14px; }
+.logo-preview {
+  width: 56px; height: 56px; border-radius: var(--radius); flex-shrink: 0;
+  background: var(--surface); border: 1px solid var(--surface-border);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;
+}
+.logo-preview-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.logo-uploading { position: absolute; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; }
+.logo-upload-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hidden-file-input { display: none; }
+.btn-link-remove {
+  padding: 0; border: none; background: none; cursor: pointer;
+  color: var(--danger); font-size: 12px; font-weight: 700; text-decoration: underline;
+  font-family: inherit;
+}
+.btn-link-remove:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Choose Industry step (create-company flow) */
 .industry-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }

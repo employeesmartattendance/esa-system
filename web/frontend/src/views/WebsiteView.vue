@@ -16,7 +16,7 @@
           <a href="#how-it-works" class="nav-link" :class="{active: activeSection==='how-it-works'}" @click.prevent="navTo('#how-it-works')">How It Works</a>
           <a href="#features" class="nav-link" :class="{active: activeSection==='features'}" @click.prevent="navTo('#features')">Features</a>
           <a href="#download" class="nav-link" :class="{active: activeSection==='download'}" @click.prevent="navTo('#download')">Download</a>
-          <a href="#trusted" class="nav-link" :class="{active: activeSection==='trusted'}" @click.prevent="navTo('#trusted')">Schools</a>
+          <a href="#trusted" class="nav-link" :class="{active: activeSection==='trusted'}" @click.prevent="navTo('#trusted')">Clients</a>
           <a href="#contact" class="nav-link" :class="{active: activeSection==='contact'}" @click.prevent="navTo('#contact')">Contact</a>
         </div>
 
@@ -40,7 +40,7 @@
         <a href="#how-it-works" class="mob-link" @click.prevent="navTo('#how-it-works', true)">How It Works</a>
         <a href="#features" class="mob-link" @click.prevent="navTo('#features', true)">Features</a>
         <a href="#download" class="mob-link" @click.prevent="navTo('#download', true)">Download</a>
-        <a href="#trusted" class="mob-link" @click.prevent="navTo('#trusted', true)">Schools</a>
+        <a href="#trusted" class="mob-link" @click.prevent="navTo('#trusted', true)">Clients</a>
         <a href="#contact" class="mob-link" @click.prevent="navTo('#contact', true)">Contact</a>
         <div class="mob-cta">
           <a href="/login"   class="btn btn-ghost"   style="flex:1;justify-content:center">Sign In</a>
@@ -64,14 +64,14 @@
           <div class="hero-left">
             <div class="hero-badge">
               <span class="badge-dot"></span>
-              Now available for schools everywhere
+              Now available for every industry
             </div>
             <h1 class="hero-title">
               Smart <span class="gradient-text">Attendance</span><br>
-              for Modern Schools
+              for Modern Organizations
             </h1>
             <p class="hero-desc">
-              ESA uses GPS &amp; Wi-Fi technology to automate teacher attendance tracking — real-time dashboards, instant reports, and multi-school management from a single platform.
+              ESA uses GPS &amp; Wi-Fi technology to automate staff attendance tracking — real-time dashboards, instant reports, and multi-organization management from a single platform.
             </p>
             <div class="hero-actions">
               <a href="#contact" class="btn btn-primary btn-xl" @click.prevent="navTo('#contact')">
@@ -84,7 +84,7 @@
               </a>
             </div>
             <div class="hero-stats">
-              <div class="hero-stat"><div class="hstat-val">{{ schoolCount }}</div><div class="hstat-lbl">Active Schools</div></div>
+              <div class="hero-stat"><div class="hstat-val">{{ schoolCount }}</div><div class="hstat-lbl">Active Organizations</div></div>
               <div class="hero-stat"><div class="hstat-val">99.9%</div><div class="hstat-lbl">Uptime</div></div>
               <div class="hero-stat"><div class="hstat-val">&lt;50ms</div><div class="hstat-lbl">Real-time</div></div>
             </div>
@@ -160,7 +160,7 @@
             How It Works
           </div>
           <h2 class="section-title">Simple. Automated. Reliable.</h2>
-          <p class="section-desc mx-auto">From school setup to daily attendance — ESA makes the entire process effortless in four simple steps.</p>
+          <p class="section-desc mx-auto">From organization setup to daily attendance — ESA makes the entire process effortless in four simple steps.</p>
         </div>
         <div class="steps-grid">
           <div class="glass step-card" v-for="s in steps" :key="s.num">
@@ -186,8 +186,8 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             Platform Features
           </div>
-          <h2 class="section-title">Everything Your School Needs</h2>
-          <p class="section-desc">A complete attendance management platform built specifically for educational institutions.</p>
+          <h2 class="section-title">Everything Your Organization Needs</h2>
+          <p class="section-desc">A complete attendance management platform built for schools, companies, hospitals, factories, and every other industry.</p>
         </div>
         <div class="features-grid">
           <div class="glass feature-card" v-for="f in features" :key="f.title">
@@ -196,7 +196,7 @@
               <svg v-else-if="f.title === 'Wi-Fi Network Validation'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
               <svg v-else-if="f.title === 'Real-Time Live Dashboard'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               <svg v-else-if="f.title === 'Automated Reports'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg>
-              <svg v-else-if="f.title === 'Multi-School Management'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <svg v-else-if="f.title === 'Multi-Organization Management'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               <svg v-else-if="f.title === 'Auto-Checkout System'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div class="feature-title">{{ f.title }}</div>
@@ -215,7 +215,7 @@
             Download ESA
           </div>
           <h2 class="section-title">Available on All Platforms</h2>
-          <p class="section-desc mx-auto">ESA runs natively on Android, iOS, and desktop — teachers can check in from any device, anywhere on campus.</p>
+          <p class="section-desc mx-auto">ESA runs natively on Android, iOS, and desktop — staff can check in from any device, anywhere on site.</p>
         </div>
         <div class="download-grid">
           <!-- Mobile -->
@@ -306,10 +306,10 @@
         <div class="section-header-center">
           <div class="section-tag">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            Trusted Schools
+            Trusted Clients
           </div>
-          <h2 class="section-title">Schools Already Using ESA</h2>
-          <p class="section-desc mx-auto">Join the growing community of schools that rely on ESA for accurate, automated attendance management.</p>
+          <h2 class="section-title">Organizations Already Using ESA</h2>
+          <p class="section-desc mx-auto">Join the growing community of schools, companies, and institutions that rely on ESA for accurate, automated attendance management.</p>
         </div>
       </div>
       <div class="trusted-wrap">
@@ -339,7 +339,7 @@
       </div>
       <div class="container" style="margin-top:32px;text-align:center">
         <p style="font-size:14px;color:var(--text-muted)">
-          Want your school featured here?
+          Want your organization featured here?
           <a href="#contact" class="link-primary">Request access →</a>
         </p>
       </div>
@@ -355,8 +355,8 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               Get in Touch
             </div>
-            <h2 class="section-title">Ready to Transform Your School's Attendance?</h2>
-            <p class="section-desc">Fill out the form and our team will set up ESA for your school. No complex installation — we guide you through every step.</p>
+            <h2 class="section-title">Ready to Transform Your Organization's Attendance?</h2>
+            <p class="section-desc">Fill out the form and our team will set up ESA for your organization. No complex installation — we guide you through every step.</p>
             <div class="contact-info-cards">
               <div class="glass ci-card" v-for="ci in contactInfo" :key="ci.label">
                 <div class="ci-icon" :style="`background:${ci.bg}`">
@@ -394,13 +394,13 @@
                   <input class="form-input" type="tel" v-model="form.phone" placeholder="+250 7xx xxx xxx" />
                 </div>
                 <div class="form-group">
-                  <label class="form-label">School Name</label>
-                  <input class="form-input" v-model="form.school_name" placeholder="Your school name" />
+                  <label class="form-label">Organization Name</label>
+                  <input class="form-input" v-model="form.school_name" placeholder="Your organization name" />
                 </div>
               </div>
               <div class="form-group">
                 <label class="form-label">Message</label>
-                <textarea class="form-input" style="min-height:110px;resize:vertical" v-model="form.message" placeholder="Tell us about your school, number of teachers, or any questions..." />
+                <textarea class="form-input" style="min-height:110px;resize:vertical" v-model="form.message" placeholder="Tell us about your organization, number of staff, or any questions..." />
               </div>
               <button type="submit" class="btn btn-primary" style="padding:14px;font-size:15px;font-weight:700;width:100%" :disabled="submitting">
                 <div v-if="submitting" class="spinner" style="width:18px;height:18px;border-color:rgba(255,255,255,.3);border-top-color:#fff"></div>
@@ -428,7 +428,7 @@
               <img src="/esa-logo.png" alt="ESA" class="footer-logo" />
               <span class="footer-brand-name">ESA</span>
             </div>
-            <p class="footer-tagline">Employee Smart Attendance — automated, verified GPS &amp; Wi-Fi attendance for modern schools.</p>
+            <p class="footer-tagline">Employee Smart Attendance — automated, verified GPS &amp; Wi-Fi attendance for every industry.</p>
           </div>
           <div>
             <div class="footer-col-title">Product</div>
@@ -442,7 +442,7 @@
             <a href="/login"    class="footer-link">Sign In</a>
             <a href="#download" class="footer-link">Mobile App</a>
             <a href="#download" class="footer-link">Desktop App</a>
-            <a href="#trusted"  class="footer-link">Partner Schools</a>
+            <a href="#trusted"  class="footer-link">Partner Organizations</a>
           </div>
           <div>
             <div class="footer-col-title">Support</div>
@@ -590,7 +590,7 @@ function applyWebsiteSeoMeta() {
   headState.robots = document.querySelector('meta[name="robots"]')?.getAttribute('content') || ''
   headState.canonical = document.querySelector('link[rel="canonical"]')?.getAttribute('href') || ''
 
-  document.title = 'ESA Attendance System for Schools | GPS Teacher Attendance Tracking'
+  document.title = 'ESA Attendance System | GPS Employee Attendance Tracking'
 
   let descriptionMeta = document.querySelector('meta[name="description"]')
   if (!descriptionMeta) {
@@ -598,7 +598,7 @@ function applyWebsiteSeoMeta() {
     descriptionMeta.setAttribute('name', 'description')
     document.head.appendChild(descriptionMeta)
   }
-  descriptionMeta.setAttribute('content', 'ESA attendance system helps schools track teacher attendance with GPS geolocation, Wi-Fi validation, real-time dashboard monitoring, and automated attendance reports.')
+  descriptionMeta.setAttribute('content', 'ESA attendance system helps schools, companies, hospitals, and other organizations track staff attendance with GPS geolocation, Wi-Fi validation, real-time dashboard monitoring, and automated attendance reports.')
 
   let robotsMeta = document.querySelector('meta[name="robots"]')
   if (!robotsMeta) {
@@ -623,15 +623,15 @@ function applyWebsiteSeoMeta() {
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web, Android, Windows',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-    description: 'School attendance tracking system with GPS geolocation verification, Wi-Fi validation, real-time dashboard, and automated reporting.',
+    description: 'Multi-industry attendance tracking system with GPS geolocation verification, Wi-Fi validation, real-time dashboard, and automated reporting.',
     url: `${window.location.origin}/website`,
     featureList: [
       'GPS attendance system',
       'Attendance system with geolocation',
-      'Teacher attendance tracking',
+      'Staff attendance tracking',
       'Real-time attendance dashboard',
       'Automated attendance reports',
-      'Multi-school attendance management',
+      'Multi-organization attendance management',
     ],
   }
   const script = document.createElement('script')
@@ -767,14 +767,14 @@ const statBarItems = [
 
 // ── How it works steps ────────────────────────────────────────
 const steps = [
-  { num:'01', title:'School Registration', iconBg:'rgba(37,99,235,0.1)',
-    desc:'Super admin creates your school profile, assigns a school admin account, and configures GPS boundary and working hours.',
+  { num:'01', title:'Organization Registration', iconBg:'rgba(37,99,235,0.1)',
+    desc:'Super admin creates your organization profile, assigns an admin account, and configures GPS boundary and working hours.',
   },
-  { num:'02', title:'Add Teachers', iconBg:'rgba(6,182,212,0.1)',
-    desc:'School admins register teachers with their profiles. Each teacher receives credentials and can download the ESA app.',
+  { num:'02', title:'Add Staff', iconBg:'rgba(6,182,212,0.1)',
+    desc:'Admins register staff members with their profiles. Each person receives credentials and can download the ESA app.',
   },
   { num:'03', title:'GPS Check-In', iconBg:'rgba(16,185,129,0.1)',
-    desc:'Teachers open the app and tap check-in. ESA verifies their GPS location against the school boundary and records the timestamp.',
+    desc:'Staff open the app and tap check-in. ESA verifies their GPS location against the organization boundary and records the timestamp.',
   },
   { num:'04', title:'Live Dashboard', iconBg:'rgba(139,92,246,0.1)',
     desc:'Admins see real-time attendance on a live map and dashboard. Reports are auto-generated, and auto-checkout handles end-of-day.',
@@ -784,10 +784,10 @@ const steps = [
 // ── Features ──────────────────────────────────────────────────
 const features = [
   { title:'GPS Location Verification', iconBg:'rgba(37,99,235,0.1)',
-    desc:'Attendance is verified using precise GPS. Teachers must be within the school boundary — no proxy attendance possible.',
+    desc:'Attendance is verified using precise GPS. Staff must be within the organization boundary — no proxy attendance possible.',
   },
   { title:'Wi-Fi Network Validation', iconBg:'rgba(6,182,212,0.1)',
-    desc:'Optional Wi-Fi BSSID validation adds extra security. Teachers must be on the school network to check in.',
+    desc:'Optional Wi-Fi BSSID validation adds extra security. Staff must be on the organization network to check in.',
   },
   { title:'Real-Time Live Dashboard', iconBg:'rgba(16,185,129,0.1)',
     desc:'Watch attendance live. Dashboard updates via WebSockets showing present, late, or absent the moment check-in is recorded.',
@@ -795,17 +795,17 @@ const features = [
   { title:'Automated Reports', iconBg:'rgba(245,158,11,0.1)',
     desc:'Generate daily, weekly, and monthly attendance reports with one click. Export to CSV for payroll or HR integration.',
   },
-  { title:'Multi-School Management', iconBg:'rgba(139,92,246,0.1)',
-    desc:'Super admins manage unlimited schools from one central panel. Each school operates independently with its own settings.',
+  { title:'Multi-Organization Management', iconBg:'rgba(139,92,246,0.1)',
+    desc:'Super admins manage unlimited organizations from one central panel. Each organization operates independently with its own settings.',
   },
   { title:'Auto-Checkout System', iconBg:'rgba(239,68,68,0.1)',
-    desc:'Configure automatic end-of-day checkout times. Teachers who forget are handled automatically, keeping records clean.',
+    desc:'Configure automatic end-of-day checkout times. Staff who forget are handled automatically, keeping records clean.',
   },
 ]
 
 // ── Download features ─────────────────────────────────────────
 const mobileFeatures  = ['One-tap GPS check-in & check-out','View personal attendance history','Push notifications for reminders','Works offline, syncs when connected']
-const desktopFeatures = ['Full dashboard — all admin features','Live map with teacher locations','Export reports to CSV','Multi-school control panel']
+const desktopFeatures = ['Full dashboard — all admin features','Live map with staff locations','Export reports to CSV','Multi-organization control panel']
 
 // ── Contact info ──────────────────────────────────────────────
 const contactInfo = [
@@ -1150,7 +1150,7 @@ img { max-width:100%; }
 .steps-grid {
   display:grid; grid-template-columns:repeat(4,1fr); gap:18px;
 }
-.step-card { padding:26px 22px; border-radius:var(--radius-lg); transition:all var(--transition); }
+.step-card { padding:26px 22px; border-radius:var(--radius-lg); transition:transform var(--transition), box-shadow var(--transition); }
 .step-card:hover { transform:translateY(-4px); box-shadow:var(--card-shadow-lg); }
 .step-num  { font-size:44px; font-weight:900; line-height:1; background:linear-gradient(135deg,var(--primary),var(--accent)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:14px; }
 .step-icon-wrap { width:52px; height:52px; border-radius:var(--radius); display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
@@ -1160,7 +1160,7 @@ img { max-width:100%; }
 /* ══════════ FEATURES ══════════ */
 .features-bg { background:linear-gradient(150deg,rgba(37,99,235,0.04) 0%,rgba(6,182,212,0.02) 100%); }
 .features-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:48px; }
-.feature-card { padding:26px; border-radius:var(--radius-lg); transition:all var(--transition); }
+.feature-card { padding:26px; border-radius:var(--radius-lg); transition:transform var(--transition), box-shadow var(--transition); }
 .feature-card:hover { transform:translateY(-4px); box-shadow:var(--card-shadow-lg); }
 .feature-icon  { width:50px; height:50px; border-radius:var(--radius); display:flex; align-items:center; justify-content:center; margin-bottom:16px; }
 .feature-title { font-size:16px; font-weight:700; margin-bottom:8px; }
@@ -1169,7 +1169,7 @@ img { max-width:100%; }
 /* ══════════ DOWNLOAD ══════════ */
 .download-bg { background:linear-gradient(150deg,rgba(37,99,235,0.06) 0%,rgba(6,182,212,0.03) 100%); }
 .download-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:48px; }
-.download-card { padding:30px 28px; border-radius:var(--radius-xl); display:flex; flex-direction:column; gap:18px; transition:all var(--transition); }
+.download-card { padding:30px 28px; border-radius:var(--radius-xl); display:flex; flex-direction:column; gap:18px; transition:transform var(--transition), box-shadow var(--transition); }
 .download-card:hover { transform:translateY(-4px); box-shadow:var(--card-shadow-lg); }
 .dc-header { display:flex; align-items:center; gap:16px; }
 .dc-icon   { width:62px; height:62px; border-radius:var(--radius-lg); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -1210,7 +1210,7 @@ img { max-width:100%; }
 .school-badge {
   width:140px; height:78px; border-radius:var(--radius); display:flex; align-items:center;
   justify-content:center; padding:12px; position:relative; flex-shrink:0;
-  transition:all var(--transition); cursor:default;
+  transition:transform var(--transition), box-shadow var(--transition); cursor:default;
 }
 .school-badge:hover { transform:scale(1.06); box-shadow:var(--card-shadow-lg); }
 .school-logo  { max-width:90px; max-height:46px; object-fit:contain; background:transparent; }
