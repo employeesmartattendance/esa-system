@@ -552,7 +552,7 @@ async function createSchool(req, res) {
     school = await School.create({ name, address: address || null, phone: phone || null, email: email || null, industry, logo_url: logo_url || null });
     await User.create({ name: adminName, email: adminEmail.toLowerCase(), password: await bcrypt.hash(adminPassword, 12), role: 'school_admin', school_id: school._id });
     await Settings.create({ school_id: school._id });
-    await logAction('CREATE_SCHOOL', req.user._id, `Created school: ${name}`, req.ip);
+    await logAction('CREATE_COMPANY', req.user._id, `Created company: ${name}`, req.ip);
     emitToSuperAdmin('school_created', { schoolId: toId(school._id), name });
 
     // Send welcome email to school admin (non-blocking)
@@ -610,7 +610,7 @@ async function updateSchool(req, res) {
   if (industry) update.industry = industry;
   if (logo_url !== undefined) update.logo_url = logo_url || null;
   await School.updateOne({ _id: req.params.id }, update);
-  await logAction('UPDATE_SCHOOL', req.user._id, `Updated school ID: ${req.params.id}`, req.ip);
+  await logAction('UPDATE_COMPANY', req.user._id, `Updated company ID: ${req.params.id}`, req.ip);
   emitToSuperAdmin('school_updated', { schoolId: req.params.id });
   return sendSuccess(res, null, 'School updated successfully');
 }
@@ -619,7 +619,7 @@ app.put('/api/schools/:id', SA, async (req, res) => { try { return await updateS
 
 async function deleteSchool(req, res) {
   await School.deleteOne({ _id: req.params.id });
-  await logAction('DELETE_SCHOOL', req.user._id, `Deleted school ID: ${req.params.id}`, req.ip);
+  await logAction('DELETE_COMPANY', req.user._id, `Deleted company ID: ${req.params.id}`, req.ip);
   emitToSuperAdmin('school_deleted', { schoolId: req.params.id });
   return sendSuccess(res, null, 'School deleted successfully');
 }
@@ -630,7 +630,7 @@ async function toggleSchoolStatus(req, res) {
   const { status } = req.body;
   if (!['active','inactive'].includes(status)) return sendError(res, 'Invalid status');
   await School.updateOne({ _id: req.params.id }, { status });
-  await logAction('TOGGLE_SCHOOL_STATUS', req.user._id, `Set school #${req.params.id} to ${status}`, req.ip);
+  await logAction('TOGGLE_COMPANY_STATUS', req.user._id, `Set company #${req.params.id} to ${status}`, req.ip);
   emitToSuperAdmin('school_status_changed', { schoolId: req.params.id, status });
   if (status === 'inactive') forceLogoutSchool(req.params.id);
   return sendSuccess(res, null, `School ${status}`);
@@ -1044,7 +1044,7 @@ app.post('/api/school/reports/generate', SCH, async (req, res) => {
     const cnt = await Attendance.countDocuments({ school_id: schoolId, date: today() });
     if (!cnt) return sendError(res, 'No attendance records for today yet', 400);
     await generateDailyReport(schoolId);
-    await logAction('GENERATE_REPORT', req.user._id, `Manually generated daily report for school #${schoolId}`, req.ip);
+    await logAction('GENERATE_REPORT', req.user._id, `Manually generated daily report for company #${schoolId}`, req.ip);
     return sendSuccess(res, null, "Today's report generated successfully");
   } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
 });
@@ -1054,8 +1054,8 @@ app.get('/api/school/info', authMiddleware(['school_admin','teacher']), async (r
   try {
     let schoolId = req.user.school_id;
     if (req.user.role === 'teacher') { const t = await Teacher.findOne({ user_id: req.user._id }).lean(); if (!t) return sendError(res, 'Teacher not found', 404); schoolId = toId(t.school_id); }
-    const sc = await School.findById(schoolId).select('id name address phone email industry').lean();
-    return sendSuccess(res, sc ? { ...sc, id: toId(sc._id) } : null);
+    const sc = await School.findById(schoolId).select('id name address phone email industry logo_url').lean();
+    return sendSuccess(res, sc ? { ...sc, id: toId(sc._id), logo_url: toPublicUploadUrl(req, sc.logo_url) } : null);
   } catch { return sendError(res, 'Server error', 500); }
 });
 

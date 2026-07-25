@@ -392,8 +392,8 @@ onMounted(fetchAdmins)
 }
 
 /* Form */
-.ss-form { display: flex; flex-direction: column; gap: 14px; flex: 1; }
-.ss-form > button[type="submit"] { margin-top: auto; }
+.ss-form { display: flex; flex-direction: column; gap: 14px; flex: 1; justify-content: center; }
+.ss-form > button[type="submit"] { margin-top: 14px; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
 

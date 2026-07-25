@@ -130,7 +130,10 @@
                 <span class="card-title-text">My {{ vocab.orgNoun }}</span>
               </div>
               <div class="school-info-card">
-                <div class="school-avatar-lg">{{ schoolName?.charAt(0) || 'S' }}</div>
+                <div class="school-avatar-lg">
+                  <img v-if="schoolLogo" :src="schoolLogo" alt="" class="school-avatar-img" />
+                  <span v-else>{{ schoolName?.charAt(0) || 'S' }}</span>
+                </div>
                 <div class="school-name-lg">{{ schoolName || '—' }}</div>
                 <div class="school-detail-row" v-for="d in schoolDetails" :key="d.label">
                   <AppIcon :name="d.icon" :size="13" color="var(--text-muted)" />
@@ -175,7 +178,10 @@
                 <button class="link-btn" @click="goSection('profile')">View →</button>
               </div>
               <div class="profile-mini">
-                <div class="pm-avatar">{{ initials }}</div>
+                <div class="pm-avatar">
+                  <img v-if="user?.avatar" :src="user.avatar" alt="" class="pm-avatar-img" />
+                  <span v-else>{{ initials }}</span>
+                </div>
                 <div>
                   <div class="pm-name">{{ user?.name }}</div>
                   <div class="pm-email">{{ user?.email }}</div>
@@ -434,6 +440,7 @@ function goSection(s) {
 const todayRecord  = ref(null)
 const records      = ref([])
 const schoolName   = ref('')
+const schoolLogo   = ref('')
 const schoolConfig = ref({})
 const schoolInfo   = ref(null)  // { id, name, lat, lng }
 
@@ -596,7 +603,7 @@ async function fetchHistory() {
 }
 async function fetchSchool() {
   try {
-    const r = await api.get('/school/info'); schoolName.value = r?.name || ''
+    const r = await api.get('/school/info'); schoolName.value = r?.name || ''; schoolLogo.value = r?.logo_url || ''
     const s = await api.get('/teacher/settings'); Object.assign(schoolConfig.value, (s && typeof s === 'object') ? s : {})
     // Fetch school GPS location for the map
     try {
@@ -715,7 +722,8 @@ onUnmounted(() => {
 
 /* ── School info card ── */
 .school-info-card { display:flex; flex-direction:column; align-items:center; gap:4px; }
-.school-avatar-lg { width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,var(--accent),var(--accent-dark)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:22px; font-weight:800; margin-bottom:6px; }
+.school-avatar-lg { width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,var(--accent),var(--accent-dark)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:22px; font-weight:800; margin-bottom:6px; overflow:hidden; }
+.school-avatar-img { width:100%; height:100%; object-fit:cover; border-radius:14px; }
 .school-name-lg { font-size:15px; font-weight:700; text-align:center; margin-bottom:10px; }
 .school-detail-row { display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border-radius:var(--radius-sm); background:var(--surface); border:1px solid var(--surface-border); margin-bottom:6px; font-size:12px; }
 .sd-label { color:var(--text-muted); flex:1; font-weight:500; }
@@ -748,7 +756,8 @@ onUnmounted(() => {
 
 /* ── Profile mini ── */
 .profile-mini { display:flex; align-items:center; gap:14px; }
-.pm-avatar { width:46px; height:46px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:17px; font-weight:800; flex-shrink:0; }
+.pm-avatar { width:46px; height:46px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:17px; font-weight:800; flex-shrink:0; overflow:hidden; }
+.pm-avatar-img { width:100%; height:100%; object-fit:cover; border-radius:12px; }
 .pm-name  { font-size:14px; font-weight:700; }
 .pm-email { font-size:12px; color:var(--text-muted); margin-top:1px; }
 

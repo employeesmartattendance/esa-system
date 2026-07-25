@@ -23,7 +23,7 @@
         <div class="sc-icon" style="background:rgba(37,99,235,0.1)">
           <AppIcon name="teachers" :size="22" color="var(--primary)" />
         </div>
-        <div class="sc-val">{{ latestReport.total_teachers }}</div>
+        <div class="sc-val" style="color:var(--primary)">{{ latestReport.total_teachers }}</div>
         <div class="sc-lbl">Total {{ vocab.personNounPlural }}</div>
       </div>
       <div class="glass summary-card">
@@ -290,18 +290,19 @@ function dayLabel(d) {
 .reports-table-wrap { border-radius:var(--radius-lg); overflow:hidden; }
 .rp-empty { display:flex; flex-direction:column; align-items:center; gap:14px; padding:56px 24px; text-align:center; }
 
-.rp-table-header { display:grid; grid-template-columns:2fr 60px 80px 70px 80px 1fr 80px; gap:8px; padding:12px 20px; background:var(--bg-secondary); border-bottom:1px solid var(--surface-border); }
+.rp-table-header { display:grid; grid-template-columns:2fr 60px 80px 70px 80px 1fr 80px; gap:8px; padding:12px 20px; background:rgba(37,99,235,0.08); border-bottom:1px solid var(--surface-border); }
 .rp-row          { display:grid; grid-template-columns:2fr 60px 80px 70px 80px 1fr 80px; gap:8px; padding:14px 20px; border-bottom:1px solid var(--surface-border); align-items:center; transition:background var(--transition); }
 .rp-row:last-child { border-bottom:none; }
 .rp-row:hover { background:rgba(37,99,235,0.03); }
 .rp-col { display:flex; align-items:center; }
 .rp-date { flex-direction:column; align-items:flex-start; gap:2px; }
-.rp-date-main { font-size:14px; font-weight:700; }
-.rp-date-sub  { font-size:11px; color:var(--text-muted); }
+.rp-date-main { font-size:14px; font-weight:700; color:var(--text); }
+.rp-date-sub  { font-size:11px; color:var(--primary); font-weight:600; }
 .rp-num  { justify-content:center; }
 .rp-rate { flex-direction:column; align-items:flex-start; gap:4px; }
 .rp-act  { justify-content:center; }
 .rp-col.rp-date, .rp-col.rp-num, .rp-col.rp-rate, .rp-col.rp-act { font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.rp-table-header .rp-col { color:var(--primary); }
 
 .rp-badge { font-size:13px; font-weight:800; padding:3px 10px; border-radius:99px; }
 .rp-badge.total   { background:rgba(37,99,235,0.1);   color:var(--primary); }

@@ -539,11 +539,12 @@ onMounted(loadSettings)
 <style scoped>
 /* ── Page ── */
 .settings-page { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
-.settings-page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; gap:12px; flex-wrap:wrap; max-width:100%; box-sizing:border-box; }
+.settings-page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; gap:12px; flex-wrap:wrap; max-width:100%; box-sizing:border-box; position:relative; z-index:1; }
 /* Override the global translateY hover for this button — it sits at the
    very top of the scroll area, so moving it upward on hover could clip
    under the topbar. Use a non-shifting scale + glow effect instead
    (matches the "+ New Company" button on the super admin Companies page). */
+.btn-save-settings { position:relative; z-index:2; }
 .btn.btn-primary.btn-save-settings:hover:not(:disabled) {
   transform: scale(1.035);
   box-shadow: 0 6px 22px var(--primary-glow);

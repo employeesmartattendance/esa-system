@@ -51,7 +51,10 @@
         <div v-if="schools.length" class="school-list">
           <div v-for="sch in schools.slice(0,2)" :key="sch.id" class="school-item">
             <div class="school-item-left">
-              <div class="sch-avatar">{{ sch.name?.charAt(0) }}</div>
+              <div class="sch-avatar">
+                <img v-if="resolveLogoUrl(sch.logo_url)" :src="resolveLogoUrl(sch.logo_url)" :alt="sch.name" class="sch-avatar-img" />
+                <span v-else>{{ sch.name?.charAt(0) }}</span>
+              </div>
               <div>
                 <div class="sch-name">{{ sch.name }}</div>
                 <div class="sch-meta">{{ sch.teacher_count }} members</div>
@@ -156,6 +159,12 @@ const systemChecks = ref([
 const allOk = computed(() => systemChecks.value.every(c => c.ok !== false))
 
 const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+function resolveLogoUrl(url) {
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+}
 
 async function checkHealth() {
   try {
@@ -218,7 +227,8 @@ function timeAgo(ts) {
 .school-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(37,99,235,0.03); border: 1px solid var(--surface-border); transition: background var(--transition); }
 .school-item:hover { background: rgba(37,99,235,0.06); }
 .school-item-left { display: flex; align-items: center; gap: 10px; }
-.sch-avatar { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; }
+.sch-avatar { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; overflow: hidden; flex-shrink: 0; }
+.sch-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sch-name { font-size: 13px; font-weight: 600; }
 .sch-meta { font-size: 12px; color: var(--text-muted); }
 .school-item-right { display: flex; align-items: center; gap: 8px; flex-direction: column; align-items: flex-end; }
