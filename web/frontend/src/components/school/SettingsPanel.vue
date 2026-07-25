@@ -133,79 +133,73 @@
           </div>
         </div>
 
-        <!-- Attendance Days Card -->
+
+        <!-- Auto Check-Out Card -->
         <div class="glass settings-card">
           <div class="card-head">
-            <div class="card-icon-wrap" style="background:rgba(37,99,235,0.12)">
-              <AppIcon name="calendar" :size="20" color="var(--primary)" />
+            <div class="card-icon-wrap" style="background:rgba(16,185,129,0.12)">
+              <AppIcon name="checkout" :size="20" color="var(--success)" />
             </div>
             <div class="card-head-text">
-              <div class="card-title">Allowed Attendance Days</div>
-              <div class="card-desc">Only these days will count for attendance tracking</div>
+              <div class="card-title">Automatic Check-Out</div>
+              <div class="card-desc">Auto-close attendance at end of {{ vocab.orgNoun.toLowerCase() }} day</div>
             </div>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="form.auto_checkout_enabled" />
+              <span class="toggle-track"></span>
+            </label>
           </div>
-          <div class="card-body">
-            <div class="days-grid">
-              <button
-                v-for="(label, i) in DAY_LABELS"
-                :key="i"
-                type="button"
-                class="day-btn"
-                :class="{ active: form.allowed_days.includes(i) }"
-                @click="toggleDay(i)"
-              >
-                {{ label }}
+
+          <div class="card-body" :class="{ 'card-disabled': !form.auto_checkout_enabled }">
+            <div class="form-group">
+              <label class="form-label">{{ vocab.orgNoun }} Day End Time</label>
+              <input v-model="form.checkout_time" type="time" class="form-input mono-font" />
+              <p class="field-hint">All {{ vocab.personNounPlural.toLowerCase() }} still checked in will be automatically checked out at this time</p>
+            </div>
+
+            <!-- How it works -->
+            <div class="how-it-works">
+              <div class="hiw-title"><AppIcon name="info" :size="13" color="var(--primary)" />How Auto Check-Out Works</div>
+              <div class="hiw-steps">
+                <div class="hiw-step">
+                  <div class="step-num">1</div>
+                  <span>At <strong>{{ fmt(form.checkout_time) }}</strong>, the system scans for {{ vocab.personNounPlural.toLowerCase() }} still checked in</span>
+                </div>
+                <div class="hiw-step">
+                  <div class="step-num">2</div>
+                  <span>All open sessions are automatically closed with a system note</span>
+                </div>
+                <div class="hiw-step">
+                  <div class="step-num">3</div>
+                  <span v-if="form.notify_admin_checkout">You receive a real-time notification with the list of auto-checked-out {{ vocab.personNounPlural.toLowerCase() }}</span>
+                  <span v-else>Notifications are disabled — toggle below to enable</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notify admin toggle -->
+            <div class="notif-toggle-row">
+              <div class="notif-toggle-info">
+                <AppIcon name="bell" :size="15" color="var(--primary)" />
+                <div>
+                  <div class="notif-toggle-label">Admin Notification</div>
+                  <div class="notif-toggle-desc">Receive alert when auto check-out runs</div>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="form.notify_admin_checkout" />
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+
+            <!-- Manual trigger button -->
+            <div class="manual-checkout-section">
+              <div class="manual-label">Manual Trigger</div>
+              <button class="btn btn-ghost btn-sm full-w" @click="triggerManualCheckout" :disabled="triggering">
+                <span v-if="triggering" class="btn-spinner-xs"></span>
+                <AppIcon v-else name="checkout" :size="14" />
+                {{ triggering ? 'Processing...' : `Checkout All Currently Checked-In ${vocab.personNounPlural} Now` }}
               </button>
-            </div>
-            <div class="info-box" style="margin-top:4px">
-              <AppIcon name="info" :size="13" color="var(--primary)" />
-              <span>Check-ins on <strong>unselected days</strong> will be blocked. Default is Mon–Fri.</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Live Summary Card -->
-        <div class="glass settings-card summary-card">
-          <div class="card-head">
-            <div class="card-icon-wrap" style="background:rgba(139,92,246,0.12)">
-              <AppIcon name="analytics" :size="20" color="var(--info)" />
-            </div>
-            <div class="card-head-text">
-              <div class="card-title">Active Configuration</div>
-              <div class="card-desc">Current settings at a glance</div>
-            </div>
-            <button class="btn btn-ghost btn-sm" @click="loadSettings">
-              <AppIcon name="refresh" :size="13" />
-            </button>
-          </div>
-
-          <div class="card-body">
-            <div class="config-grid">
-              <div class="config-chip" :class="form.gps_enabled ? 'chip-on' : 'chip-off'">
-                <AppIcon name="location" :size="14" />
-                GPS {{ form.gps_enabled ? 'ON' : 'OFF' }}
-                <span v-if="form.gps_enabled" class="chip-sub">{{ form.radius }}m radius</span>
-              </div>
-              <div class="config-chip" :class="form.wifi_enabled ? 'chip-on' : 'chip-off'">
-                <AppIcon name="wifi" :size="14" />
-                Wi-Fi {{ form.wifi_enabled ? 'ON' : 'OFF' }}
-              </div>
-              <div class="config-chip chip-time">
-                <AppIcon name="check-circle" :size="14" color="var(--success)" />
-                Present by {{ fmt(form.late_threshold) }}
-              </div>
-              <div class="config-chip chip-time">
-                <AppIcon name="clock" :size="14" color="var(--warning)" />
-                Late until {{ fmt(form.absent_threshold) }}
-              </div>
-              <div class="config-chip" :class="form.auto_checkout_enabled ? 'chip-on' : 'chip-off'">
-                <AppIcon name="checkout" :size="14" />
-                Auto-out {{ form.auto_checkout_enabled ? fmt(form.checkout_time) : 'OFF' }}
-              </div>
-              <div class="config-chip chip-time">
-                <AppIcon name="clock" :size="14" color="var(--primary)" />
-                Opens {{ fmt(form.checkin_start) }}
-              </div>
             </div>
           </div>
         </div>
@@ -292,76 +286,83 @@
           </div>
         </div>
 
-        <!-- Auto Check-Out Card -->
+        <!-- Attendance Days Card -->
         <div class="glass settings-card">
           <div class="card-head">
-            <div class="card-icon-wrap" style="background:rgba(16,185,129,0.12)">
-              <AppIcon name="checkout" :size="20" color="var(--success)" />
+            <div class="card-icon-wrap" style="background:rgba(37,99,235,0.12)">
+              <AppIcon name="calendar" :size="20" color="var(--primary)" />
             </div>
             <div class="card-head-text">
-              <div class="card-title">Automatic Check-Out</div>
-              <div class="card-desc">Auto-close attendance at end of {{ vocab.orgNoun.toLowerCase() }} day</div>
+              <div class="card-title">Allowed Attendance Days</div>
+              <div class="card-desc">Only these days will count for attendance tracking</div>
             </div>
-            <label class="toggle-switch">
-              <input type="checkbox" v-model="form.auto_checkout_enabled" />
-              <span class="toggle-track"></span>
-            </label>
           </div>
-
-          <div class="card-body" :class="{ 'card-disabled': !form.auto_checkout_enabled }">
-            <div class="form-group">
-              <label class="form-label">{{ vocab.orgNoun }} Day End Time</label>
-              <input v-model="form.checkout_time" type="time" class="form-input mono-font" />
-              <p class="field-hint">All {{ vocab.personNounPlural.toLowerCase() }} still checked in will be automatically checked out at this time</p>
-            </div>
-
-            <!-- How it works -->
-            <div class="how-it-works">
-              <div class="hiw-title"><AppIcon name="info" :size="13" color="var(--primary)" />How Auto Check-Out Works</div>
-              <div class="hiw-steps">
-                <div class="hiw-step">
-                  <div class="step-num">1</div>
-                  <span>At <strong>{{ fmt(form.checkout_time) }}</strong>, the system scans for {{ vocab.personNounPlural.toLowerCase() }} still checked in</span>
-                </div>
-                <div class="hiw-step">
-                  <div class="step-num">2</div>
-                  <span>All open sessions are automatically closed with a system note</span>
-                </div>
-                <div class="hiw-step">
-                  <div class="step-num">3</div>
-                  <span v-if="form.notify_admin_checkout">You receive a real-time notification with the list of auto-checked-out {{ vocab.personNounPlural.toLowerCase() }}</span>
-                  <span v-else>Notifications are disabled — toggle below to enable</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Notify admin toggle -->
-            <div class="notif-toggle-row">
-              <div class="notif-toggle-info">
-                <AppIcon name="bell" :size="15" color="var(--primary)" />
-                <div>
-                  <div class="notif-toggle-label">Admin Notification</div>
-                  <div class="notif-toggle-desc">Receive alert when auto check-out runs</div>
-                </div>
-              </div>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="form.notify_admin_checkout" />
-                <span class="toggle-track"></span>
-              </label>
-            </div>
-
-            <!-- Manual trigger button -->
-            <div class="manual-checkout-section">
-              <div class="manual-label">Manual Trigger</div>
-              <button class="btn btn-ghost btn-sm full-w" @click="triggerManualCheckout" :disabled="triggering">
-                <span v-if="triggering" class="btn-spinner-xs"></span>
-                <AppIcon v-else name="checkout" :size="14" />
-                {{ triggering ? 'Processing...' : `Checkout All Currently Checked-In ${vocab.personNounPlural} Now` }}
+          <div class="card-body">
+            <div class="days-grid">
+              <button
+                v-for="(label, i) in DAY_LABELS"
+                :key="i"
+                type="button"
+                class="day-btn"
+                :class="{ active: form.allowed_days.includes(i) }"
+                @click="toggleDay(i)"
+              >
+                {{ label }}
               </button>
+            </div>
+            <div class="info-box" style="margin-top:4px">
+              <AppIcon name="info" :size="13" color="var(--primary)" />
+              <span>Check-ins on <strong>unselected days</strong> will be blocked. Default is Mon–Fri.</span>
             </div>
           </div>
         </div>
 
+        <!-- Live Summary Card -->
+        <div class="glass settings-card summary-card">
+          <div class="card-head">
+            <div class="card-icon-wrap" style="background:rgba(139,92,246,0.12)">
+              <AppIcon name="analytics" :size="20" color="var(--info)" />
+            </div>
+            <div class="card-head-text">
+              <div class="card-title">Active Configuration</div>
+              <div class="card-desc">Current settings at a glance</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" @click="loadSettings">
+              <AppIcon name="refresh" :size="13" />
+            </button>
+          </div>
+
+          <div class="card-body">
+            <div class="config-grid">
+              <div class="config-chip" :class="form.gps_enabled ? 'chip-on' : 'chip-off'">
+                <AppIcon name="location" :size="14" />
+                GPS {{ form.gps_enabled ? 'ON' : 'OFF' }}
+                <span v-if="form.gps_enabled" class="chip-sub">{{ form.radius }}m radius</span>
+              </div>
+              <div class="config-chip" :class="form.wifi_enabled ? 'chip-on' : 'chip-off'">
+                <AppIcon name="wifi" :size="14" />
+                Wi-Fi {{ form.wifi_enabled ? 'ON' : 'OFF' }}
+              </div>
+              <div class="config-chip chip-time">
+                <AppIcon name="check-circle" :size="14" color="var(--success)" />
+                Present by {{ fmt(form.late_threshold) }}
+              </div>
+              <div class="config-chip chip-time">
+                <AppIcon name="clock" :size="14" color="var(--warning)" />
+                Late until {{ fmt(form.absent_threshold) }}
+              </div>
+              <div class="config-chip" :class="form.auto_checkout_enabled ? 'chip-on' : 'chip-off'">
+                <AppIcon name="checkout" :size="14" />
+                Auto-out {{ form.auto_checkout_enabled ? fmt(form.checkout_time) : 'OFF' }}
+              </div>
+              <div class="config-chip chip-time">
+                <AppIcon name="clock" :size="14" color="var(--primary)" />
+                Opens {{ fmt(form.checkin_start) }}
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <!-- Edit Profile Card -->
         <EditProfileCard :user="auth.user" @updated="onProfileUpdated" />
       </div>

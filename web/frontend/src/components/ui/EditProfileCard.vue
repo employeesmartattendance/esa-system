@@ -147,7 +147,7 @@ async function save() {
 .epc-avatar-hint-title { font-size: 13px; font-weight: 600; }
 .epc-avatar-hint-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-.epc-form { display: flex; flex-direction: column; gap: 14px; max-width: 420px; }
+.epc-form { display: flex; flex-direction: column; gap: 14px; max-width: 100%; }
 .epc-form-group { display: flex; flex-direction: column; gap: 6px; }
 .epc-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
