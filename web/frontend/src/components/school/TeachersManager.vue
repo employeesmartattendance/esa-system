@@ -52,6 +52,9 @@
     <!-- View Details Modal -->
     <AppModal v-model="showViewModal" :title="`${groupVocab.personNoun} Details`" icon="user" max-width="480px">
       <div v-if="viewTarget" class="view-detail-grid">
+        <div v-if="resolveAvatar(viewTarget.avatar)" class="view-avatar-preview">
+          <img :src="resolveAvatar(viewTarget.avatar)" :alt="viewTarget.name" />
+        </div>
         <div class="vd-row"><span class="vd-label">Name</span><span class="vd-val">{{ viewTarget.name }}</span></div>
         <div class="vd-row"><span class="vd-label">Email</span><span class="vd-val">{{ viewTarget.email }}</span></div>
         <div class="vd-row"><span class="vd-label">Phone</span><span class="vd-val">{{ viewTarget.phone || '—' }}</span></div>
@@ -66,6 +69,24 @@
     <!-- Create/Edit Modal -->
     <AppModal v-model="showModal" :title="editing ? `Edit ${groupVocab.personNoun}` : `Add ${groupVocab.personNoun}`" icon="user" max-width="580px">
       <form @submit.prevent="save" class="modal-form">
+        <div class="form-group">
+          <label class="form-label">{{ groupVocab.personNoun }} Photo</label>
+          <div class="avatar-upload-row">
+            <div class="avatar-preview">
+              <img v-if="avatarPreviewUrl" :src="avatarPreviewUrl" alt="Profile photo" class="avatar-preview-img" />
+              <AppIcon v-else name="user" :size="22" color="var(--text-muted)" />
+              <div v-if="uploadingAvatar" class="avatar-uploading"><span class="btn-spinner-sm" style="border-color:rgba(255,255,255,0.4);border-top-color:#fff"></span></div>
+            </div>
+            <div class="avatar-upload-actions">
+              <button type="button" class="btn btn-ghost btn-sm" :disabled="uploadingAvatar" @click="triggerAvatarPicker">
+                <AppIcon name="camera" :size="13" />{{ form.avatar ? 'Change Photo' : 'Upload Photo' }}
+              </button>
+              <button v-if="form.avatar" type="button" class="btn-link-remove" :disabled="uploadingAvatar" @click="removeAvatar">Remove</button>
+              <input ref="avatarFileInput" type="file" accept="image/*" class="hidden-file-input" @change="onAvatarSelected" />
+            </div>
+          </div>
+          <p v-if="avatarError" class="field-warning"><AppIcon name="alert-triangle" :size="13" />{{ avatarError }}</p>
+        </div>
         <div class="form-row two-col">
           <div class="form-group">
             <label class="form-label">Full Name *</label>
@@ -174,7 +195,63 @@ const viewTarget = ref(null)
 const editing = ref(false)
 const saving = ref(false)
 const deleteTarget = ref(null)
-const form = ref({ name: '', email: '', phone: '', subject: '', password: '', group: 'primary' })
+const form = ref({ name: '', email: '', phone: '', subject: '', password: '', group: 'primary', avatar: '' })
+
+// ── Photo upload ─────────────────────────────────────────────────────
+const avatarFileInput = ref(null)
+const uploadingAvatar = ref(false)
+const avatarError = ref('')
+// Local data-URL preview shown instantly while the upload is in flight —
+// swapped for the real saved URL once the upload response comes back.
+const localAvatarPreview = ref('')
+const avatarPreviewUrl = computed(() => resolveAvatar(localAvatarPreview.value || form.value.avatar))
+
+function triggerAvatarPicker() {
+  avatarError.value = ''
+  avatarFileInput.value?.click()
+}
+
+async function onAvatarSelected(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  avatarError.value = ''
+
+  if (!file.type.startsWith('image/')) {
+    avatarError.value = 'Please select an image file'
+    e.target.value = ''
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = (ev) => { localAvatarPreview.value = ev.target.result }
+  reader.readAsDataURL(file)
+
+  uploadingAvatar.value = true
+  try {
+    const fd = new FormData()
+    fd.append('avatar', file)
+    // No timeout override needed here — the shared api client no longer
+    // applies a fixed timeout to upload (multipart/form-data) requests, so
+    // large photos are given as long as they need to finish uploading.
+    const r = await api.post('/teachers/upload-avatar', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    form.value.avatar = r?.relative_avatar_url || r?.avatar_url || ''
+    localAvatarPreview.value = ''
+  } catch (err) {
+    localAvatarPreview.value = ''
+    avatarError.value = err.response?.data?.message || 'Failed to upload photo'
+  } finally {
+    uploadingAvatar.value = false
+    e.target.value = ''
+  }
+}
+
+function removeAvatar() {
+  form.value.avatar = ''
+  localAvatarPreview.value = ''
+  avatarError.value = ''
+}
 
 function openView(row) { viewTarget.value = row; showViewModal.value = true }
 
@@ -187,8 +264,8 @@ const cols = computed(() => [
   { key: 'actions', label: 'Actions' },
 ])
 
-function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '', group: props.group }; showModal.value = true }
-function openEdit(row) { editing.value = true; form.value = { ...row, password: '' }; showModal.value = true }
+function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '', group: props.group, avatar: '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
+function openEdit(row) { editing.value = true; form.value = { ...row, password: '', avatar: row.avatar || '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
 function confirmDelete(row) { deleteTarget.value = row; showDeleteModal.value = true }
 
 async function save() {
@@ -247,8 +324,31 @@ async function doDelete() {
 .optional { font-size: 11px; color: var(--text-muted); font-weight: 400; text-transform: none; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .btn-spinner-sm { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+/* Employee photo upload */
+.avatar-upload-row { display: flex; align-items: center; gap: 14px; }
+.avatar-preview {
+  width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+  background: var(--surface); border: 1px solid var(--surface-border);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;
+}
+.avatar-preview-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-uploading { position: absolute; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; }
+.avatar-upload-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hidden-file-input { display: none; }
+.field-warning { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--warning, #d97706); margin-top: 8px; line-height: 1.5; }
+.field-warning :deep(svg) { flex-shrink: 0; margin-top: 2px; }
+.btn-link-remove {
+  padding: 0; border: none; background: none; cursor: pointer;
+  color: var(--danger); font-size: 12px; font-weight: 700; text-decoration: underline;
+  font-family: inherit;
+}
+.btn-link-remove:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* View detail modal */
 .view-detail-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.view-avatar-preview { display: flex; justify-content: center; margin-bottom: 4px; }
+.view-avatar-preview img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 1px solid var(--surface-border); }
 .vd-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); overflow: hidden; }
 .vd-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; min-width: 80px; flex-shrink: 0; }
 .vd-val { font-size: 13px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; word-break: break-word; }

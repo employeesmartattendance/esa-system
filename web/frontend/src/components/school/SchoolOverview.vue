@@ -19,7 +19,10 @@
         </div>
         <div v-if="teachers.length" class="teacher-status-list">
           <div v-for="t in teachers" :key="t.id" class="teacher-status-item">
-            <div class="ts-avatar">{{ t.name?.charAt(0) }}</div>
+            <div class="ts-avatar">
+              <img v-if="resolveAvatar(t.avatar)" :src="resolveAvatar(t.avatar)" :alt="t.name" class="ts-avatar-img" />
+              <span v-else>{{ t.name?.charAt(0) }}</span>
+            </div>
             <div class="ts-info">
               <div class="ts-name">{{ t.name }}</div>
               <div class="ts-sub">{{ t.subject || vocab.personNoun }}</div>
@@ -41,7 +44,10 @@
         </div>
         <div v-if="recentAttendance.length" class="recent-list">
           <div v-for="r in recentAttendance.slice(0,8)" :key="r.id" class="recent-item">
-            <div class="recent-avatar">{{ r.teacher_name?.charAt(0) }}</div>
+            <div class="recent-avatar">
+              <img v-if="resolveAvatar(r.avatar)" :src="resolveAvatar(r.avatar)" :alt="r.teacher_name" class="recent-avatar-img" />
+              <span v-else>{{ r.teacher_name?.charAt(0) }}</span>
+            </div>
             <div class="recent-info">
               <div class="recent-name">{{ r.teacher_name }}</div>
               <div class="recent-meta">
@@ -74,6 +80,14 @@ defineProps({
 })
 defineEmits(['go-attendance'])
 const { vocab } = useIndustry()
+
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+function resolveAvatar(url) {
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+}
 </script>
 
 <style scoped>
@@ -86,7 +100,8 @@ const { vocab } = useIndustry()
 .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.5s ease-in-out infinite; }
 .teacher-status-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
 .teacher-status-item { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: var(--radius-sm); background: rgba(37,99,235,0.03); border: 1px solid var(--surface-border); }
-.ts-avatar { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.ts-avatar { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; flex-shrink: 0; overflow: hidden; }
+.ts-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ts-info { flex: 1; }
 .ts-name { font-size: 13px; font-weight: 600; }
 .ts-sub { font-size: 11px; color: var(--text-muted); }
@@ -95,7 +110,8 @@ const { vocab } = useIndustry()
 .recent-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
 .recent-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); transition: background var(--transition); }
 .recent-item:hover { background: rgba(37,99,235,0.04); }
-.recent-avatar { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.recent-avatar { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+.recent-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .recent-name { font-size: 13px; font-weight: 600; }
 .recent-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .time-mono { font-size: 12px; font-family: var(--mono); color: var(--text-muted); }

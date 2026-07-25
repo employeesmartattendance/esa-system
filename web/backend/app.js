@@ -161,6 +161,10 @@ const imageFileFilter = (r, f, cb) => f.mimetype.startsWith('image/') ? cb(null,
 const logoUpload = makeUploader({ folder: 'school-logos', uploadsDir: UPLOADS_DIR, limits: { fileSize: 5*1024*1024 } });
 const trustedLogoUpload = makeUploader({ folder: 'trusted-logos', uploadsDir: UPLOADS_DIR, limits: { fileSize: 5*1024*1024 } });
 const avatarUpload = makeUploader({ folder: 'avatars', uploadsDir: UPLOADS_DIR, limits: { fileSize: 3*1024*1024 }, fileFilter: imageFileFilter });
+// Teacher/employee profile photos share the same 'avatars' folder and use a
+// larger limit than the self-profile avatar upload, since school admins may
+// upload higher-resolution employee ID photos.
+const teacherAvatarUpload = makeUploader({ folder: 'avatars', uploadsDir: UPLOADS_DIR, limits: { fileSize: 8*1024*1024 }, fileFilter: imageFileFilter });
 
 // ── SCHEMAS ──
 const { Schema, Types: { ObjectId } } = mongoose;
@@ -759,8 +763,8 @@ app.get('/api/school/stats', SCH, async (req, res) => {
     const weeklyData = weeklyAgg.map(r => ({ date: r._id, present: r.present, late: r.late, absent: r.absent }));
     const recentRaw = await Attendance.find({ school_id: sid, date: td })
       .sort({ check_in: -1 }).limit(10)
-      .populate({ path: 'teacher_id', populate: { path: 'user_id', select: 'name' } }).lean();
-    const recentAttendance = recentRaw.map(a => ({ id: toId(a._id), teacher_id: toId(a.teacher_id?._id), status: a.status, gps_valid: a.gps_valid ? 1 : 0, wifi_valid: a.wifi_valid ? 1 : 0, date: a.date, check_in: fmtTime(a.check_in), check_out: fmtTime(a.check_out), teacher_name: a.teacher_id?.user_id?.name || null }));
+      .populate({ path: 'teacher_id', populate: { path: 'user_id', select: 'name avatar' } }).lean();
+    const recentAttendance = recentRaw.map(a => ({ id: toId(a._id), teacher_id: toId(a.teacher_id?._id), status: a.status, gps_valid: a.gps_valid ? 1 : 0, wifi_valid: a.wifi_valid ? 1 : 0, date: a.date, check_in: fmtTime(a.check_in), check_out: fmtTime(a.check_out), teacher_name: a.teacher_id?.user_id?.name || null, avatar: a.teacher_id?.user_id?.avatar || null }));
     return sendSuccess(res, { totalTeachers, presentToday, absentToday, lateToday, weeklyData, recentAttendance });
   } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
 });
@@ -781,13 +785,29 @@ app.get('/api/teachers', SCH, async (req, res) => {
   try { return sendSuccess(res, await getTeachersForSchool(req.user.school_id)); } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
 });
 
+// Uploads a profile photo for a teacher/employee (used by the Add/Edit
+// person modal). Mirrors /api/schools/upload-logo: the photo is uploaded
+// first (works for both create and edit flows, since a not-yet-created
+// person has no id yet), and the returned URL is stored on the person's
+// User record when the form is submitted.
+async function uploadTeacherAvatar(req, res) {
+  try {
+    if (!req.file) return sendError(res, 'No file uploaded');
+    const relative_avatar_url = await resolveUploadedFileUrl(req, 'avatars');
+    const avatar_url = toPublicUploadUrl(req, relative_avatar_url);
+    return sendSuccess(res, { avatar_url, relative_avatar_url }, 'Photo uploaded successfully');
+  } catch (err) { console.error(err); return sendError(res, err.message || 'Server error', 500); }
+}
+app.post('/api/school/teachers/upload-avatar', SCH, teacherAvatarUpload.single('avatar'), uploadTeacherAvatar);
+app.post('/api/teachers/upload-avatar', SCH, teacherAvatarUpload.single('avatar'), uploadTeacherAvatar);
+
 async function createTeacher(req, res) {
-  const { name, email, password, phone, department, position, employeeId, hireDate, subject, group } = req.body;
+  const { name, email, password, phone, department, position, employeeId, hireDate, subject, group, avatar } = req.body;
   if (!name || !email || !password) return sendError(res, 'Name, email, and password required');
   if (await User.findOne({ email: email.toLowerCase() })) return sendError(res, 'Email already in use');
   let user;
   try {
-    user = await User.create({ name, email: email.toLowerCase(), password: await bcrypt.hash(password, 12), role: 'teacher', school_id: req.user.school_id, phone: phone || null });
+    user = await User.create({ name, email: email.toLowerCase(), password: await bcrypt.hash(password, 12), role: 'teacher', school_id: req.user.school_id, phone: phone || null, avatar: avatar || null });
     await Teacher.create({ user_id: user._id, school_id: req.user.school_id, employee_id: employeeId || null, department: department || null, position: position || null, hire_date: hireDate || null, subject: subject || null, group: group || 'primary' });
     await logAction('CREATE_TEACHER', req.user._id, `Created teacher: ${name}`, req.ip);
     emitToSchool(req.user.school_id, 'teacher_updated', { action: 'created', teacherName: name });
@@ -805,10 +825,12 @@ app.post('/api/school/teachers', SCH, async (req, res) => { try { return await c
 app.post('/api/teachers', SCH, async (req, res) => { try { return await createTeacher(req, res); } catch (err) { return sendError(res, err.message || 'Server error', 500); } });
 
 async function updateTeacher(req, res) {
-  const { name, email, phone, department, position, employeeId, hireDate, subject, status, group } = req.body;
+  const { name, email, phone, department, position, employeeId, hireDate, subject, status, group, avatar } = req.body;
   const t = await Teacher.findOne({ user_id: req.params.id, school_id: req.user.school_id });
   if (!t) return sendError(res, 'Teacher not found', 404);
-  await User.updateOne({ _id: req.params.id }, { name, email: email?.toLowerCase(), phone: phone || null, status: status || 'active' });
+  const userUpdate = { name, email: email?.toLowerCase(), phone: phone || null, status: status || 'active' };
+  if (avatar !== undefined) userUpdate.avatar = avatar || null;
+  await User.updateOne({ _id: req.params.id }, userUpdate);
   const teacherUpdate = { department: department || null, position: position || null, employee_id: employeeId || null, hire_date: hireDate || null, subject: subject || null };
   if (group) teacherUpdate.group = group;
   await Teacher.updateOne({ user_id: req.params.id }, teacherUpdate);
@@ -856,8 +878,8 @@ async function getAttendance(req, res) {
     if (teacher_id) teacherFilter._id = teacher_id;
     const tids = (await Teacher.find(teacherFilter).select('_id').lean()).map(t => t._id);
     filter.teacher_id = { $in: tids };
-    const records = await Attendance.find(filter).sort({ date: -1, check_in: -1 }).skip(skip).limit(parseInt(limit)).populate({ path: 'teacher_id', populate: { path: 'user_id', select: 'name' } }).lean();
-    return sendSuccess(res, records.map(a => ({ ...fmtAttendance(a), teacher_name: a.teacher_id?.user_id?.name || null })));
+    const records = await Attendance.find(filter).sort({ date: -1, check_in: -1 }).skip(skip).limit(parseInt(limit)).populate({ path: 'teacher_id', populate: { path: 'user_id', select: 'name avatar' } }).lean();
+    return sendSuccess(res, records.map(a => ({ ...fmtAttendance(a), teacher_name: a.teacher_id?.user_id?.name || null, avatar: a.teacher_id?.user_id?.avatar || null })));
   } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
 }
 app.get('/api/school/attendance', SCH, getAttendance); app.get('/api/attendance', SCH, getAttendance);

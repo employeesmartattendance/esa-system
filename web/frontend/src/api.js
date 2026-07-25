@@ -128,6 +128,14 @@ api.interceptors.request.use(
     config.baseURL = getBaseUrl()
     const token = localStorage.getItem('esa_token')
     if (token) config.headers.Authorization = `Bearer ${token}`
+    // File uploads (avatars, company/employee photos) use multipart/form-data
+    // and can take a while on slow connections or with large images. Don't
+    // let the default 15s request timeout abort them — let the upload run
+    // to completion (or fail on its own due to a real network error).
+    const contentType = config.headers?.['Content-Type'] || config.headers?.['content-type']
+    if (contentType && String(contentType).includes('multipart/form-data')) {
+      config.timeout = 0
+    }
     return config
   },
   (err) => Promise.reject(err),

@@ -563,9 +563,12 @@ onMounted(loadSettings)
 /* Now that .settings-layout stretches both columns to equal height, let the
    last card in each column absorb the leftover space so the two columns'
    bottoms line up flush instead of leaving a ragged white gap under the
-   shorter column (matches the super admin dashboard's grid-2 look). */
+   shorter column (matches the super admin dashboard's grid-2 look). The
+   inner content is centered vertically within that extra space instead of
+   sitting top-aligned with empty space below it. */
 .settings-col > :last-child { flex: 1; display: flex; flex-direction: column; }
-.settings-col > :last-child .card-body { flex: 1; }
+.settings-col > :last-child .card-body { flex: 1; justify-content: center; }
+.settings-col > :last-child.epc { justify-content: center; }
 
 /* ── Card ── */
 .settings-card { padding:0; border-radius:var(--radius-lg); overflow:hidden; max-width:100%; box-sizing:border-box; }

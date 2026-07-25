@@ -67,7 +67,10 @@
       <DataTable :columns="cols" :rows="filteredRecords" :loading="loading" empty-icon="attendance" empty-title="No records found" empty-message="Attendance records will appear here.">
         <template #cell-teacher="{ row }">
           <div class="teacher-cell">
-            <div class="t-avatar-sm">{{ row.teacher_name?.charAt(0) }}</div>
+            <div class="t-avatar-sm">
+              <img v-if="resolveAvatar(row.avatar)" :src="resolveAvatar(row.avatar)" :alt="row.teacher_name" class="t-avatar-sm-img" />
+              <span v-else>{{ row.teacher_name?.charAt(0) }}</span>
+            </div>
             <span class="fw-500">{{ row.teacher_name }}</span>
           </div>
         </template>
@@ -138,6 +141,14 @@ const viewTarget = ref(null)
 function openView(row) { viewTarget.value = row; showViewModal.value = true }
 const toast = useToast()
 const { vocab } = useIndustry()
+
+const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
+const apiBase = API.replace('/api', '')
+function resolveAvatar(url) {
+  if (!url) return null
+  if (url.startsWith('http') || url.startsWith('//')) return url
+  return `${apiBase}${url}`
+}
 
 const filters = ref({ date: new Date().toISOString().split('T')[0], teacherId: '', status: '' })
 const appliedFilters = ref({ ...filters.value })
@@ -351,7 +362,8 @@ async function exportPDF() {
 .live-dot-anim { width: 6px; height: 6px; border-radius: 50%; background: var(--success); animation: pulse 1.5s ease-in-out infinite; }
 .live-text { font-size: 13px; color: var(--text-muted); }
 .teacher-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.t-avatar-sm { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.t-avatar-sm { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+.t-avatar-sm-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .fw-500 { font-weight: 500; font-size: 13px; }
 .text-sm { font-size: 13px; color: var(--text-secondary); }
 .time-val { font-size: 13px; font-weight: 600; font-family: var(--mono); }
