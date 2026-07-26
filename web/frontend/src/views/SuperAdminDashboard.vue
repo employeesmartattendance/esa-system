@@ -101,7 +101,7 @@ const navSections = [
                                    { to: '/super/trusted-clients',  label: 'Trusted Clients',  icon: 'check-circle' }] },
   { group: 'System',      items: [{ to: '/super/settings',  label: 'Settings',          icon: 'settings'  }] },
 ]
-const pageTitles = { dashboard: 'Dashboard', schools: 'Companies', logs: 'System Logs', settings: 'Settings', 'contact-requests': 'Contact Requests', 'trusted-schools': 'Trusted Clients' }
+const pageTitles = { dashboard: 'Dashboard', schools: 'Companies', logs: 'System Logs', settings: 'Settings', 'contact-requests': 'Requests', 'trusted-schools': 'Trusted Clients' }
 const currentPageTitle = computed(() => pageTitles[section.value] || 'Dashboard')
 
 /* ── Data fetchers ────────────────────────────────────────────────────── */

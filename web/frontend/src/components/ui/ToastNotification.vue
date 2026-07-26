@@ -28,6 +28,9 @@ import AppIcon from './AppIcon.vue'
 
 const toasts = ref([])
 let counter = 0
+let lastKey = ''
+let lastAt = 0
+const timers = new Map()
 
 const iconMap = {
   success: 'check-circle',
@@ -36,15 +39,34 @@ const iconMap = {
   info: 'info',
 }
 
+// Only one toast is ever shown at a time — a new toast replaces whatever is
+// currently visible instead of stacking alongside it. We also ignore an
+// identical (type+title+message) toast fired again within a short window,
+// since rapid duplicate calls (e.g. from GPS watch ticks or fast repeated
+// API errors) were previously showing two toasts at once.
 function add({ type = 'info', title = '', message = '', duration = 3500 }) {
+  const key = `${type}|${title}|${message}`
+  const now = Date.now()
+  if (key === lastKey && now - lastAt < duration) return
+  lastKey = key
+  lastAt = now
+
+  // Clear any toast currently showing so only one is ever on screen.
+  timers.forEach(t => clearTimeout(t))
+  timers.clear()
+  toasts.value = []
+
   const id = ++counter
   toasts.value.push({ id, type, title, message })
-  setTimeout(() => remove(id), duration)
+  const t = setTimeout(() => remove(id), duration)
+  timers.set(id, t)
 }
 
 function remove(id) {
   const idx = toasts.value.findIndex(t => t.id === id)
   if (idx !== -1) toasts.value.splice(idx, 1)
+  const t = timers.get(id)
+  if (t) { clearTimeout(t); timers.delete(id) }
 }
 
 defineExpose({ add })

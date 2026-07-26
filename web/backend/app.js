@@ -495,11 +495,16 @@ app.get('/api/super/stats', SA, async (req, res) => {
       User.countDocuments({ role: 'teacher' }), User.countDocuments({ role: 'school_admin' })
     ]);
     const td = today();
-    const [presentToday, lateToday, absentToday] = await Promise.all([
+    const [presentToday, lateToday] = await Promise.all([
       Attendance.countDocuments({ date: td, status: 'present' }),
       Attendance.countDocuments({ date: td, status: 'late' }),
-      Attendance.countDocuments({ date: td, status: 'absent' })
     ]);
+    // "Absent" means the person never recorded a check-in event today at all —
+    // not a literal status:'absent' record, since attendance docs are only
+    // ever created on check-in, so status:'absent' documents almost never
+    // exist. Absent = total teachers minus everyone who has any record today.
+    const recordedToday = await Attendance.countDocuments({ date: td });
+    const absentToday = Math.max(0, totalTeachers - recordedToday);
     const recentActivity = await Log.find().sort({ timestamp: -1 }).limit(10).populate('user_id', 'name').lean().then(logs => logs.map(l => ({ ...l, id: toId(l._id), user_name: l.user_id?.name || null })));
     const schools = await School.find().sort({ createdAt: -1 }).limit(10).lean();
     const schoolStats = await Promise.all(schools.map(async s => {
@@ -660,12 +665,16 @@ app.get('/api/super/teachers', SA, async (req, res) => {
 app.get('/api/super/attendance/overview', SA, async (req, res) => {
   try {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    const totalTeachers = await User.countDocuments({ role: 'teacher' });
     const agg = await Attendance.aggregate([
       { $match: { date: { $gte: cutoff.toISOString().slice(0,10) } } },
-      { $group: { _id: '$date', total: { $sum: 1 }, present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } }, absent: { $sum: { $cond: [{ $eq: ['$status','absent'] }, 1, 0] } } } },
+      { $group: { _id: '$date', total: { $sum: 1 }, present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } } } },
       { $sort: { _id: -1 } }
     ]);
-    return sendSuccess(res, agg.map(r => ({ date: r._id, total: r.total, present: r.present, late: r.late, absent: r.absent })));
+    // Absent = teachers (across all schools) with no attendance record that
+    // day, derived from current headcount rather than a status:'absent'
+    // document, which the check-in flow essentially never creates.
+    return sendSuccess(res, agg.map(r => ({ date: r._id, total: r.total, present: r.present, late: r.late, absent: Math.max(0, totalTeachers - r.present - r.late) })));
   } catch { return sendError(res, 'Server error', 500); }
 });
 
@@ -748,19 +757,23 @@ app.get('/api/school/stats', SCH, async (req, res) => {
   try {
     const sid = req.user.school_id;
     const td = today();
-    const [totalTeachers, presentToday, absentToday, lateToday] = await Promise.all([
+    const [totalTeachers, presentToday, lateToday, recordedToday] = await Promise.all([
       User.countDocuments({ school_id: sid, role: 'teacher' }),
       Attendance.countDocuments({ school_id: sid, date: td, status: { $in: ['present','late'] } }),
-      Attendance.countDocuments({ school_id: sid, date: td, status: 'absent' }),
-      Attendance.countDocuments({ school_id: sid, date: td, status: 'late' })
+      Attendance.countDocuments({ school_id: sid, date: td, status: 'late' }),
+      Attendance.countDocuments({ school_id: sid, date: td })
     ]);
+    // "Absent" = teachers with no attendance record at all today (i.e. they
+    // never checked in), rather than a literal status:'absent' document,
+    // since those are essentially never created by the check-in flow.
+    const absentToday = Math.max(0, totalTeachers - recordedToday);
     const cutoff7 = new Date(); cutoff7.setDate(cutoff7.getDate() - 7);
     const weeklyAgg = await Attendance.aggregate([
       { $match: { school_id: new mongoose.Types.ObjectId(sid), date: { $gte: cutoff7.toISOString().slice(0,10) } } },
       { $group: { _id: '$date', present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } }, absent: { $sum: { $cond: [{ $eq: ['$status','absent'] }, 1, 0] } } } },
       { $sort: { _id: 1 } }
     ]);
-    const weeklyData = weeklyAgg.map(r => ({ date: r._id, present: r.present, late: r.late, absent: r.absent }));
+    const weeklyData = weeklyAgg.map(r => ({ date: r._id, present: r.present, late: r.late, absent: Math.max(0, totalTeachers - r.present - r.late) }));
     const recentRaw = await Attendance.find({ school_id: sid, date: td })
       .sort({ check_in: -1 }).limit(10)
       .populate({ path: 'teacher_id', populate: { path: 'user_id', select: 'name avatar' } }).lean();
@@ -889,12 +902,15 @@ app.get('/api/school/analytics', SCH, async (req, res) => {
     const { period = 'weekly' } = req.query;
     const days = period === 'yearly' ? 365 : period === 'monthly' ? 30 : 7;
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+    const totalTeachers = await User.countDocuments({ school_id: req.user.school_id, role: 'teacher' });
     const agg = await Attendance.aggregate([
       { $match: { school_id: new mongoose.Types.ObjectId(req.user.school_id), date: { $gte: cutoff.toISOString().slice(0,10) } } },
-      { $group: { _id: '$date', present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } }, absent: { $sum: { $cond: [{ $eq: ['$status','absent'] }, 1, 0] } } } },
+      { $group: { _id: '$date', present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } } } },
       { $sort: { _id: 1 } }
     ]);
-    return sendSuccess(res, agg.map(r => ({ date: r._id, present: r.present, late: r.late, absent: r.absent })));
+    // Absent = teachers with no record that day, derived from current
+    // headcount rather than a status:'absent' document (rarely created).
+    return sendSuccess(res, agg.map(r => ({ date: r._id, present: r.present, late: r.late, absent: Math.max(0, totalTeachers - r.present - r.late) })));
   } catch { return sendError(res, 'Server error', 500); }
 });
 

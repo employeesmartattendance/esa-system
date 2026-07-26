@@ -11,6 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loginTime = ref(parseInt(localStorage.getItem('esa_login_time') || '0'))
   const loading   = ref(false)
   const signingOut = ref(false)
+  const signingIn  = ref(false)
 
   const isLoggedIn    = computed(() => {
     if (!token.value) return false
@@ -98,7 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, user, loginTime, loading, signingOut,
+    token, user, loginTime, loading, signingOut, signingIn,
     isLoggedIn, isSuperAdmin, isSchoolAdmin, isTeacher, schoolId,
     daysRemaining,
     login, fetchMe, logout,

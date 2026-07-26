@@ -40,6 +40,20 @@
     </div>
   </Teleport>
 
+  <!-- ── Signing In Overlay (covers the blank-white-screen gap during the
+       full-page reload that follows a successful login) ──────────────── -->
+  <Teleport to="body">
+    <Transition name="signout-fade">
+      <div v-if="signingIn" class="signout-overlay">
+        <div class="signout-box">
+          <img src="/esa-logo.png" alt="ESA" class="signin-logo" />
+          <span class="signout-spinner"></span>
+          <div class="signout-text">Signing in…</div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <!-- ── Signing Out Overlay ──────────────────────────────────────────── -->
   <Teleport to="body">
     <Transition name="signout-fade">
@@ -68,6 +82,13 @@ const router      = useRouter()
 const isElectron          = !!window.electronAPI
 const forceLogoutVisible  = ref(false)
 const forceLogoutMessage  = ref('')
+
+// ── Signing-in overlay ──────────────────────────────────────────────────────
+// LoginView redirects with a full page reload (window.location.assign), which
+// briefly shows a blank white screen while the whole app re-bootstraps. If the
+// sessionStorage flag it sets is present on load, show a branded overlay right
+// away and keep it up until the app has settled, instead of a blank screen.
+const signingIn = ref(sessionStorage.getItem('esa_signing_in') === '1')
 
 // ── Sync / Online state ────────────────────────────────────────────────────
 const isOnline      = ref(navigator.onLine)
@@ -187,6 +208,23 @@ onMounted(async () => {
   await initSyncStatus()
   window.addEventListener('online',  updateOnlineStatus)
   window.addEventListener('offline', updateOnlineStatus)
+
+  if (signingIn.value) {
+    // Wait for the router's initial navigation (guards, async route data)
+    // to resolve, then give the dashboard a couple of paint frames before
+    // dropping the overlay, so it never reveals an unfinished layout.
+    try { await router.isReady() } catch (_) {}
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      signingIn.value = false
+      sessionStorage.removeItem('esa_signing_in')
+    }))
+    // Safety net: never let the overlay get stuck up if something above
+    // hangs (slow network, etc.) — clear it after a few seconds regardless.
+    setTimeout(() => {
+      signingIn.value = false
+      sessionStorage.removeItem('esa_signing_in')
+    }, 4000)
+  }
 })
 
 onUnmounted(async () => {
@@ -320,6 +358,10 @@ onUnmounted(async () => {
 }
 .signout-box {
   display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.signin-logo {
+  width: 64px; height: 64px; object-fit: contain; border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(37,99,235,0.25);
 }
 .signout-spinner {
   width: 40px; height: 40px;

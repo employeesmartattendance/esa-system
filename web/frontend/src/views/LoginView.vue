@@ -291,6 +291,12 @@ async function handleLogin() {
     const routes = { super_admin: '/super/dashboard', school_admin: '/school/dashboard', teacher: '/teacher/dashboard' }
     const dest = routes[user.role]
     if (!dest) { error.value = 'Unknown account role. Please contact your administrator.'; return }
+    // window.location.assign() below does a full page reload (not a client-side
+    // route change), which is what caused the brief blank white screen while the
+    // whole app re-bootstraps. This flag survives that reload so App.vue can show
+    // a branded "Signing in…" overlay immediately on the next page load, until
+    // the destination dashboard has actually mounted.
+    sessionStorage.setItem('esa_signing_in', '1')
     window.location.assign(dest)
   } catch (e) {
     error.value = e.message || 'Invalid credentials. Please try again.'
@@ -373,6 +379,7 @@ async function resetPassword() {
       localStorage.setItem('esa_user', JSON.stringify(u))
       localStorage.setItem('esa_login_time', String(Date.now()))
       const routes = { super_admin: '/super/dashboard', school_admin: '/school/dashboard', teacher: '/teacher/dashboard' }
+      sessionStorage.setItem('esa_signing_in', '1')
       window.location.assign(routes[u.role] || '/login')
     } else {
       step.value = 'login'

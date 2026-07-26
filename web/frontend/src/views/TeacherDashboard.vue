@@ -455,21 +455,32 @@ const navSections = computed(() => [{
   group: 'My Portal',
   items: _allNavItems.filter(i => !(isDesktop.value && i.desktopHide)),
 }])
-const pageTitles       = { dashboard: 'My Dashboard', map: 'Live GPS Map', history: 'My Attendance', profile: 'My Profile' }
+const pageTitles       = { dashboard: 'Dashboard', map: 'Live GPS Map', history: 'Attendance', profile: 'Profile' }
 const currentPageTitle = computed(() => pageTitles[section.value] || 'Dashboard')
 
 /* ── Single-pass tally helper ──
-   Counts present/late/absent in one walk instead of 3 separate .filter()
-   passes per stat block. All stat computeds below derive from a tally
-   rather than re-scanning the source array multiple times each. */
+   Counts present/late in one walk instead of separate .filter() passes.
+   "Absent" can't be derived from this array alone: attendance records are
+   only ever created when the employee actually checks in, so a missed day
+   simply has no record — it never appears here as status:'absent'. Callers
+   that need an absent count should pass how many days the period covers so
+   we can derive absent = days - (present + late). */
 function tally(records) {
-  let present = 0, late = 0, absent = 0
+  let present = 0, late = 0
   for (const r of records) {
     if (r.status === 'present') present++
     else if (r.status === 'late') late++
-    else if (r.status === 'absent') absent++
   }
-  return { present, late, absent, total: records.length }
+  return { present, late, absent: 0, total: records.length }
+}
+
+// Counts calendar days between two dates (inclusive) that are not in the
+// future, so "Absent" only reflects days that have already happened.
+function pastDaysInRange(start, end) {
+  const today0 = new Date(); today0.setHours(0,0,0,0)
+  const cappedEnd = end > today0 ? today0 : end
+  const ms = cappedEnd.setHours(0,0,0,0) - new Date(start).setHours(0,0,0,0)
+  return Math.max(0, Math.floor(ms / 86400000) + 1)
 }
 
 /* ── Quick stats (mobile) ── */
@@ -478,10 +489,15 @@ const quickStats = computed(() => {
   const sow  = new Date(now); sow.setDate(now.getDate() - now.getDay()); sow.setHours(0,0,0,0)
   const week = records.value.filter(r => new Date(r.date) >= sow)
   const t = tally(week)
+  // Present here means "showed up today" — both on-time and late check-ins
+  // count as present, since the employee did record attendance.
+  const showedUp = t.present + t.late
+  const daysElapsed = pastDaysInRange(sow, now)
+  const absent = Math.max(0, daysElapsed - showedUp)
   return [
-    { val: t.present, label: 'Present', color: 'var(--success)' },
-    { val: t.late,    label: 'Late',    color: 'var(--warning)' },
-    { val: t.absent,  label: 'Absent',  color: 'var(--danger)'  },
+    { val: showedUp, label: 'Present', color: 'var(--success)' },
+    { val: t.late,   label: 'Late',    color: 'var(--warning)' },
+    { val: absent,   label: 'Absent',  color: 'var(--danger)'  },
   ]
 })
 
@@ -503,33 +519,56 @@ const monthRecordsAll = computed(() => {
 // counts independently).
 const monthTally = computed(() => tally(monthRecordsAll.value))
 
+// Days elapsed so far in the current month (never counts future days),
+// used as the denominator for month-to-date stats so Absent reflects real
+// missed days instead of always being 0.
+const monthDaysElapsed = computed(() => {
+  const now = new Date()
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  return pastDaysInRange(firstOfMonth, now)
+})
+
 const monthStats = computed(() => {
-  const t     = monthTally.value
-  const total = t.total || 1
+  const t         = monthTally.value
+  const showedUp  = t.present + t.late
+  const total     = monthDaysElapsed.value || 1
+  const absent    = Math.max(0, monthDaysElapsed.value - showedUp)
   return [
-    { label: 'Present', val: t.present, color: 'var(--success)', pct: Math.round(t.present/total*100) },
-    { label: 'Late',    val: t.late,    color: 'var(--warning)', pct: Math.round(t.late/total*100)    },
-    { label: 'Absent',  val: t.absent,  color: 'var(--danger)',  pct: Math.round(t.absent/total*100)  },
+    { label: 'Present', val: showedUp, color: 'var(--success)', pct: Math.round(showedUp/total*100) },
+    { label: 'Late',    val: t.late,   color: 'var(--warning)', pct: Math.round(t.late/total*100)    },
+    { label: 'Absent',  val: absent,   color: 'var(--danger)',  pct: Math.round(absent/total*100)    },
   ]
 })
 
 const monthAttendanceRate = computed(() => {
   const t = monthTally.value
-  if (!t.total) return 0
-  return Math.round((t.present + t.late) / t.total * 100)
+  const total = monthDaysElapsed.value
+  if (!total) return 0
+  return Math.round((t.present + t.late) / total * 100)
 })
 
 /* ── All-time stats ── */
 const allTimeTally = computed(() => tally(records.value))
+// Attendance records only exist for days the employee actually checked in,
+// so "Total Days" here means the tracked range (from the earliest record to
+// today), and Absent is derived from the days in that range with no record.
+const allTimeDaysElapsed = computed(() => {
+  if (!records.value.length) return 0
+  const dates = records.value.map(r => new Date(r.date).getTime())
+  const earliest = new Date(Math.min(...dates))
+  return pastDaysInRange(earliest, new Date())
+})
 const allTimeStats = computed(() => {
-  const t     = allTimeTally.value
-  const total = t.total || 1
+  const t       = allTimeTally.value
+  const showedUp = t.present + t.late
+  const total   = allTimeDaysElapsed.value || 1
+  const absent  = Math.max(0, allTimeDaysElapsed.value - showedUp)
   return [
-    { label: 'Total Days',     val: t.total, color: 'var(--primary)', pct: 100 },
-    { label: 'Present',        val: t.present, color: 'var(--success)', pct: Math.round(t.present/total*100) },
+    { label: 'Total Days',     val: allTimeDaysElapsed.value, color: 'var(--primary)', pct: 100 },
+    { label: 'Present',        val: showedUp, color: 'var(--success)', pct: Math.round(showedUp/total*100) },
     { label: 'Late',           val: t.late,    color: 'var(--warning)', pct: Math.round(t.late/total*100) },
-    { label: 'Absent',         val: t.absent,  color: 'var(--danger)',  pct: Math.round(t.absent/total*100) },
-    { label: 'Attendance Rate',val: `${Math.round((t.present+t.late)/total*100)}%`, color: 'var(--accent)', pct: Math.round((t.present+t.late)/total*100) },
+    { label: 'Absent',         val: absent,    color: 'var(--danger)',  pct: Math.round(absent/total*100) },
+    { label: 'Attendance Rate',val: `${Math.round(showedUp/total*100)}%`, color: 'var(--accent)', pct: Math.round(showedUp/total*100) },
   ]
 })
 

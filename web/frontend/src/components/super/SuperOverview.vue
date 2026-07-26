@@ -2,7 +2,7 @@
   <div>
     <!-- Stats grid -->
     <div class="stats-grid">
-      <StatCard icon="school" label="Total Organizations" :value="stats.totalSchools" value-color="var(--primary)" icon-color="var(--primary)" bg-color="rgba(37,99,235,0.1)" glow-color="rgba(37,99,235,0.08)" delay="0s" />
+      <StatCard icon="school" label="Organizations" :value="stats.totalSchools" value-color="var(--primary)" icon-color="var(--primary)" bg-color="rgba(37,99,235,0.1)" glow-color="rgba(37,99,235,0.08)" delay="0s" />
       <StatCard icon="teachers" label="Total People" :value="stats.totalTeachers" value-color="var(--accent)" icon-color="var(--accent)" bg-color="rgba(6,182,212,0.1)" glow-color="rgba(6,182,212,0.08)" delay="0.05s" />
       <StatCard icon="check-circle" label="Present Today" :value="stats.presentToday" value-color="var(--success)" icon-color="var(--success)" bg-color="rgba(16,185,129,0.1)" glow-color="rgba(16,185,129,0.08)" delay="0.1s" />
       <StatCard icon="alert-triangle" label="Absent Today" :value="stats.absentToday" value-color="var(--danger)" icon-color="var(--danger)" bg-color="rgba(239,68,68,0.1)" glow-color="rgba(239,68,68,0.08)" delay="0.15s" />
@@ -43,7 +43,7 @@
       <!-- Schools overview -->
       <div class="glass section-card">
         <div class="card-header">
-          <div class="card-title"><AppIcon name="school" :size="18" color="var(--primary)" />Organizations Overview</div>
+          <div class="card-title"><AppIcon name="school" :size="18" color="var(--primary)" />Organizations</div>
           <button class="btn btn-ghost btn-sm" @click="$emit('go-schools')">
             View All <AppIcon name="trending-up" :size="13" />
           </button>
@@ -114,7 +114,7 @@
           </div>
           <div class="qa-grid">
             <button class="qa-btn" @click="$emit('go-schools')">
-              <AppIcon name="plus" :size="16" color="var(--primary)" />New Organization
+              <AppIcon name="plus" :size="16" color="var(--primary)" />Organization
             </button>
             <button class="qa-btn" @click="$emit('go-logs')">
               <AppIcon name="log" :size="16" color="var(--accent)" />View Logs

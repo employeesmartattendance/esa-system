@@ -163,7 +163,7 @@
           <p class="section-desc mx-auto">From organization setup to daily attendance — ESA makes the entire process effortless in four simple steps.</p>
         </div>
         <div class="steps-grid">
-          <div class="glass step-card" v-for="s in steps" :key="s.num">
+          <div class="glass step-card" v-for="(s, i) in steps" :key="s.num" v-scroll-fade="{ delay: i * 90 }">
             <div class="step-num">{{ s.num }}</div>
             <div class="step-icon-wrap" :style="`background:${s.iconBg}`">
               <svg v-if="s.num === '01'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -190,7 +190,7 @@
           <p class="section-desc">A complete attendance management platform built for schools, companies, hospitals, factories, and every other industry.</p>
         </div>
         <div class="features-grid">
-          <div class="glass feature-card" v-for="f in features" :key="f.title">
+          <div class="glass feature-card" v-for="(f, i) in features" :key="f.title" v-scroll-fade="{ delay: (i % 3) * 90 }">
             <div class="feature-icon" :style="`background:${f.iconBg}`">
               <svg v-if="f.title === 'GPS Location Verification'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
               <svg v-else-if="f.title === 'Wi-Fi Network Validation'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
@@ -219,7 +219,7 @@
         </div>
         <div class="download-grid">
           <!-- Mobile -->
-          <div class="glass download-card">
+          <div class="glass download-card" v-scroll-fade>
             <div class="dc-header">
               <div class="dc-icon" style="background:linear-gradient(135deg,rgba(37,99,235,0.15),rgba(6,182,212,0.1))">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/></svg>
@@ -257,7 +257,7 @@
           </div>
 
           <!-- Desktop -->
-          <div class="glass download-card">
+          <div class="glass download-card" v-scroll-fade="{ delay: 90 }">
             <div class="dc-header">
               <div class="dc-icon" style="background:linear-gradient(135deg,rgba(139,92,246,0.15),rgba(37,99,235,0.1))">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -493,6 +493,40 @@ import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useDark } from '../composables/useDark'
 import api from '../api'
 
+// ── Scroll fade-in directive ──────────────────────────────────
+// Cards (steps/features/downloads) start hidden and fade + slide in only
+// once they actually scroll into view, instead of all rendering/animating
+// at once on page load. A single shared IntersectionObserver is reused
+// across every element using the directive rather than creating one
+// observer per card, which keeps this cheap even with many cards.
+let fadeObserver = null
+const vScrollFade = {
+  mounted(el, binding) {
+    el.classList.add('scroll-fade')
+    const delay = binding.value?.delay ?? 0
+    if (delay) el.style.transitionDelay = `${delay}ms`
+    if (typeof IntersectionObserver === 'undefined') {
+      // No IntersectionObserver support — just show the content.
+      el.classList.add('scroll-fade-in')
+      return
+    }
+    if (!fadeObserver) {
+      fadeObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('scroll-fade-in')
+            fadeObserver.unobserve(entry.target)
+          }
+        }
+      }, { root: siteScrollEl.value, rootMargin: '0px 0px -8% 0px', threshold: 0.15 })
+    }
+    fadeObserver.observe(el)
+  },
+  unmounted(el) {
+    fadeObserver?.unobserve(el)
+  },
+}
+
 // ── Theme: use global composable so it syncs with dashboard ──
 const { isDark, toggleDark } = useDark()
 
@@ -676,6 +710,7 @@ onUnmounted(() => {
   if (scrollRafId !== null) cancelAnimationFrame(scrollRafId)
   if (sectionObserver) { sectionObserver.disconnect(); sectionObserver = null }
   if (trackObserver) { trackObserver.disconnect(); trackObserver = null }
+  if (fadeObserver) { fadeObserver.disconnect(); fadeObserver = null }
   restoreWebsiteSeoMeta()
   document.documentElement.classList.remove('website-active')
   document.body.classList.remove('website-active')
@@ -1150,6 +1185,18 @@ img { max-width:100%; }
 .steps-grid {
   display:grid; grid-template-columns:repeat(4,1fr); gap:18px;
 }
+/* Scroll fade-in — used by v-scroll-fade on step/feature/download cards.
+   Cards start slightly lowered and transparent, then ease in once an
+   IntersectionObserver reports they've entered the viewport. Opacity gets
+   its own transition here; the transform slide rides on each card's
+   existing transform transition (declared alongside its hover effect)
+   so the two don't fight over timing. */
+.scroll-fade { opacity:0; transform:translateY(22px); transition:opacity 0.6s cubic-bezier(0.4,0,0.2,1); will-change:opacity, transform; }
+.scroll-fade-in { opacity:1; transform:translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .scroll-fade { opacity:1; transform:none; transition:none; }
+}
+
 .step-card { padding:26px 22px; border-radius:var(--radius-lg); transition:transform var(--transition), box-shadow var(--transition); }
 .step-card:hover { transform:translateY(-4px); box-shadow:var(--card-shadow-lg); }
 .step-num  { font-size:44px; font-weight:900; line-height:1; background:linear-gradient(135deg,var(--primary),var(--accent)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:14px; }
