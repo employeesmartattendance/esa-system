@@ -164,6 +164,8 @@ onMounted(async () => {
 onUnmounted(() => {
   stopTracking()
   if (pulseAnimId) cancelAnimationFrame(pulseAnimId)
+  const s = getSocket()
+  if (s) s.off('teacher-location-update', onTeacherLocationUpdate)
   if (map) { map.remove(); map = null }
 })
 
@@ -363,9 +365,11 @@ async function broadcast(lat, lng) {
   try { await api.post('/teacher/location', { latitude: lat, longitude: lng }) } catch {}
 }
 
+function onTeacherLocationUpdate() {}
+
 function listenSocket() {
   const s = getSocket()
-  if (s) s.on('teacher-location-update', () => {})
+  if (s) s.on('teacher-location-update', onTeacherLocationUpdate)
 }
 
 // ── Controls ───────────────────────────────────────────────────────────────

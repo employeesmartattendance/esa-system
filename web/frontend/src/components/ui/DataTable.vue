@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import EmptyState from './EmptyState.vue'
 
@@ -120,6 +120,8 @@ const searchQuery = ref('')
 const sortKey = ref('')
 const sortDir = ref('asc')
 const page = ref(1)
+
+watch(searchQuery, () => { page.value = 1 })
 
 function truncateText(text, maxLength = 8) {
   if (!text) return ''
@@ -149,6 +151,7 @@ const filteredRows = computed(() => {
 })
 
 const totalPages = computed(() => Math.ceil(filteredRows.value.length / props.pageSize))
+watch(totalPages, (tp) => { if (page.value > tp) page.value = Math.max(1, tp) })
 const startRow = computed(() => (page.value - 1) * props.pageSize + 1)
 const endRow = computed(() => Math.min(page.value * props.pageSize, filteredRows.value.length))
 const paginatedRows = computed(() => filteredRows.value.slice(startRow.value - 1, endRow.value))

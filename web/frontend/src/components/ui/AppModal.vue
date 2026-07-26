@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <Transition name="genie" @enter="onEnter" @before-leave="onBeforeLeave">
+    <Transition name="modal-fade">
       <div v-if="modelValue" class="modal-overlay" @click.self="$emit('update:modelValue', false)">
         <div
           class="modal-box"
@@ -37,7 +37,6 @@
 import AppIcon from './AppIcon.vue'
 import { toRef, ref, onBeforeUnmount } from 'vue'
 import { useScrollLock } from '../../composables/useScrollLock'
-import { useGenieOrigin } from '../../composables/useGenieOrigin'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -50,33 +49,6 @@ const props = defineProps({
 defineEmits(['update:modelValue'])
 
 useScrollLock(toRef(props, 'modelValue'))
-
-// ── Genie effect ─────────────────────────────────────────────────────────
-// Mimics the macOS Dock "genie" minimize/restore: the modal scales in/out
-// from the exact button that opened it (Add/Edit/Delete/View triggers)
-// instead of just fading in centered on screen.
-const genieOrigin = useGenieOrigin()
-
-function applyOriginVars(el) {
-  const rect = el.getBoundingClientRect()
-  const ox = genieOrigin.x ?? (rect.left + rect.width / 2)
-  const oy = genieOrigin.y ?? (rect.top + rect.height / 2)
-  // Origin expressed relative to the modal box itself, so transform-origin
-  // (which is local to the element) lines up with the button on screen.
-  const relX = ox - rect.left
-  const relY = oy - rect.top
-  el.style.setProperty('--genie-x', `${relX}px`)
-  el.style.setProperty('--genie-y', `${relY}px`)
-}
-
-function onEnter(el) {
-  const box = el.querySelector('.modal-box')
-  if (box) applyOriginVars(box)
-}
-function onBeforeLeave(el) {
-  const box = el.querySelector('.modal-box')
-  if (box) applyOriginVars(box)
-}
 
 // ── Mobile scrollbar fade ────────────────────────────────────────────────
 // Same pattern used for the dashboard's .layout-content: the modal body's
@@ -120,7 +92,6 @@ onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
-  transform-origin: var(--genie-x, 50%) var(--genie-y, 50%);
 }
 .modal-header {
   display: flex;
@@ -165,36 +136,36 @@ onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
   flex-shrink: 0;
 }
 
-/* ── Genie / Scale Effect ────────────────────────────────────────────────
-   Mimics the macOS Dock genie animation: the modal grows out of (and
-   shrinks back into) the button that triggered it — set per-open via
-   --genie-x / --genie-y (see AppModal script, applied on the Transition's
-   enter/before-leave hooks) — while the backdrop does a simple fade. */
-.genie-enter-active .modal-box {
-  animation: genieOpen 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+/* ── Fade Effect ──────────────────────────────────────────────────────────
+   High-performance fade in/out. Only `opacity` is animated (a compositor-
+   only property), so open/close stays smooth even on low-end devices —
+   unlike the previous genie/scale effect, which animated transform +
+   border-radius via a JS-computed per-open origin and caused jank/freezes
+   on repeated opens. */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.15s ease;
 }
-.genie-leave-active .modal-box {
-  animation: genieOpen 0.22s cubic-bezier(0.4, 0, 0.7, 0.2) reverse;
+.modal-fade-enter-active .modal-box,
+.modal-fade-leave-active .modal-box {
+  transition: opacity 0.15s ease;
 }
-.genie-enter-active.modal-overlay,
-.genie-enter-active,
-.genie-leave-active {
-  transition: opacity 0.22s ease;
-}
-.genie-enter-from,
-.genie-leave-to {
+.modal-fade-enter-from,
+.modal-fade-leave-to {
   opacity: 0;
 }
-@keyframes genieOpen {
-  0%   { transform: scale(0.06); opacity: 0; border-radius: 50%; }
-  55%  { opacity: 1; }
-  100% { transform: scale(1); opacity: 1; border-radius: var(--radius-xl); }
+.modal-fade-enter-from .modal-box,
+.modal-fade-leave-to .modal-box {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .genie-enter-active .modal-box,
-  .genie-leave-active .modal-box { animation: modalFadeScale 0.15s ease; }
-  @keyframes modalFadeScale { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+  .modal-fade-enter-active,
+  .modal-fade-leave-active,
+  .modal-fade-enter-active .modal-box,
+  .modal-fade-leave-active .modal-box {
+    transition: none;
+  }
 }
 
 /* Mobile: keep the modal from ever stretching toward full viewport height —

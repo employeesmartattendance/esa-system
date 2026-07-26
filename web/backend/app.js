@@ -1024,6 +1024,9 @@ app.post('/api/attendance/checkin', TCH, async (req, res) => {
     });
     await logAction('CHECK_IN', req.user._id, `Checked in - status: ${status}${auto?' (auto)':''}`, req.ip);
     emitToSchool(toId(t.school_id), 'attendance_marked', { teacherName: req.user.name, status, action: 'checkin', auto: !!auto, teacherId: toId(t._id) });
+    if (status === 'late') {
+      emitToSchool(toId(t.school_id), 'teacher_late_arrival', { teacherName: req.user.name, teacherId: toId(t._id), message: `${req.user.name} arrived late` });
+    }
     return sendSuccess(res, null, 'Checked in successfully');
   } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
 });
