@@ -21,6 +21,7 @@
           <div class="modal-body fcm-body">
             <div class="fcm-stage" :class="{ 'fcm-stage-active': stage === 'ready' || stage === 'capturing' }">
               <video ref="videoRef" class="fcm-video" autoplay playsinline muted @loadedmetadata="onVideoReady"></video>
+              <canvas ref="canvasRef" style="display:none"></canvas>
               <div
                 class="fcm-guide"
                 :class="stage === 'ready' ? `fcm-guide-live-${liveStatus}` : `fcm-guide-${stage}`"
@@ -105,6 +106,7 @@ const emit = defineEmits(['update:modelValue', 'success', 'error'])
 
 const biometric = useBiometric()
 const videoRef = ref(null)
+const canvasRef = ref(null)
 const stage = ref('loading') // loading | ready | capturing | no-face | models-error | mismatch | success | denied | unsupported
 const mismatchMsg = ref('')
 let stream = null
@@ -143,7 +145,7 @@ function computeLiveStatus(box, videoEl) {
 async function liveDetectTick() {
   if (!videoRef.value || stage.value !== 'ready') return
   try {
-    const box = await biometric.detectFacePosition(videoRef.value)
+    const box = await biometric.detectFacePosition(videoRef.value, canvasRef.value)
     if (stage.value !== 'ready') return
     const { status, text } = computeLiveStatus(box, videoRef.value)
     liveStatus.value = status
@@ -183,16 +185,35 @@ async function startCamera() {
     // Preload the models in parallel with camera startup so the first
     // capture doesn't stall on a cold model download.
     if (!modelsReady) {
-      biometric.loadModels().then(() => { modelsReady = true }).catch(() => {})
+      biometric.loadModels().then(() => { modelsReady = true }).catch((e) => {
+        console.error('[FaceCaptureModal] Model preload failed:', e)
+      })
     }
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }, audio: false })
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false })
     await nextTick()
     if (videoRef.value) {
       videoRef.value.srcObject = stream
-      await videoRef.value.play().catch(() => {})
+      await videoRef.value.play().catch((e) => {
+        console.error('[FaceCaptureModal] Video play failed:', e)
+      })
+      // Extra safety: wait for the video to report real dimensions before
+      // switching to 'ready', so the live loop and capture never run on a
+      // zero-sized frame.
+      if (!videoRef.value.videoWidth) {
+        await new Promise((resolve) => {
+          const check = () => {
+            if (videoRef.value && videoRef.value.videoWidth) return resolve()
+            requestAnimationFrame(check)
+          }
+          check()
+          setTimeout(resolve, 3000)
+        })
+      }
+      console.log('[FaceCaptureModal] Camera ready. Dimensions:', videoRef.value.videoWidth, 'x', videoRef.value.videoHeight)
     }
     stage.value = 'ready'
   } catch (e) {
+    console.error('[FaceCaptureModal] Camera start error:', e)
     stage.value = e?.name === 'NotAllowedError' ? 'denied' : 'unsupported'
   }
 }
@@ -212,7 +233,7 @@ async function capture() {
   stage.value = 'capturing'
   mismatchMsg.value = ''
   try {
-    const descriptor = await biometric.captureDescriptor(videoRef.value)
+    const descriptor = await biometric.captureDescriptor(videoRef.value, canvasRef.value)
     if (!descriptor) { stage.value = 'no-face'; return }
 
     if (props.mode === 'enroll') {
@@ -240,7 +261,11 @@ async function capture() {
     if (e?.code === 'MODELS_UNAVAILABLE') {
       mismatchMsg.value = e.message || 'Face detection could not start. Check your connection and try again.'
       stage.value = 'models-error'
+    } else if (e?.code === 'DETECTION_ERROR') {
+      mismatchMsg.value = e.message || 'Face detection encountered an error.'
+      stage.value = 'models-error'
     } else {
+      console.error('[FaceCaptureModal] Unexpected capture error:', e)
       stage.value = 'no-face'
     }
   }

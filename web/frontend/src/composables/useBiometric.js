@@ -22,16 +22,19 @@ let modelsLoaded = false
 function loadModels() {
   if (modelsLoaded) return Promise.resolve()
   if (!modelsLoadedPromise) {
+    console.log('[biometric] Loading face-api.js models from', MODEL_URL)
     modelsLoadedPromise = Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]).then(() => {
       modelsLoaded = true
+      console.log('[biometric] All models loaded successfully')
     }).catch((err) => {
       // Don't leave a dead rejected promise cached forever — a transient
       // network hiccup shouldn't permanently break face capture for the
       // rest of the session. Clear it so the next call retries the load.
+      console.error('[biometric] Model loading failed:', err)
       modelsLoadedPromise = null
       throw err
     })
@@ -41,26 +44,50 @@ function loadModels() {
 
 const isSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
+// Draw the current video frame onto a canvas and return it.
+// Passing a canvas to face-api.js is significantly more reliable than passing
+// a <video> element because it guarantees the pixel data is actually available —
+// video elements can report readyState >= 2 and valid dimensions while still
+// delivering empty/stale frames to canvas drawImage in some browsers, but
+// calling drawImage forces a synchronous frame grab.
+function grabFrame(videoEl, canvasEl) {
+  if (!canvasEl) {
+    canvasEl = document.createElement('canvas')
+  }
+  const vw = videoEl.videoWidth || 1
+  const vh = videoEl.videoHeight || 1
+  canvasEl.width = vw
+  canvasEl.height = vh
+  const ctx = canvasEl.getContext('2d')
+  ctx.drawImage(videoEl, 0, 0, vw, vh)
+  return canvasEl
+}
+
 // Captures a single face descriptor from a live <video> element that is
-// already playing a camera stream. Returns null if no face (or more than one
-// face reliably resolvable) is found in the frame. Throws a tagged error if
-// the detection models themselves failed to load (a distinct failure mode
-// from "no face in frame" — the caller should show a different message).
-async function captureDescriptor(videoEl) {
+// already playing a camera stream. Uses an intermediate canvas for reliable
+// frame grab. Returns null if no face is found. Throws a tagged error if
+// the detection models themselves failed to load.
+async function captureDescriptor(videoEl, canvasEl) {
   if (!videoEl) return null
-  // Guard against calling detection before the video element has real
-  // frame data — most browsers resolve play() slightly before
-  // videoWidth/videoHeight are populated, which would otherwise make
-  // face-api run against a zero-sized frame and always report "no face".
+  // Guard: wait until the video element has real frame data.
   if (videoEl.readyState < 2 || !videoEl.videoWidth) {
+    console.log('[biometric] Waiting for video to be ready... readyState:', videoEl.readyState, 'videoWidth:', videoEl.videoWidth)
     await new Promise((resolve) => {
       const check = () => {
-        if (videoEl.readyState >= 2 && videoEl.videoWidth) return resolve()
+        if (videoEl.readyState >= 2 && videoEl.videoWidth) {
+          console.log('[biometric] Video ready. readyState:', videoEl.readyState, 'videoWidth:', videoEl.videoWidth, 'videoHeight:', videoEl.videoHeight)
+          return resolve()
+        }
         requestAnimationFrame(check)
       }
       check()
-      setTimeout(resolve, 1500) // don't hang forever if it never fires
+      setTimeout(resolve, 3000) // increased from 1.5s — some devices are slower
     })
+  }
+  // Final safety check: if video still has no dimensions after waiting, bail.
+  if (!videoEl.videoWidth || !videoEl.videoHeight) {
+    console.error('[biometric] Video has no dimensions after waiting — cannot detect face')
+    return null
   }
   try {
     await loadModels()
@@ -69,28 +96,53 @@ async function captureDescriptor(videoEl) {
     err.code = 'MODELS_UNAVAILABLE'
     throw err
   }
-  const result = await faceapi
-    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
-    .withFaceLandmarks()
-    .withFaceDescriptor()
-  if (!result) return null
-  return Array.from(result.descriptor)
+  // Draw the video frame to a canvas for reliable pixel data access.
+  const canvas = grabFrame(videoEl, canvasEl)
+  console.log('[biometric] Running face detection on canvas', canvas.width, 'x', canvas.height)
+  try {
+    const result = await faceapi
+      .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor()
+    if (!result) {
+      console.log('[biometric] No face found in frame')
+      return null
+    }
+    console.log('[biometric] Face detected, descriptor extracted successfully')
+    return Array.from(result.descriptor)
+  } catch (detErr) {
+    // Distinguish detection errors from "no face" so the caller can show
+    // a specific message instead of the misleading "no face detected".
+    console.error('[biometric] Detection error:', detErr)
+    const err = new Error('Face detection encountered an error: ' + (detErr.message || 'unknown'))
+    err.code = 'DETECTION_ERROR'
+    throw err
+  }
 }
 
 // Lightweight, landmark-free detection used to drive the live on-screen guide
 // (face box + centering hint) while the user positions themselves in frame.
 // Cheaper than captureDescriptor() so it can run on a polling interval
-// without taxing lower-end devices. Returns the detection box (in video
-// pixel space) or null if no face is currently visible.
-async function detectFacePosition(videoEl) {
-  if (!videoEl || videoEl.readyState < 2) return null
-  await loadModels()
-  const result = await faceapi.detectSingleFace(
-    videoEl,
-    new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
-  )
-  if (!result) return null
-  return result.box
+// without taxing lower-end devices. Uses a canvas for reliable frame access.
+// Returns the detection box (in video pixel space) or null if no face is visible.
+async function detectFacePosition(videoEl, canvasEl) {
+  if (!videoEl || videoEl.readyState < 2 || !videoEl.videoWidth || !videoEl.videoHeight) return null
+  try {
+    await loadModels()
+  } catch {
+    return null // models not ready yet, retry on next tick
+  }
+  const canvas = grabFrame(videoEl, canvasEl)
+  try {
+    const result = await faceapi.detectSingleFace(
+      canvas,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
+    )
+    if (!result) return null
+    return result.box
+  } catch {
+    return null // non-fatal for the live guide — retry next tick
+  }
 }
 
 export function useBiometric() {
@@ -131,5 +183,5 @@ export function useBiometric() {
     }
   }
 
-  return { isSupported, busy, error, enroll, verify, captureDescriptor, detectFacePosition, loadModels }
+  return { isSupported, busy, error, enroll, verify, captureDescriptor, detectFacePosition, loadModels, grabFrame }
 }
