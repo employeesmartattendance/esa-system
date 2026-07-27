@@ -179,7 +179,7 @@ UserSchema.index({ role: 1 }); UserSchema.index({ school_id: 1 });
 const TeacherSchema = new Schema({ user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, employee_id: String, department: String, position: String, hire_date: String, phone: String, subject: String, group: { type: String, default: 'primary' } }, vOpts);
 TeacherSchema.index({ school_id: 1 });
 
-const SettingsSchema = new Schema({ school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true, unique: true }, school_lat: { type: Number, default: 0 }, school_lng: { type: Number, default: 0 }, radius: { type: Number, default: 200 }, wifi_bssid: String, gps_enabled: { type: Boolean, default: true }, wifi_enabled: { type: Boolean, default: false }, late_threshold: { type: String, default: '08:00:00' }, work_start: { type: String, default: '07:30:00' }, work_end: { type: String, default: '17:00:00' }, absent_threshold: { type: String, default: '09:00:00' }, checkin_start: { type: String, default: '06:00:00' }, checkout_time: { type: String, default: '17:00:00' }, auto_checkout_enabled: { type: Boolean, default: true }, notify_admin_checkout: { type: Boolean, default: true }, allowed_days: { type: [Number], default: [1,2,3,4,5] } }, vOpts);
+const SettingsSchema = new Schema({ school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true, unique: true }, school_lat: { type: Number, default: 0 }, school_lng: { type: Number, default: 0 }, radius: { type: Number, default: 200 }, wifi_bssid: String, gps_enabled: { type: Boolean, default: true }, wifi_enabled: { type: Boolean, default: false }, biometric_enabled: { type: Boolean, default: false }, late_threshold: { type: String, default: '08:00:00' }, work_start: { type: String, default: '07:30:00' }, work_end: { type: String, default: '17:00:00' }, absent_threshold: { type: String, default: '09:00:00' }, checkin_start: { type: String, default: '06:00:00' }, checkout_time: { type: String, default: '17:00:00' }, auto_checkout_enabled: { type: Boolean, default: true }, notify_admin_checkout: { type: Boolean, default: true }, allowed_days: { type: [Number], default: [1,2,3,4,5] } }, vOpts);
 // school_id already indexed via unique:true in schema field definition
 
 const AttendanceSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, date: { type: String, required: true }, check_in: Date, check_out: Date, status: { type: String, enum: ['present','late','absent','on_leave'], default: 'absent' }, gps_valid: { type: Boolean, default: false }, wifi_valid: { type: Boolean, default: false }, check_in_lat: Number, check_in_lng: Number, notes: String }, vOpts);
@@ -197,6 +197,15 @@ ReportSchema.index({ school_id: 1, report_date: -1 }, { unique: true });
 
 const ContactSchema = new Schema({ full_name: { type: String, required: true }, email: { type: String, required: true }, phone: String, school_name: String, message: String, status: { type: String, enum: ['pending','approved','rejected'], default: 'pending' }, admin_notes: String }, vOpts);
 
+// WebAuthn (Face ID / fingerprint / Windows Hello) credential — one per registered
+// device. A teacher can have more than one (e.g. re-enrolled on a new phone), so
+// this is NOT unique per teacher_id, only per credential_id. Enrollment always
+// happens on the employee's own device; the public_key/counter here are what let
+// the server verify future check-ins without ever seeing the actual biometric.
+const BiometricCredentialSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, credential_id: { type: String, required: true, unique: true }, public_key: { type: String, required: true }, counter: { type: Number, default: 0 }, transports: { type: [String], default: [] }, device_label: String, last_used_at: Date }, vOpts);
+BiometricCredentialSchema.index({ teacher_id: 1 });
+BiometricCredentialSchema.index({ school_id: 1 });
+
 const School        = mongoose.model('School',        SchoolSchema);
 const User          = mongoose.model('User',          UserSchema);
 const Teacher       = mongoose.model('Teacher',       TeacherSchema);
@@ -207,6 +216,7 @@ const TrustedSchool = mongoose.model('TrustedSchool', TrustedSchoolSchema);
 const Report        = mongoose.model('Report',        ReportSchema);
 const Contact       = mongoose.model('Contact',       ContactSchema);
 const PasswordReset = mongoose.model('PasswordReset', PasswordResetSchema);
+const BiometricCredential = mongoose.model('BiometricCredential', BiometricCredentialSchema);
 
 // ── HELPERS ──
 const toId   = v  => v ? v.toString() : null;
@@ -254,6 +264,11 @@ async function logAction(action, userId, details, ip) {
 }
 function sendSuccess(res, data, message = 'Success', code = 200) { return res.status(code).json({ success: true, message, data }); }
 function sendError(res, message = 'Error', code = 400) { return res.status(code).json({ success: false, message }); }
+// Replaced by the real implementation once biometric-routes.js registers further down
+// this file. Left as a permissive no-op by default so schools that haven't touched
+// biometric_enabled (i.e. every existing school) check in exactly as before, and so a
+// failure to load biometric-routes.js never breaks check-in for anyone.
+let verifyBiometricGate = async () => ({ ok: true });
 function getRequestBaseUrl(req) {
   if (BACKEND_PUBLIC_URL) return BACKEND_PUBLIC_URL;
   const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0].trim();
@@ -785,9 +800,13 @@ app.get('/api/school/stats', SCH, async (req, res) => {
 async function getTeachersForSchool(schoolId) {
   const td = today();
   const teachers = await Teacher.find({ school_id: schoolId }).populate({ path: 'user_id', select: 'name email status last_login created_at phone avatar' }).lean();
+  // One query for every enrolled credential in the school, instead of one query per
+  // teacher — biometricEnrolledIds is just used as a fast lookup set below.
+  const enrolledCreds = await BiometricCredential.find({ school_id: schoolId }).select('teacher_id').lean();
+  const biometricEnrolledIds = new Set(enrolledCreds.map(c => toId(c.teacher_id)));
   return Promise.all(teachers.filter(t => t.user_id).sort((a,b) => (a.user_id.name||'').localeCompare(b.user_id.name||'')).map(async t => {
     const att = await Attendance.findOne({ teacher_id: t._id, date: td }).lean();
-    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, group: t.group || 'primary', id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, avatar: t.user_id.avatar || null, today_status: att?.status || null, check_in: fmtTime(att?.check_in) };
+    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, group: t.group || 'primary', id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, avatar: t.user_id.avatar || null, today_status: att?.status || null, check_in: fmtTime(att?.check_in), biometric_enrolled: biometricEnrolledIds.has(toId(t._id)) };
   }));
 }
 
@@ -869,8 +888,8 @@ async function getSettings(req, res) {
 }
 async function upsertSettings(req, res) {
   try {
-    const { school_lat, school_lng, radius, wifi_bssid, gps_enabled, wifi_enabled, late_threshold, work_start, work_end, absent_threshold, checkin_start, checkout_time, auto_checkout_enabled, notify_admin_checkout } = req.body;
-    const upd = { school_lat: parseFloat(school_lat)||0, school_lng: parseFloat(school_lng)||0, radius: parseInt(radius)||200, wifi_bssid: wifi_bssid||null, gps_enabled: !!gps_enabled, wifi_enabled: !!wifi_enabled, late_threshold: late_threshold||'08:00:00', work_start: work_start||'07:30:00', work_end: work_end||'17:00:00', absent_threshold: absent_threshold||'09:00:00', checkin_start: checkin_start||'06:00:00', checkout_time: checkout_time||'17:00:00', auto_checkout_enabled: !!auto_checkout_enabled, notify_admin_checkout: !!notify_admin_checkout };
+    const { school_lat, school_lng, radius, wifi_bssid, gps_enabled, wifi_enabled, biometric_enabled, late_threshold, work_start, work_end, absent_threshold, checkin_start, checkout_time, auto_checkout_enabled, notify_admin_checkout } = req.body;
+    const upd = { school_lat: parseFloat(school_lat)||0, school_lng: parseFloat(school_lng)||0, radius: parseInt(radius)||200, wifi_bssid: wifi_bssid||null, gps_enabled: !!gps_enabled, wifi_enabled: !!wifi_enabled, biometric_enabled: !!biometric_enabled, late_threshold: late_threshold||'08:00:00', work_start: work_start||'07:30:00', work_end: work_end||'17:00:00', absent_threshold: absent_threshold||'09:00:00', checkin_start: checkin_start||'06:00:00', checkout_time: checkout_time||'17:00:00', auto_checkout_enabled: !!auto_checkout_enabled, notify_admin_checkout: !!notify_admin_checkout };
     await Settings.findOneAndUpdate({ school_id: req.user.school_id }, upd, { upsert: true, new: true });
     emitToSchool(req.user.school_id, 'settings_updated', { schoolId: req.user.school_id });
     return sendSuccess(res, null, 'Settings updated successfully');
@@ -986,6 +1005,10 @@ app.post('/api/attendance/checkin', TCH, async (req, res) => {
     const td = today();
     if (await Attendance.findOne({ teacher_id: t._id, date: td })) return sendError(res, 'Already checked in today');
     const s = await Settings.findOne({ school_id: t.school_id }).lean() || {};
+    if (s.biometric_enabled) {
+      const gate = await verifyBiometricGate(t._id.toString(), req.body.biometric_token);
+      if (!gate.ok) return sendError(res, gate.message || 'Biometric verification required', 401);
+    }
     let gpsValid = true;
     const hasCoords = hasFiniteCoordinates(latitude, longitude);
     if (s.gps_enabled && s.school_lat && s.school_lng) {
@@ -1242,10 +1265,18 @@ async function runAutoCheckout() {
   } catch (err) { console.error('Auto-checkout error:', err.message); }
 }
 
+// ── BIOMETRIC ROUTES ──
+// Registered before mobile-routes.js so verifyBiometricGate is already the real
+// implementation (not the no-op placeholder) by the time mobile check-in runs.
+try {
+  const registerBiometricRoutes = require('./biometric-routes');
+  verifyBiometricGate = registerBiometricRoutes(app, { Teacher, School, Settings, BiometricCredential }, authMiddleware, logAction, sendSuccess, sendError, toId);
+} catch (err) { console.warn('⚠️  Biometric routes not loaded:', err.message); }
+
 // ── MOBILE ROUTES ──
 try {
   const registerMobileRoutes = require('./mobile-routes');
-  registerMobileRoutes(app, { Teacher, Attendance, Settings, School, User, Log }, authMiddleware, logAction, sendSuccess, sendError, calcDistance, emitToSchool, io, today, fmtTime, toId);
+  registerMobileRoutes(app, { Teacher, Attendance, Settings, School, User, Log }, authMiddleware, logAction, sendSuccess, sendError, calcDistance, emitToSchool, io, today, fmtTime, toId, verifyBiometricGate);
 } catch (err) { console.warn('⚠️  Mobile routes not loaded:', err.message); }
 
 // ── 404 & ERROR HANDLERS ──

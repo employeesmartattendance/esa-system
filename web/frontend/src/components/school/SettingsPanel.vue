@@ -133,6 +133,29 @@
           </div>
         </div>
 
+        <div class="glass settings-card">
+          <div class="card-head">
+            <div class="card-icon-wrap" style="background:rgba(37,99,235,0.12)">
+              <AppIcon name="shield" :size="20" color="var(--primary)" />
+            </div>
+            <div class="card-head-text">
+              <div class="card-title">Biometric Verification</div>
+              <div class="card-desc">Require Face ID or fingerprint at check-in, in addition to GPS</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="form.biometric_enabled" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="card-body" :class="{ 'card-disabled': !form.biometric_enabled }">
+            <div class="info-box">
+              <AppIcon name="info" :size="13" color="var(--primary)" />
+              <span>{{ vocab.personNounPlural }} set this up themselves, on their own device — enrollment can't be done on their behalf, since it's tied to that device's own Face ID/fingerprint sensor. You can see who's enrolled, and reset a device from {{ vocab.personNounPlural }} management if someone loses their phone.</span>
+            </div>
+          </div>
+        </div>
+
 
         <!-- Auto Check-Out Card -->
         <div class="glass settings-card">
@@ -405,6 +428,7 @@ const saved         = ref(false)
 const form = ref({
   gps_enabled:            true,
   wifi_enabled:           false,
+  biometric_enabled:      false,
   school_lat:             '',
   school_lng:             '',
   radius:                 200,
@@ -464,6 +488,7 @@ async function loadSettings() {
       ...d,
       gps_enabled:  Boolean(d.gps_enabled  != null ? d.gps_enabled  : true),
       wifi_enabled: Boolean(d.wifi_enabled != null ? d.wifi_enabled : false),
+      biometric_enabled: Boolean(d.biometric_enabled != null ? d.biometric_enabled : false),
       checkin_start:         stripSeconds(d.checkin_start)   || '06:00',
       late_threshold:        stripSeconds(d.late_threshold)  || '08:00',
       absent_threshold:      stripSeconds(d.absent_threshold) || '09:00',

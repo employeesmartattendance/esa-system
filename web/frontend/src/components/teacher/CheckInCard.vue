@@ -56,6 +56,39 @@
         </div>
       </div>
 
+      <!-- Biometric: not yet enrolled on this device -->
+      <div v-if="schoolSettings?.biometric_enabled && biometricEnrolled === false" class="biometric-banner">
+        <AppIcon name="shield" :size="16" color="var(--primary)" />
+        <div class="biometric-banner-text">
+          <div class="biometric-banner-title">Set up biometric verification</div>
+          <div class="biometric-banner-sub">Face ID, fingerprint, or your screen lock — required to check in here</div>
+        </div>
+        <button class="btn btn-primary btn-sm" @click="enrollBiometric" :disabled="enrolling || !biometric.isSupported">
+          <span v-if="enrolling" class="btn-spinner-sm"></span>
+          {{ enrolling ? 'Setting up...' : 'Set up' }}
+        </button>
+      </div>
+      <div v-else-if="schoolSettings?.biometric_enabled && !biometric.isSupported" class="biometric-banner biometric-banner-warn">
+        <AppIcon name="alert-triangle" :size="16" color="var(--warning)" />
+        <div class="biometric-banner-text">
+          <div class="biometric-banner-title">Biometric verification isn't available in this browser</div>
+          <div class="biometric-banner-sub">Try the installed app, or a recent version of Chrome or Safari</div>
+        </div>
+      </div>
+
+      <!-- Biometric: arrived, waiting on a tap to verify and finish checking in -->
+      <div v-if="pendingConfirm" class="biometric-banner biometric-banner-active">
+        <AppIcon name="user-check" :size="16" color="var(--primary)" />
+        <div class="biometric-banner-text">
+          <div class="biometric-banner-title">You've arrived</div>
+          <div class="biometric-banner-sub">Verify with Face ID or fingerprint to finish checking in</div>
+        </div>
+        <button class="btn btn-primary btn-sm" @click="confirmPendingCheckIn" :disabled="biometric.busy.value">
+          <span v-if="biometric.busy.value" class="btn-spinner-sm"></span>
+          {{ biometric.busy.value ? 'Verifying...' : 'Verify' }}
+        </button>
+      </div>
+
       <!-- Action buttons -->
       <div class="action-row">
         <!-- Not checked in yet -->
@@ -119,6 +152,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
+import { useBiometric } from '../../composables/useBiometric'
 import api from '../../api'
 
 const props  = defineProps({
@@ -153,6 +187,14 @@ const detectingLocation = ref(false)
 const currentPosition  = ref(null)
 const gpsVerified      = ref(false)
 const errorMsg         = ref('')
+
+// ── Biometric verification (WebAuthn — Face ID / fingerprint / screen lock) ──
+const biometric          = useBiometric()
+const biometricEnrolled  = ref(null)   // null = not loaded yet, true/false once checked
+const enrolling          = ref(false)
+// Set when GPS auto-detects arrival but biometric_enabled means check-in can't
+// complete silently — holds the coords until the employee taps to confirm.
+const pendingConfirm     = ref(null)   // { lat, lng } | null
 
 // Auto check-in/out state
 const schoolSettings   = ref(null)
@@ -220,6 +262,39 @@ async function loadSchoolSettings() {
   } catch {}
 }
 
+/* ── Biometric enrollment status + self-enrollment ── */
+async function loadBiometricStatus() {
+  try {
+    const r = await api.get('/biometric/status')
+    biometricEnrolled.value = !!r?.enrolled
+  } catch { biometricEnrolled.value = false }
+}
+
+async function enrollBiometric() {
+  enrolling.value = true
+  const ok = await biometric.enroll()
+  enrolling.value = false
+  if (ok) {
+    biometricEnrolled.value = true
+    toast.success('Biometric verification set up — you can now use it to check in')
+  } else {
+    toast.error(biometric.error.value || 'Could not set up biometric verification')
+  }
+}
+
+/* ── Confirm a pending auto check-in that needed biometric verification ── */
+async function confirmPendingCheckIn() {
+  if (!pendingConfirm.value) return
+  const { lat, lng } = pendingConfirm.value
+  const token = await biometric.verify()
+  if (!token) {
+    toast.error(biometric.error.value || 'Biometric verification failed')
+    return
+  }
+  pendingConfirm.value = null
+  await doAutoCheckIn(lat, lng, token)
+}
+
 /* ── GPS ── */
 async function detectLocation() {
   if (!navigator.geolocation) { errorMsg.value = 'GPS not available'; return }
@@ -264,6 +339,12 @@ async function onAutoGPS(pos) {
   // ── Auto Check-in: first time entering zone with no check-in today ──
   if (inside && !wasInsideZone.value && !props.todayRecord?.check_in) {
     wasInsideZone.value = true
+    if (s.biometric_enabled) {
+      // Can't complete this silently — WebAuthn requires an explicit tap. Surface
+      // a prompt instead; confirmPendingCheckIn() finishes the job once tapped.
+      pendingConfirm.value = { lat, lng }
+      return
+    }
     await doAutoCheckIn(lat, lng)
     return
   }
@@ -284,11 +365,11 @@ async function onAutoGPS(pos) {
   }
 }
 
-async function doAutoCheckIn(lat, lng) {
+async function doAutoCheckIn(lat, lng, biometricToken = null) {
   if (loading.value) return
   loading.value = true
   try {
-    await api.post('/attendance/checkin', { latitude: lat, longitude: lng })
+    await api.post('/attendance/checkin', { latitude: lat, longitude: lng, biometric_token: biometricToken })
     gpsVerified.value = true
     toast.success('✅ Auto check-in — you\'re in the school zone!')
     emit('refresh')
@@ -320,9 +401,24 @@ async function checkIn() {
   if (!currentPosition.value) { await detectLocation(); if (!currentPosition.value) return }
   loading.value = true; errorMsg.value = ''
   try {
+    let biometricToken = null
+    if (schoolSettings.value?.biometric_enabled) {
+      if (!biometricEnrolled.value) {
+        errorMsg.value = 'Set up biometric verification first (see above) before checking in.'
+        toast.error(errorMsg.value)
+        return
+      }
+      biometricToken = await biometric.verify()
+      if (!biometricToken) {
+        errorMsg.value = biometric.error.value || 'Biometric verification failed'
+        toast.error(errorMsg.value)
+        return
+      }
+    }
     await api.post('/attendance/checkin', {
       latitude:  currentPosition.value.lat,
       longitude: currentPosition.value.lng,
+      biometric_token: biometricToken,
     })
     gpsVerified.value = true
     toast.success('Checked in successfully!')
@@ -348,6 +444,7 @@ onMounted(async () => {
   if (!isDesktop.value && props.autoWatch) {
     detectLocation()
     await loadSchoolSettings()
+    loadBiometricStatus()
     startAutoWatch()
   }
 })
@@ -362,6 +459,7 @@ watch(() => props.autoWatch, async (active) => {
   if (active) {
     detectLocation()
     if (!schoolSettings.value) await loadSchoolSettings()
+    if (biometricEnrolled.value === null) loadBiometricStatus()
     if (autoWatchId === null) startAutoWatch()
   } else {
     stopAutoWatch()
@@ -461,6 +559,22 @@ watch(() => props.autoWatch, async (active) => {
 
 /* Error */
 .error-msg { display:flex; align-items:center; gap:8px; margin-top:12px; padding:10px 13px; border-radius:var(--radius-sm); background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.2); color:var(--danger); font-size:13px; }
+
+/* Biometric banners */
+.biometric-banner {
+  display:flex; align-items:center; gap:10px; margin-bottom:14px;
+  padding:12px 14px; border-radius:var(--radius); border:1.5px solid rgba(37,99,235,0.2);
+  background:rgba(37,99,235,0.06);
+}
+.biometric-banner-warn   { border-color:rgba(245,158,11,0.25); background:rgba(245,158,11,0.07); }
+.biometric-banner-active { border-color:rgba(16,185,129,0.25); background:rgba(16,185,129,0.08); }
+.biometric-banner-text  { flex:1; min-width:0; }
+.biometric-banner-title { font-size:13px; font-weight:700; }
+.biometric-banner-sub   { font-size:11.5px; color:var(--text-muted); margin-top:2px; line-height:1.4; }
+.btn-spinner-sm {
+  width:14px; height:14px; border:2px solid rgba(255,255,255,0.35);
+  border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0;
+}
 
 /* Desktop notice */
 .desktop-checkin-notice {

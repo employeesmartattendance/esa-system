@@ -33,7 +33,7 @@ export const INDUSTRIES = {
     personNoun: 'Employee',
     personNounPlural: 'Employees',
     adminLabel: 'Company Admin',
-    dashboardSubtitle: 'Company Administration',
+    dashboardSubtitle: 'Company Admin',
     secondaryGroup: { key: 'contractor', label: 'Contractor', labelPlural: 'Contractors' },
   },
   business: {

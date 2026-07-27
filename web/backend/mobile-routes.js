@@ -3,12 +3,14 @@
  * Extends app.js with mobile-specific routes. Backward-compatible.
  *
  * Receives: app, models, authMiddleware, logAction, sendSuccess, sendError,
- *           calcDistance, emitToSchool, io, today, fmtTime, toId
+ *           calcDistance, emitToSchool, io, today, fmtTime, toId,
+ *           verifyBiometricGate (optional — defaults to an always-pass no-op so
+ *           this module keeps working even if it's ever called without it)
  */
 module.exports = function registerMobileRoutes(
   app, models, authMiddleware, logAction,
   sendSuccess, sendError, calcDistance, emitToSchool, io,
-  today, fmtTime, toId
+  today, fmtTime, toId, verifyBiometricGate = async () => ({ ok: true })
 ) {
   const { Teacher, Attendance, Settings } = models;
   const TCH = authMiddleware(['teacher']);
@@ -49,6 +51,10 @@ module.exports = function registerMobileRoutes(
       }
 
       const s = await Settings.findOne({ school_id: t.school_id }).lean() || {};
+      if (s.biometric_enabled) {
+        const gate = await verifyBiometricGate(t._id.toString(), req.body.biometric_token);
+        if (!gate.ok) return sendError(res, gate.message || 'Biometric verification required', 401);
+      }
       let gpsValid = true;
       const hasCoords = hasFiniteCoordinates(latitude, longitude);
       if (s.gps_enabled && s.school_lat && s.school_lng) {

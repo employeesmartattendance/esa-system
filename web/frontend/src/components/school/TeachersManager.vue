@@ -39,10 +39,14 @@
         <template #cell-today="{ row }">
           <AppBadge :variant="row.today_status || 'absent'" :label="row.today_status || 'absent'" dot />
         </template>
+        <template #cell-biometric="{ row }">
+          <AppBadge :variant="row.biometric_enrolled ? 'active' : 'inactive'" :label="row.biometric_enrolled ? 'Enrolled' : 'Not set up'" dot />
+        </template>
         <template #cell-actions="{ row }">
           <div class="row-actions">
             <button class="icon-btn" title="View details" @click="openView(row)"><AppIcon name="eye" :size="15" /></button>
             <button class="icon-btn" title="Edit" @click="openEdit(row)"><AppIcon name="edit" :size="15" /></button>
+            <button v-if="row.biometric_enrolled" class="icon-btn" title="Reset biometric enrollment" :disabled="resettingBiometricId === row.teacher_id" @click="resetBiometric(row)"><AppIcon name="shield" :size="15" /></button>
             <button class="icon-btn danger" title="Delete" @click="confirmDelete(row)"><AppIcon name="trash" :size="15" /></button>
           </div>
         </template>
@@ -60,6 +64,7 @@
         <div class="vd-row"><span class="vd-label">Phone</span><span class="vd-val">{{ viewTarget.phone || '—' }}</span></div>
         <div class="vd-row"><span class="vd-label">Subject</span><span class="vd-val">{{ viewTarget.subject || '—' }}</span></div>
         <div class="vd-row"><span class="vd-label">Today</span><span class="vd-val"><AppBadge :variant="viewTarget.today_status||'absent'" :label="viewTarget.today_status||'absent'" dot /></span></div>
+        <div class="vd-row"><span class="vd-label">Biometric</span><span class="vd-val"><AppBadge :variant="viewTarget.biometric_enrolled ? 'active' : 'inactive'" :label="viewTarget.biometric_enrolled ? 'Enrolled' : 'Not set up'" dot /></span></div>
         <div class="vd-row"><span class="vd-label">Status</span><span class="vd-val"><AppBadge :variant="viewTarget.status==='active'?'active':'inactive'" :label="viewTarget.status||'active'" dot /></span></div>
         <div class="vd-row"><span class="vd-label">Check In</span><span class="vd-val">{{ viewTarget.check_in || '—' }}</span></div>
       </div>
@@ -260,9 +265,25 @@ const cols = computed(() => [
   { key: 'subject', label: 'Subject', hideMobile: true },
   { key: 'phone', label: 'Phone', hideMobile: true },
   { key: 'today', label: "Today's Status", hideMobile: true },
+  { key: 'biometric', label: 'Biometric', hideMobile: true },
   { key: 'status', label: 'Account', hideMobile: true },
   { key: 'actions', label: 'Actions' },
 ])
+
+const resettingBiometricId = ref(null)
+async function resetBiometric(row) {
+  if (!confirm(`Reset biometric enrollment for ${row.name}? They'll need to set it up again on their device before their next check-in.`)) return
+  resettingBiometricId.value = row.teacher_id
+  try {
+    await api.delete(`/biometric/credential/${row.teacher_id}`)
+    toast.success('Biometric enrollment reset')
+    emit('refresh')
+  } catch (e) {
+    toast.error(e.response?.data?.message || 'Failed to reset biometric enrollment')
+  } finally {
+    resettingBiometricId.value = null
+  }
+}
 
 function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '', group: props.group, avatar: '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
 function openEdit(row) { editing.value = true; form.value = { ...row, password: '', avatar: row.avatar || '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
