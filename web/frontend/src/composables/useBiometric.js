@@ -17,14 +17,24 @@ import api from '../api'
 // system implements.
 const MODEL_URL = '/models'
 let modelsLoadedPromise = null
+let modelsLoaded = false
 
 function loadModels() {
+  if (modelsLoaded) return Promise.resolve()
   if (!modelsLoadedPromise) {
     modelsLoadedPromise = Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-    ])
+    ]).then(() => {
+      modelsLoaded = true
+    }).catch((err) => {
+      // Don't leave a dead rejected promise cached forever — a transient
+      // network hiccup shouldn't permanently break face capture for the
+      // rest of the session. Clear it so the next call retries the load.
+      modelsLoadedPromise = null
+      throw err
+    })
   }
   return modelsLoadedPromise
 }
@@ -33,9 +43,32 @@ const isSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserM
 
 // Captures a single face descriptor from a live <video> element that is
 // already playing a camera stream. Returns null if no face (or more than one
-// face reliably resolvable) is found in the frame.
+// face reliably resolvable) is found in the frame. Throws a tagged error if
+// the detection models themselves failed to load (a distinct failure mode
+// from "no face in frame" — the caller should show a different message).
 async function captureDescriptor(videoEl) {
-  await loadModels()
+  if (!videoEl) return null
+  // Guard against calling detection before the video element has real
+  // frame data — most browsers resolve play() slightly before
+  // videoWidth/videoHeight are populated, which would otherwise make
+  // face-api run against a zero-sized frame and always report "no face".
+  if (videoEl.readyState < 2 || !videoEl.videoWidth) {
+    await new Promise((resolve) => {
+      const check = () => {
+        if (videoEl.readyState >= 2 && videoEl.videoWidth) return resolve()
+        requestAnimationFrame(check)
+      }
+      check()
+      setTimeout(resolve, 1500) // don't hang forever if it never fires
+    })
+  }
+  try {
+    await loadModels()
+  } catch (e) {
+    const err = new Error('Face detection could not start. Check your connection and try again.')
+    err.code = 'MODELS_UNAVAILABLE'
+    throw err
+  }
   const result = await faceapi
     .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
     .withFaceLandmarks()

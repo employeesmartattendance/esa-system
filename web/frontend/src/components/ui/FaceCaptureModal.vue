@@ -55,6 +55,10 @@
                 <AppIcon name="alert-triangle" :size="20" color="var(--warning)" />
                 <span>No face detected — center your face in the frame and try again.</span>
               </div>
+              <div v-else-if="stage === 'models-error'" class="fcm-overlay-msg fcm-overlay-error">
+                <AppIcon name="alert-triangle" :size="22" color="var(--danger)" />
+                <span>{{ mismatchMsg }}</span>
+              </div>
               <div v-else-if="stage === 'mismatch'" class="fcm-overlay-msg fcm-overlay-error">
                 <AppIcon name="x-circle" :size="22" color="var(--danger)" />
                 <span>{{ mismatchMsg }}</span>
@@ -76,7 +80,7 @@
             <button
               class="btn btn-primary"
               @click="capture"
-              :disabled="stage !== 'ready' && stage !== 'no-face' && stage !== 'mismatch'"
+              :disabled="stage !== 'ready' && stage !== 'no-face' && stage !== 'mismatch' && stage !== 'models-error'"
             >
               <AppIcon name="camera" :size="15" />
               {{ mode === 'enroll' ? 'Capture' : 'Verify' }}
@@ -101,7 +105,7 @@ const emit = defineEmits(['update:modelValue', 'success', 'error'])
 
 const biometric = useBiometric()
 const videoRef = ref(null)
-const stage = ref('loading') // loading | ready | capturing | no-face | mismatch | success | denied | unsupported
+const stage = ref('loading') // loading | ready | capturing | no-face | models-error | mismatch | success | denied | unsupported
 const mismatchMsg = ref('')
 let stream = null
 
@@ -232,8 +236,13 @@ async function capture() {
         emit('error', mismatchMsg.value)
       }
     }
-  } catch {
-    stage.value = 'no-face'
+  } catch (e) {
+    if (e?.code === 'MODELS_UNAVAILABLE') {
+      mismatchMsg.value = e.message || 'Face detection could not start. Check your connection and try again.'
+      stage.value = 'models-error'
+    } else {
+      stage.value = 'no-face'
+    }
   }
 }
 
@@ -250,9 +259,10 @@ onBeforeUnmount(stopCamera)
 </script>
 
 <style scoped>
-/* Explicit, self-contained overlay + box background so this modal always
-   renders a full solid backdrop and opaque card — never relies on another
-   component's global styles being present/loaded first. */
+/* Explicit, self-contained overlay + box/header/body/footer styling so this
+   modal always renders a full solid backdrop, opaque card, and comfortable
+   padding — never relies on another component's global styles being
+   present/loaded first. */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -266,9 +276,57 @@ onBeforeUnmount(stopCamera)
 .modal-box {
   background: var(--bg, #ffffff);
   opacity: 1;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
 }
 .fcm-box { max-width: 460px; }
-.fcm-body { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid var(--surface-border);
+  gap: 12px;
+  flex-shrink: 0;
+}
+.modal-header-left { display: flex; align-items: center; gap: 12px; }
+.modal-icon-wrap {
+  width: 42px; height: 42px;
+  border-radius: var(--radius);
+  background: rgba(37, 99, 235, 0.1);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.modal-title    { font-size: 17px; font-weight: 700; }
+.modal-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.modal-close {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.modal-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+.modal-footer {
+  padding: 16px 26px 22px;
+  display: flex; justify-content: flex-end; gap: 10px;
+  border-top: 1px solid var(--surface-border);
+  flex-shrink: 0;
+}
+
+.fcm-body { padding: 26px 26px 24px; display: flex; flex-direction: column; gap: 16px; align-items: center; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 
 .fcm-stage {
   position: relative;
