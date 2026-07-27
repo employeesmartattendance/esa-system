@@ -20,8 +20,20 @@
 
           <div class="modal-body fcm-body">
             <div class="fcm-stage" :class="{ 'fcm-stage-active': stage === 'ready' || stage === 'capturing' }">
-              <video ref="videoRef" class="fcm-video" autoplay playsinline muted></video>
-              <div class="fcm-guide" :class="`fcm-guide-${stage}`"></div>
+              <video ref="videoRef" class="fcm-video" autoplay playsinline muted @loadedmetadata="onVideoReady"></video>
+              <div
+                class="fcm-guide"
+                :class="stage === 'ready' ? `fcm-guide-live-${liveStatus}` : `fcm-guide-${stage}`"
+              ></div>
+
+              <div v-if="stage === 'ready'" class="fcm-live-hint" :class="`fcm-live-hint-${liveStatus}`">
+                <AppIcon
+                  :name="liveStatus === 'centered' ? 'check-circle' : 'info'"
+                  :size="14"
+                  :color="liveStatus === 'centered' ? 'var(--success)' : '#fff'"
+                />
+                <span>{{ liveHintText }}</span>
+              </div>
 
               <div v-if="stage === 'loading'" class="fcm-overlay-msg">
                 <span class="fcm-spinner"></span>
@@ -93,13 +105,82 @@ const stage = ref('loading') // loading | ready | capturing | no-face | mismatch
 const mismatchMsg = ref('')
 let stream = null
 
+// ── Live face guide ─────────────────────────────────────────────────────
+// While stage === 'ready', poll the video feed at a light interval and
+// classify the current frame so the guide ring + hint text can tell the
+// user in real time whether their face is detected and centered — instead
+// of only finding out after pressing Capture.
+const liveStatus = ref('searching') // searching | detected | centered | off-center | too-small | too-large
+const liveHintText = ref('Position your face in the circle')
+let liveLoopTimer = null
+let liveLoopRunning = false
+let modelsReady = false
+
+function computeLiveStatus(box, videoEl) {
+  if (!box) return { status: 'searching', text: 'Position your face in the circle' }
+
+  const vw = videoEl.videoWidth || 1
+  const vh = videoEl.videoHeight || 1
+  const boxCx = box.x + box.width / 2
+  const boxCy = box.y + box.height / 2
+  const videoCx = vw / 2
+  const videoCy = vh / 2
+
+  const offX = Math.abs(boxCx - videoCx) / vw
+  const offY = Math.abs(boxCy - videoCy) / vh
+  const sizeRatio = box.width / vw
+
+  if (sizeRatio < 0.16) return { status: 'too-small', text: 'Move a little closer' }
+  if (sizeRatio > 0.75) return { status: 'too-large', text: 'Move back slightly' }
+  if (offX > 0.16 || offY > 0.16) return { status: 'off-center', text: 'Center your face in the circle' }
+  return { status: 'centered', text: 'Perfect — hold still and tap Capture' }
+}
+
+async function liveDetectTick() {
+  if (!videoRef.value || stage.value !== 'ready') return
+  try {
+    const box = await biometric.detectFacePosition(videoRef.value)
+    if (stage.value !== 'ready') return
+    const { status, text } = computeLiveStatus(box, videoRef.value)
+    liveStatus.value = status
+    liveHintText.value = text
+  } catch {
+    // Non-fatal: leave last-known status, retry on next tick.
+  }
+}
+
+function startLiveLoop() {
+  if (liveLoopRunning) return
+  liveLoopRunning = true
+  liveStatus.value = 'searching'
+  liveHintText.value = 'Position your face in the circle'
+  const tick = async () => {
+    if (!liveLoopRunning) return
+    await liveDetectTick()
+    if (liveLoopRunning) liveLoopTimer = setTimeout(tick, 350)
+  }
+  tick()
+}
+
+function stopLiveLoop() {
+  liveLoopRunning = false
+  if (liveLoopTimer) { clearTimeout(liveLoopTimer); liveLoopTimer = null }
+}
+
+function onVideoReady() {
+  // Video element has valid dimensions now; live loop starts via the stage
+  // watcher below once stage flips to 'ready'.
+}
+
 async function startCamera() {
   stage.value = 'loading'
   if (!biometric.isSupported) { stage.value = 'unsupported'; return }
   try {
     // Preload the models in parallel with camera startup so the first
     // capture doesn't stall on a cold model download.
-    biometric.loadModels().catch(() => {})
+    if (!modelsReady) {
+      biometric.loadModels().then(() => { modelsReady = true }).catch(() => {})
+    }
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }, audio: false })
     await nextTick()
     if (videoRef.value) {
@@ -113,9 +194,15 @@ async function startCamera() {
 }
 
 function stopCamera() {
+  stopLiveLoop()
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null }
   if (videoRef.value) videoRef.value.srcObject = null
 }
+
+watch(stage, (s) => {
+  if (s === 'ready') startLiveLoop()
+  else stopLiveLoop()
+})
 
 async function capture() {
   stage.value = 'capturing'
@@ -163,6 +250,23 @@ onBeforeUnmount(stopCamera)
 </script>
 
 <style scoped>
+/* Explicit, self-contained overlay + box background so this modal always
+   renders a full solid backdrop and opaque card — never relies on another
+   component's global styles being present/loaded first. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 20, 0.78);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-box {
+  background: var(--bg, #ffffff);
+  opacity: 1;
+}
 .fcm-box { max-width: 460px; }
 .fcm-body { display: flex; flex-direction: column; gap: 14px; align-items: center; }
 
@@ -189,6 +293,36 @@ onBeforeUnmount(stopCamera)
 }
 .fcm-guide-ready { border-color: var(--primary); }
 .fcm-guide-capturing { border-color: var(--warning); }
+
+/* Live guide states — driven by continuous on-device face detection while
+   the user positions themselves, so the ring itself signals when to shoot. */
+.fcm-guide-live-searching   { border-color: rgba(255,255,255,0.4); }
+.fcm-guide-live-off-center  { border-color: var(--warning); }
+.fcm-guide-live-too-small   { border-color: var(--warning); }
+.fcm-guide-live-too-large   { border-color: var(--warning); }
+.fcm-guide-live-centered    { border-color: var(--success); box-shadow: 0 0 0 4px rgba(34,197,94,0.18); }
+
+.fcm-live-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(6, 10, 20, 0.72);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 90%;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  pointer-events: none;
+}
+.fcm-live-hint-centered {
+  background: rgba(22, 163, 74, 0.9);
+}
 
 .fcm-overlay-msg {
   position: absolute; inset: 0;

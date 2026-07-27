@@ -44,6 +44,22 @@ async function captureDescriptor(videoEl) {
   return Array.from(result.descriptor)
 }
 
+// Lightweight, landmark-free detection used to drive the live on-screen guide
+// (face box + centering hint) while the user positions themselves in frame.
+// Cheaper than captureDescriptor() so it can run on a polling interval
+// without taxing lower-end devices. Returns the detection box (in video
+// pixel space) or null if no face is currently visible.
+async function detectFacePosition(videoEl) {
+  if (!videoEl || videoEl.readyState < 2) return null
+  await loadModels()
+  const result = await faceapi.detectSingleFace(
+    videoEl,
+    new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+  )
+  if (!result) return null
+  return result.box
+}
+
 export function useBiometric() {
   const busy = ref(false)
   const error = ref('')
@@ -82,5 +98,5 @@ export function useBiometric() {
     }
   }
 
-  return { isSupported, busy, error, enroll, verify, captureDescriptor, loadModels }
+  return { isSupported, busy, error, enroll, verify, captureDescriptor, detectFacePosition, loadModels }
 }
