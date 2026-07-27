@@ -151,7 +151,7 @@
           <div class="card-body" :class="{ 'card-disabled': !form.biometric_enabled }">
             <div class="info-box">
               <AppIcon name="info" :size="13" color="var(--primary)" />
-              <span>{{ vocab.personNounPlural }} set this up themselves, on their own device — enrollment can't be done on their behalf, since it's tied to that device's own Face ID/fingerprint sensor. You can see who's enrolled, and reset a device from {{ vocab.personNounPlural }} management if someone loses their phone.</span>
+              <span>{{ vocab.personNounPlural }} set this up themselves at their first check-in, on their own device — enrollment can't be done on their behalf, since it's tied to that device's own Face ID/fingerprint sensor. Once set up it's locked: they can't change or remove it themselves. If someone gets a new device or needs it re-done, reset it from {{ vocab.personNounPlural }} management — they'll be prompted to set it up again the next time they check in.</span>
             </div>
           </div>
         </div>

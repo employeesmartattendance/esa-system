@@ -336,6 +336,11 @@
             <div class="profile-edit-wrap">
               <EditProfileCard :user="user" @updated="onProfileUpdated" />
             </div>
+
+            <!-- Biometric Verification -->
+            <div class="profile-edit-wrap">
+              <BiometricSetupCard />
+            </div>
           </div>
 
           <!-- Lifetime stats (desktop only shows alongside) -->
@@ -383,6 +388,7 @@ import AppBadge           from '../components/ui/AppBadge.vue'
 import AppIcon            from '../components/ui/AppIcon.vue'
 import EmptyState         from '../components/ui/EmptyState.vue'
 import EditProfileCard    from '../components/ui/EditProfileCard.vue'
+import BiometricSetupCard from '../components/ui/BiometricSetupCard.vue'
 import AvatarUploader     from '../components/ui/AvatarUploader.vue'
 import { useAuthStore }   from '../stores/auth'
 import { getSocket }      from '../socket'

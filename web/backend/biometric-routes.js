@@ -72,10 +72,17 @@ module.exports = function registerBiometricRoutes(
   });
 
   // ── 2. Registration — start (employee's own device) ──
+  // Locked to one-time setup: once a credential exists for this employee, it can
+  // only be cleared by a school admin (see route 6 below) — the employee cannot
+  // re-enroll or swap devices on their own. This is intentional: it's what stops
+  // someone else's face/fingerprint from silently replacing the real employee's.
   app.post('/api/biometric/register/options', TCH, async (req, res) => {
     try {
       const t = await getTeacherOr404(req, res); if (!t) return;
       const existing = await BiometricCredential.find({ teacher_id: t._id }).lean();
+      if (existing.length) {
+        return sendError(res, 'Biometric verification is already set up on this account. Ask your admin to reset it if you need to change devices.', 409);
+      }
       const options = await generateRegistrationOptions({
         rpName: RP_NAME,
         rpID: RP_ID,
@@ -83,7 +90,7 @@ module.exports = function registerBiometricRoutes(
         userName: req.user.email,
         userDisplayName: req.user.name,
         attestationType: 'none',
-        excludeCredentials: existing.map(c => ({ id: c.credential_id, transports: c.transports })),
+        excludeCredentials: [],
         authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', authenticatorAttachment: 'platform' },
       });
       pendingChallenges.set(toId(t._id), { challenge: options.challenge, type: 'register', expiresAt: Date.now() + CHALLENGE_TTL_MS });
@@ -98,6 +105,14 @@ module.exports = function registerBiometricRoutes(
       cleanupExpired(pendingChallenges);
       const pending = pendingChallenges.get(toId(t._id));
       if (!pending || pending.type !== 'register') return sendError(res, 'Enrollment session expired — please try again', 400);
+
+      // Re-check at verify time too, in case a credential was created by a
+      // concurrent request between /register/options and here.
+      const alreadyEnrolled = await BiometricCredential.exists({ teacher_id: t._id });
+      if (alreadyEnrolled) {
+        pendingChallenges.delete(toId(t._id));
+        return sendError(res, 'Biometric verification is already set up on this account.', 409);
+      }
 
       const verification = await verifyRegistrationResponse({
         response: req.body,
@@ -176,6 +191,10 @@ module.exports = function registerBiometricRoutes(
   });
 
   // ── 6. Admin: reset/revoke an employee's biometric enrollment (school-scoped) ──
+  // This is the ONLY way an enrolled credential can be cleared. There is no
+  // employee self-service removal — once set up, it's locked until an admin
+  // resets it (e.g. lost/replaced phone), which is what keeps a single
+  // enrolled face/fingerprint tied to the real employee for the long term.
   app.delete('/api/biometric/credential/:teacherId', SCH, async (req, res) => {
     try {
       const t = await Teacher.findOne({ _id: req.params.teacherId, school_id: req.user.school_id });

@@ -56,16 +56,16 @@
         </div>
       </div>
 
-      <!-- Biometric: not yet enrolled on this device -->
+      <!-- Biometric: not yet enrolled on this device — first check-in sets it up -->
       <div v-if="schoolSettings?.biometric_enabled && biometricEnrolled === false" class="biometric-banner">
         <AppIcon name="shield" :size="16" color="var(--primary)" />
         <div class="biometric-banner-text">
-          <div class="biometric-banner-title">Set up biometric verification</div>
-          <div class="biometric-banner-sub">Face ID, fingerprint, or your screen lock — required to check in here</div>
+          <div class="biometric-banner-title">Set up Face ID or fingerprint to check in</div>
+          <div class="biometric-banner-sub">One-time setup — locked to this account once done. Only your admin can reset it.</div>
         </div>
         <button class="btn btn-primary btn-sm" @click="enrollBiometric" :disabled="enrolling || !biometric.isSupported">
           <span v-if="enrolling" class="btn-spinner-sm"></span>
-          {{ enrolling ? 'Setting up...' : 'Set up' }}
+          {{ enrolling ? 'Setting up...' : 'Set Up & Check In' }}
         </button>
       </div>
       <div v-else-if="schoolSettings?.biometric_enabled && !biometric.isSupported" class="biometric-banner biometric-banner-warn">
@@ -77,7 +77,7 @@
       </div>
 
       <!-- Biometric: arrived, waiting on a tap to verify and finish checking in -->
-      <div v-if="pendingConfirm" class="biometric-banner biometric-banner-active">
+      <div v-if="pendingConfirm && biometricEnrolled === true" class="biometric-banner biometric-banner-active">
         <AppIcon name="user-check" :size="16" color="var(--primary)" />
         <div class="biometric-banner-text">
           <div class="biometric-banner-title">You've arrived</div>
@@ -86,6 +86,19 @@
         <button class="btn btn-primary btn-sm" @click="confirmPendingCheckIn" :disabled="biometric.busy.value">
           <span v-if="biometric.busy.value" class="btn-spinner-sm"></span>
           {{ biometric.busy.value ? 'Verifying...' : 'Verify' }}
+        </button>
+      </div>
+
+      <!-- Biometric: arrived, but never enrolled yet — first check-in sets it up -->
+      <div v-if="pendingConfirm && biometricEnrolled === false" class="biometric-banner biometric-banner-active">
+        <AppIcon name="shield" :size="16" color="var(--primary)" />
+        <div class="biometric-banner-text">
+          <div class="biometric-banner-title">You've arrived — set up Face ID or fingerprint</div>
+          <div class="biometric-banner-sub">One-time setup to finish your first check-in. Locked once done — only your admin can reset it.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" @click="confirmPendingEnrollment" :disabled="enrolling || biometric.busy.value">
+          <span v-if="enrolling" class="btn-spinner-sm"></span>
+          {{ enrolling ? 'Setting up...' : 'Set Up & Check In' }}
         </button>
       </div>
 
@@ -276,7 +289,11 @@ async function enrollBiometric() {
   enrolling.value = false
   if (ok) {
     biometricEnrolled.value = true
-    toast.success('Biometric verification set up — you can now use it to check in')
+    toast.success('Biometric verification set up — checking you in now')
+    // First-time setup flows straight into check-in as one action, so the
+    // employee doesn't have to tap twice — enroll, then immediately verify
+    // and check in with the same face/fingerprint they just registered.
+    await checkIn()
   } else {
     toast.error(biometric.error.value || 'Could not set up biometric verification')
   }
@@ -286,6 +303,28 @@ async function enrollBiometric() {
 async function confirmPendingCheckIn() {
   if (!pendingConfirm.value) return
   const { lat, lng } = pendingConfirm.value
+  const token = await biometric.verify()
+  if (!token) {
+    toast.error(biometric.error.value || 'Biometric verification failed')
+    return
+  }
+  pendingConfirm.value = null
+  await doAutoCheckIn(lat, lng, token)
+}
+
+/* ── Confirm a pending auto check-in that needs first-time enrollment ── */
+async function confirmPendingEnrollment() {
+  if (!pendingConfirm.value) return
+  const { lat, lng } = pendingConfirm.value
+  enrolling.value = true
+  const enrolled = await biometric.enroll()
+  enrolling.value = false
+  if (!enrolled) {
+    toast.error(biometric.error.value || 'Could not set up biometric verification')
+    return
+  }
+  biometricEnrolled.value = true
+  toast.success('Biometric verification set up — checking you in now')
   const token = await biometric.verify()
   if (!token) {
     toast.error(biometric.error.value || 'Biometric verification failed')
@@ -342,6 +381,9 @@ async function onAutoGPS(pos) {
     if (s.biometric_enabled) {
       // Can't complete this silently — WebAuthn requires an explicit tap. Surface
       // a prompt instead; confirmPendingCheckIn() finishes the job once tapped.
+      // If this is the employee's first time (not enrolled yet), the same
+      // "arrived" banner routes them into enrollBiometric() instead, so their
+      // very first check-in is also where their face/fingerprint gets set up.
       pendingConfirm.value = { lat, lng }
       return
     }
