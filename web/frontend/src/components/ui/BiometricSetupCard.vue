@@ -6,7 +6,7 @@
       </div>
       <div class="bsc-header-text">
         <div class="bsc-title">Biometric Verification</div>
-        <div class="bsc-subtitle">Face ID or fingerprint — required to check in</div>
+        <div class="bsc-subtitle">Face verification — required to check in</div>
       </div>
       <AppBadge
         v-if="status !== null"
@@ -25,7 +25,7 @@
     <!-- Not supported in this browser/app -->
     <div v-else-if="!biometric.isSupported" class="bsc-notice bsc-notice-warn">
       <AppIcon name="alert-triangle" :size="15" color="var(--warning)" />
-      <span>Biometric verification isn't available on this device or browser. Try the installed mobile app, or a recent version of Chrome or Safari.</span>
+      <span>Biometric verification needs camera access, which isn't available on this device or browser. Try the installed mobile app, or a recent version of Chrome or Safari.</span>
     </div>
 
     <!-- Enrolled — locked. Only a company admin can reset this. -->
@@ -40,22 +40,27 @@
 
       <div class="bsc-notice bsc-notice-locked">
         <AppIcon name="shield" :size="14" color="var(--text-muted)" />
-        <span>For your security, this can't be changed from here. If you got a new device or need it reset, ask your company admin — only they can clear it and let you enroll again.</span>
+        <span>For your security, this is locked. If you need to re-enroll (e.g. verification keeps failing), you can remove it below, or ask your company admin to reset it.</span>
       </div>
+
+      <button class="btn btn-ghost-danger" @click="confirmRemove" :disabled="removing">
+        <span v-if="removing" class="bsc-spinner-sm"></span>
+        <AppIcon v-else name="trash" :size="14" />
+        {{ removing ? 'Removing…' : 'Remove My Enrollment' }}
+      </button>
     </template>
 
     <!-- Not enrolled — prompt to set up -->
     <template v-else>
       <div class="bsc-notice" :class="{ 'bsc-notice-required': biometricRequired }">
         <AppIcon name="info" :size="15" color="var(--primary)" />
-        <span v-if="biometricRequired">Your {{ vocab.orgNoun.toLowerCase() }} requires biometric verification to check in. Set it up now using your device's Face ID, fingerprint, or screen lock.</span>
-        <span v-else>Set up Face ID or fingerprint now so you're ready if your {{ vocab.orgNoun.toLowerCase() }} turns on biometric check-in.</span>
+        <span v-if="biometricRequired">Your {{ vocab.orgNoun.toLowerCase() }} requires biometric verification to check in. Set it up now using your camera.</span>
+        <span v-else>Set up face verification now so you're ready if your {{ vocab.orgNoun.toLowerCase() }} turns on biometric check-in.</span>
       </div>
 
-      <button class="btn btn-primary" @click="enroll" :disabled="enrolling">
-        <span v-if="enrolling" class="bsc-spinner-sm"></span>
-        <AppIcon v-else name="shield" :size="15" />
-        {{ enrolling ? 'Setting up…' : 'Set Up Face ID / Fingerprint' }}
+      <button class="btn btn-primary" @click="showCapture = true" :disabled="enrolling">
+        <AppIcon name="camera" :size="15" />
+        Set Up Face Verification
       </button>
     </template>
 
@@ -63,6 +68,13 @@
       <AppIcon name="alert-triangle" :size="14" color="var(--danger)" />
       <span>{{ errorMsg }}</span>
     </div>
+
+    <FaceCaptureModal
+      v-model="showCapture"
+      mode="enroll"
+      @success="onEnrollSuccess"
+      @error="(msg) => { errorMsg = msg }"
+    />
   </div>
 </template>
 
@@ -70,6 +82,7 @@
 import { ref, onMounted } from 'vue'
 import AppIcon from './AppIcon.vue'
 import AppBadge from './AppBadge.vue'
+import FaceCaptureModal from './FaceCaptureModal.vue'
 import { useBiometric } from '../../composables/useBiometric'
 import { useToast } from '../../composables/useToast'
 import { useIndustry } from '../../composables/useIndustry'
@@ -84,6 +97,8 @@ const deviceLabel      = ref(null)
 const enrolledAt       = ref(null)
 const biometricRequired = ref(false) // school-wide setting: is biometric mandatory to check in
 const enrolling        = ref(false)
+const removing         = ref(false)
+const showCapture      = ref(false)
 const errorMsg         = ref('')
 
 function fmtDate(d) {
@@ -111,28 +126,24 @@ async function loadSchoolSetting() {
   } catch { /* non-fatal — just skip the "required" messaging */ }
 }
 
-async function enroll() {
-  // Guard against double-submits and against trying to re-enroll once
-  // already locked-in (the button is hidden in that state, but this covers
-  // any stale-UI edge case, e.g. two tabs open).
-  if (enrolling.value || status.value === true) return
-  enrolling.value = true
+async function onEnrollSuccess() {
   errorMsg.value = ''
-  const ok = await biometric.enroll()
-  enrolling.value = false
-  if (ok) {
-    toast.success('Biometric verification set up — you can now use it to check in')
+  toast.success('Biometric verification set up — you can now use it to check in')
+  await loadStatus()
+}
+
+async function confirmRemove() {
+  if (removing.value) return
+  if (!confirm('Remove your biometric enrollment? You will need to set it up again before your next check-in.')) return
+  removing.value = true
+  try {
+    await api.delete('/biometric/self')
+    toast.success('Biometric enrollment removed')
     await loadStatus()
-  } else {
-    // The server returns 409 if a credential already exists (e.g. it was set
-    // up moments ago from another tab/device) — refresh status instead of
-    // just showing a generic error, so the UI settles into the locked state.
-    if (biometric.error.value?.toLowerCase().includes('already set up')) {
-      await loadStatus()
-    } else {
-      errorMsg.value = biometric.error.value || 'Could not set up biometric verification'
-      toast.error(errorMsg.value)
-    }
+  } catch (e) {
+    toast.error(e.response?.data?.message || 'Could not remove biometric enrollment')
+  } finally {
+    removing.value = false
   }
 }
 
@@ -195,6 +206,11 @@ onMounted(() => {
   color: #fff; box-shadow: 0 4px 16px var(--primary-glow);
 }
 .btn-primary:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 24px var(--primary-glow); }
+.btn-ghost-danger {
+  background: transparent; border: 1px solid rgba(239,68,68,0.3); color: var(--danger);
+  width: 100%; margin-top: 4px;
+}
+.btn-ghost-danger:not(:disabled):hover { background: rgba(239,68,68,0.08); }
 
 .bsc-spinner, .bsc-spinner-sm {
   border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;

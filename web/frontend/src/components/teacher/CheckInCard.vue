@@ -60,10 +60,10 @@
       <div v-if="schoolSettings?.biometric_enabled && biometricEnrolled === false" class="biometric-banner">
         <AppIcon name="shield" :size="16" color="var(--primary)" />
         <div class="biometric-banner-text">
-          <div class="biometric-banner-title">Set up Face ID or fingerprint to check in</div>
-          <div class="biometric-banner-sub">One-time setup — locked to this account once done. Only your admin can reset it.</div>
+          <div class="biometric-banner-title">Set up face verification to check in</div>
+          <div class="biometric-banner-sub">One-time setup — locked to this account once done. You can remove it anytime from your profile.</div>
         </div>
-        <button class="btn btn-primary btn-sm" @click="enrollBiometric" :disabled="enrolling || !biometric.isSupported">
+        <button class="btn btn-primary btn-sm" @click="openCapture('enroll-then-checkin')" :disabled="enrolling || !biometric.isSupported">
           <span v-if="enrolling" class="btn-spinner-sm"></span>
           {{ enrolling ? 'Setting up...' : 'Set Up & Check In' }}
         </button>
@@ -71,7 +71,7 @@
       <div v-else-if="schoolSettings?.biometric_enabled && !biometric.isSupported" class="biometric-banner biometric-banner-warn">
         <AppIcon name="alert-triangle" :size="16" color="var(--warning)" />
         <div class="biometric-banner-text">
-          <div class="biometric-banner-title">Biometric verification isn't available in this browser</div>
+          <div class="biometric-banner-title">Biometric verification needs camera access, which isn't available in this browser</div>
           <div class="biometric-banner-sub">Try the installed app, or a recent version of Chrome or Safari</div>
         </div>
       </div>
@@ -81,9 +81,9 @@
         <AppIcon name="user-check" :size="16" color="var(--primary)" />
         <div class="biometric-banner-text">
           <div class="biometric-banner-title">You've arrived</div>
-          <div class="biometric-banner-sub">Verify with Face ID or fingerprint to finish checking in</div>
+          <div class="biometric-banner-sub">Verify your face to finish checking in</div>
         </div>
-        <button class="btn btn-primary btn-sm" @click="confirmPendingCheckIn" :disabled="biometric.busy.value">
+        <button class="btn btn-primary btn-sm" @click="openCapture('verify-pending')" :disabled="biometric.busy.value">
           <span v-if="biometric.busy.value" class="btn-spinner-sm"></span>
           {{ biometric.busy.value ? 'Verifying...' : 'Verify' }}
         </button>
@@ -93,10 +93,10 @@
       <div v-if="pendingConfirm && biometricEnrolled === false" class="biometric-banner biometric-banner-active">
         <AppIcon name="shield" :size="16" color="var(--primary)" />
         <div class="biometric-banner-text">
-          <div class="biometric-banner-title">You've arrived — set up Face ID or fingerprint</div>
-          <div class="biometric-banner-sub">One-time setup to finish your first check-in. Locked once done — only your admin can reset it.</div>
+          <div class="biometric-banner-title">You've arrived — set up face verification</div>
+          <div class="biometric-banner-sub">One-time setup to finish your first check-in. You can remove it anytime from your profile.</div>
         </div>
-        <button class="btn btn-primary btn-sm" @click="confirmPendingEnrollment" :disabled="enrolling || biometric.busy.value">
+        <button class="btn btn-primary btn-sm" @click="openCapture('enroll-then-pending')" :disabled="enrolling || biometric.busy.value">
           <span v-if="enrolling" class="btn-spinner-sm"></span>
           {{ enrolling ? 'Setting up...' : 'Set Up & Check In' }}
         </button>
@@ -108,7 +108,7 @@
         <button
           v-if="!todayRecord?.check_in"
           class="action-btn checkin-btn"
-          @click="checkIn"
+          @click="handleCheckInClick"
           :disabled="loading || !positionReady"
         >
           <div v-if="loading" class="action-spinner"></div>
@@ -157,12 +157,20 @@
       <AppIcon name="info" :size="15" color="var(--primary)" />
       <span>Check-in via GPS is only available on the mobile app. Your status above is updated in real-time.</span>
     </div>
+
+    <FaceCaptureModal
+      v-model="showCapture"
+      :mode="captureMode"
+      @success="onCaptureSuccess"
+      @error="onCaptureError"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
+import FaceCaptureModal from '../ui/FaceCaptureModal.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { useBiometric } from '../../composables/useBiometric'
@@ -201,10 +209,13 @@ const currentPosition  = ref(null)
 const gpsVerified      = ref(false)
 const errorMsg         = ref('')
 
-// ── Biometric verification (WebAuthn — Face ID / fingerprint / screen lock) ──
+// ── Biometric verification (in-house face recognition — camera-based) ──
 const biometric          = useBiometric()
 const biometricEnrolled  = ref(null)   // null = not loaded yet, true/false once checked
 const enrolling          = ref(false)
+const showCapture        = ref(false)
+const captureMode        = ref('enroll') // 'enroll' | 'verify' — passed to FaceCaptureModal
+let   capturePurpose     = null          // which flow to resume once capture succeeds
 // Set when GPS auto-detects arrival but biometric_enabled means check-in can't
 // complete silently — holds the coords until the employee taps to confirm.
 const pendingConfirm     = ref(null)   // { lat, lng } | null
@@ -275,7 +286,7 @@ async function loadSchoolSettings() {
   } catch {}
 }
 
-/* ── Biometric enrollment status + self-enrollment ── */
+/* ── Biometric enrollment status ── */
 async function loadBiometricStatus() {
   try {
     const r = await api.get('/biometric/status')
@@ -283,55 +294,55 @@ async function loadBiometricStatus() {
   } catch { biometricEnrolled.value = false }
 }
 
-async function enrollBiometric() {
-  enrolling.value = true
-  const ok = await biometric.enroll()
+/* ── Capture modal dispatcher ──
+   FaceCaptureModal only knows how to run one capture (enroll or verify) and
+   hand back a result — it doesn't know about check-in, GPS, or which banner
+   triggered it. `openCapture(purpose)` opens it in the right mode; when
+   enrollment is needed first, success re-opens the modal in verify mode
+   automatically (two quick taps of the same flow, not two separate trips) —
+   onCaptureSuccess/onCaptureError resume whatever flow was in progress. */
+function openCapture(purpose) {
+  capturePurpose = purpose
+  const needsEnrollFirst = purpose === 'enroll-then-checkin' || purpose === 'enroll-then-pending'
+  if (needsEnrollFirst) enrolling.value = true
+  captureMode.value = needsEnrollFirst ? 'enroll' : 'verify'
+  showCapture.value = true
+}
+
+async function onCaptureSuccess(token) {
+  const purpose = capturePurpose
   enrolling.value = false
-  if (ok) {
+
+  // Step 1 of the two-step flows: enrollment just succeeded. Immediately
+  // reopen the modal in verify mode to finish the check-in with the face
+  // that was just registered.
+  if (purpose === 'enroll-then-checkin' || purpose === 'enroll-then-pending') {
     biometricEnrolled.value = true
-    toast.success('Biometric verification set up — checking you in now')
-    // First-time setup flows straight into check-in as one action, so the
-    // employee doesn't have to tap twice — enroll, then immediately verify
-    // and check in with the same face/fingerprint they just registered.
-    await checkIn()
-  } else {
-    toast.error(biometric.error.value || 'Could not set up biometric verification')
-  }
-}
-
-/* ── Confirm a pending auto check-in that needed biometric verification ── */
-async function confirmPendingCheckIn() {
-  if (!pendingConfirm.value) return
-  const { lat, lng } = pendingConfirm.value
-  const token = await biometric.verify()
-  if (!token) {
-    toast.error(biometric.error.value || 'Biometric verification failed')
+    toast.success('Biometric verification set up — verify once more to check in')
+    capturePurpose = purpose === 'enroll-then-checkin' ? 'verify-manual-checkin' : 'verify-pending'
+    captureMode.value = 'verify'
+    showCapture.value = true
     return
   }
-  pendingConfirm.value = null
-  await doAutoCheckIn(lat, lng, token)
+
+  capturePurpose = null
+
+  if (purpose === 'verify-pending') {
+    if (!pendingConfirm.value) return
+    const { lat, lng } = pendingConfirm.value
+    pendingConfirm.value = null
+    await doAutoCheckIn(lat, lng, token)
+    return
+  }
+  if (purpose === 'verify-manual-checkin') {
+    await runCheckIn(token)
+  }
 }
 
-/* ── Confirm a pending auto check-in that needs first-time enrollment ── */
-async function confirmPendingEnrollment() {
-  if (!pendingConfirm.value) return
-  const { lat, lng } = pendingConfirm.value
-  enrolling.value = true
-  const enrolled = await biometric.enroll()
+function onCaptureError(msg) {
   enrolling.value = false
-  if (!enrolled) {
-    toast.error(biometric.error.value || 'Could not set up biometric verification')
-    return
-  }
-  biometricEnrolled.value = true
-  toast.success('Biometric verification set up — checking you in now')
-  const token = await biometric.verify()
-  if (!token) {
-    toast.error(biometric.error.value || 'Biometric verification failed')
-    return
-  }
-  pendingConfirm.value = null
-  await doAutoCheckIn(lat, lng, token)
+  capturePurpose = null
+  toast.error(msg || 'Biometric verification failed')
 }
 
 /* ── GPS ── */
@@ -379,11 +390,12 @@ async function onAutoGPS(pos) {
   if (inside && !wasInsideZone.value && !props.todayRecord?.check_in) {
     wasInsideZone.value = true
     if (s.biometric_enabled) {
-      // Can't complete this silently — WebAuthn requires an explicit tap. Surface
-      // a prompt instead; confirmPendingCheckIn() finishes the job once tapped.
+      // Can't complete this silently — face verification requires an explicit
+      // tap to open the camera. Surface a prompt instead; the "Verify" button
+      // opens the capture modal (purpose 'verify-pending') to finish the job.
       // If this is the employee's first time (not enrolled yet), the same
-      // "arrived" banner routes them into enrollBiometric() instead, so their
-      // very first check-in is also where their face/fingerprint gets set up.
+      // "arrived" banner opens the modal in enroll mode instead, so their
+      // very first check-in is also where their face gets registered.
       pendingConfirm.value = { lat, lng }
       return
     }
@@ -439,24 +451,32 @@ async function doAutoCheckOut() {
 }
 
 /* ── Manual Actions ── */
-async function checkIn() {
+// Entry point for the template's Check In button. If biometric verification
+// is required, this routes through the capture modal (enrolling first if
+// needed) instead of calling the API directly — runCheckIn() finishes the
+// job either here (no biometric required) or from onCaptureSuccess() above.
+async function handleCheckInClick() {
+  if (!currentPosition.value) { await detectLocation(); if (!currentPosition.value) return }
+  if (schoolSettings.value?.biometric_enabled) {
+    if (!biometricEnrolled.value) {
+      openCapture('enroll-then-checkin')
+      return
+    }
+    openCapture('verify-manual-checkin')
+    return
+  }
+  await runCheckIn(null)
+}
+
+// Kept for the "arrived, set up & check in" banner path (via
+// onCaptureSuccess), and as a plain alias so nothing else that expects a
+// checkIn() function breaks.
+async function checkIn() { await handleCheckInClick() }
+
+async function runCheckIn(biometricToken) {
   if (!currentPosition.value) { await detectLocation(); if (!currentPosition.value) return }
   loading.value = true; errorMsg.value = ''
   try {
-    let biometricToken = null
-    if (schoolSettings.value?.biometric_enabled) {
-      if (!biometricEnrolled.value) {
-        errorMsg.value = 'Set up biometric verification first (see above) before checking in.'
-        toast.error(errorMsg.value)
-        return
-      }
-      biometricToken = await biometric.verify()
-      if (!biometricToken) {
-        errorMsg.value = biometric.error.value || 'Biometric verification failed'
-        toast.error(errorMsg.value)
-        return
-      }
-    }
     await api.post('/attendance/checkin', {
       latitude:  currentPosition.value.lat,
       longitude: currentPosition.value.lng,

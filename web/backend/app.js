@@ -197,12 +197,11 @@ ReportSchema.index({ school_id: 1, report_date: -1 }, { unique: true });
 
 const ContactSchema = new Schema({ full_name: { type: String, required: true }, email: { type: String, required: true }, phone: String, school_name: String, message: String, status: { type: String, enum: ['pending','approved','rejected'], default: 'pending' }, admin_notes: String }, vOpts);
 
-// WebAuthn (Face ID / fingerprint / Windows Hello) credential — one per registered
-// device. A teacher can have more than one (e.g. re-enrolled on a new phone), so
-// this is NOT unique per teacher_id, only per credential_id. Enrollment always
-// happens on the employee's own device; the public_key/counter here are what let
-// the server verify future check-ins without ever seeing the actual biometric.
-const BiometricCredentialSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, credential_id: { type: String, required: true, unique: true }, public_key: { type: String, required: true }, counter: { type: Number, default: 0 }, transports: { type: [String], default: [] }, device_label: String, last_used_at: Date }, vOpts);
+// In-house face verification credential — one per enrolled employee. Only a
+// numeric face descriptor (128 floats from face-api.js) is stored, never a
+// photo or video; matching happens server-side via Euclidean distance in
+// biometric-routes.js. Locked to one-time self-enrollment (see that file).
+const BiometricCredentialSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, face_descriptor: { type: [Number], required: true }, device_label: String, last_used_at: Date }, vOpts);
 BiometricCredentialSchema.index({ teacher_id: 1 });
 BiometricCredentialSchema.index({ school_id: 1 });
 
