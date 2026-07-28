@@ -60,6 +60,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import api from '../../api'
 import { getSocket } from '../../socket'
 import { useIndustry } from '../../composables/useIndustry'
+import { watchAccurateLocation, clearLocationWatch } from '../../composables/useAccurateLocation'
 const { vocab } = useIndustry()
 
 // maplibre-gl is a large WebGL mapping library (~150KB+) that was previously
@@ -327,20 +328,21 @@ async function drawRoute(fLat, fLng, tLat, tLng) {
 function startTracking() {
   if (!navigator.geolocation) return
   tracking.value = true
-  watchId = navigator.geolocation.watchPosition(onGPS,
-    err => console.warn('GPS:', err.message),
-    { enableHighAccuracy: false, maximumAge: 15000, timeout: 15000 })
+  // Real GPS-grade accuracy — the previous enableHighAccuracy: false setting
+  // let the browser fall back to cell-tower/Wi-Fi positioning, which is what
+  // caused the 1km+ map drift for live tracking.
+  watchId = watchAccurateLocation(onGPS, err => console.warn('GPS:', err.message))
 }
 function stopTracking() {
-  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null }
+  if (watchId !== null) { clearLocationWatch(watchId); watchId = null }
   if (broadcastTimer) { clearTimeout(broadcastTimer); broadcastTimer = null }
   tracking.value = false
 }
 function toggleTracking() { tracking.value ? stopTracking() : startTracking() }
 
 function onGPS(pos) {
-  const lat = pos.coords.latitude, lng = pos.coords.longitude
-  teacherPos.value = { lat, lng, accuracy: pos.coords.accuracy }
+  const lat = pos.lat, lng = pos.lng
+  teacherPos.value = { lat, lng, accuracy: pos.accuracy }
   emit('location-update', { lat, lng })
   if (mapReady.value) {
     upsertTeacherMarker(lat, lng)

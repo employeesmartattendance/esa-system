@@ -401,6 +401,7 @@ import EditProfileCard from '../ui/EditProfileCard.vue'
 import { useToast } from '../../composables/useToast'
 import { useAuthStore } from '../../stores/auth'
 import { useIndustry } from '../../composables/useIndustry'
+import { getAccurateLocation } from '../../composables/useAccurateLocation'
 import api from '../../api'
 
 defineProps({ schoolId: [Number, String] })
@@ -518,22 +519,22 @@ async function saveSettings() {
   } finally { saving.value = false }
 }
 
-function detectLocation() {
+async function detectLocation() {
   if (!navigator.geolocation) { toast.error('GPS not available in this browser'); return }
   detectingGPS.value = true
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      form.value.school_lat = pos.coords.latitude.toFixed(7)
-      form.value.school_lng = pos.coords.longitude.toFixed(7)
-      detectingGPS.value    = false
-      toast.success(`Location detected: ${form.value.school_lat}, ${form.value.school_lng}`)
-    },
-    err => {
-      detectingGPS.value = false
-      toast.error('Could not detect location — check browser permissions')
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  )
+  try {
+    // Samples several high-accuracy fixes (no premature timeout) and keeps
+    // the most precise one — this is what actually fixes both the 1km+ drift
+    // and the "unable to access location" failures caused by a too-short timeout.
+    const pos = await getAccurateLocation()
+    form.value.school_lat = pos.lat.toFixed(7)
+    form.value.school_lng = pos.lng.toFixed(7)
+    toast.success(`Location detected: ${form.value.school_lat}, ${form.value.school_lng} (±${Math.round(pos.accuracy)}m)`)
+  } catch (err) {
+    toast.error(err?.message || 'Could not detect location — check browser permissions')
+  } finally {
+    detectingGPS.value = false
+  }
 }
 
 async function triggerManualCheckout() {

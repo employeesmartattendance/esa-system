@@ -174,6 +174,7 @@ import FaceCaptureModal from '../ui/FaceCaptureModal.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { useBiometric } from '../../composables/useBiometric'
+import { getAccurateLocation, watchAccurateLocation, clearLocationWatch } from '../../composables/useAccurateLocation'
 import api from '../../api'
 
 const props  = defineProps({
@@ -350,28 +351,30 @@ async function detectLocation() {
   if (!navigator.geolocation) { errorMsg.value = 'GPS not available'; return }
   detectingLocation.value = true
   errorMsg.value = ''
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      currentPosition.value = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }
-      detectingLocation.value = false
-    },
-    () => { detectingLocation.value = false; errorMsg.value = 'Cannot get GPS — enable location permissions.' },
-    { enableHighAccuracy: true, timeout: 10000 }
-  )
+  try {
+    // Samples several high-accuracy fixes (no premature timeout) and keeps
+    // the most precise one instead of trusting the first callback, which is
+    // what was causing the 1km+ offset and permission-looking failures.
+    currentPosition.value = await getAccurateLocation()
+  } catch (err) {
+    errorMsg.value = err?.message || 'Cannot get GPS — enable location permissions.'
+  } finally {
+    detectingLocation.value = false
+  }
 }
 
 /* ── Auto GPS watch ── */
 function startAutoWatch() {
-  if (!navigator.geolocation) return
-    // Reduced accuracy and increased maximumAge to save performance and battery
-    autoWatchId = navigator.geolocation.watchPosition(
-      onAutoGPS,
-      err => console.warn('Auto GPS:', err.message),
-      { enableHighAccuracy: false, maximumAge: 30000, timeout: 30000 }
-    )
+  // Always request real GPS-grade accuracy for radius/auto check-in — a
+  // network-based fix (enableHighAccuracy: false) is exactly what produced
+  // the 1km+ drift that made in-radius employees look like they were outside.
+  autoWatchId = watchAccurateLocation(
+    pos => onAutoGPS({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.accuracy } }),
+    err => console.warn('Auto GPS:', err.message)
+  )
 }
 function stopAutoWatch() {
-  if (autoWatchId !== null) { navigator.geolocation.clearWatch(autoWatchId); autoWatchId = null }
+  if (autoWatchId !== null) { clearLocationWatch(autoWatchId); autoWatchId = null }
   if (autoCheckoutTime) { clearTimeout(autoCheckoutTime); autoCheckoutTime = null }
 }
 
