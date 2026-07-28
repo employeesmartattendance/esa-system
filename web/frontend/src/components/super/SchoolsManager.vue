@@ -218,6 +218,7 @@ import AppBadge from '../ui/AppBadge.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import { useToast } from '../../composables/useToast'
 import { INDUSTRY_LIST, getIndustry } from '../../industries'
+import { compressImage } from '../../composables/useImageCompress'
 import api from '../../api'
 
 const props = defineProps({ schools: { type: Array, default: () => [] }, loading: Boolean })
@@ -277,8 +278,9 @@ async function onLogoSelected(e) {
 
   uploadingLogo.value = true
   try {
+    const compressed = await compressImage(file)
     const fd = new FormData()
-    fd.append('logo', file)
+    fd.append('logo', compressed)
     const r = await api.post('/schools/upload-logo', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

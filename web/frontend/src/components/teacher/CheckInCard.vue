@@ -197,6 +197,7 @@ const avatarUrl = computed(() => {
 const loading          = ref(false)
 const detectingLocation = ref(false)
 const currentPosition  = ref(null)
+let   lastFixAt        = 0 // ms timestamp of last accepted fix, used to allow stale fixes to be replaced
 const gpsVerified      = ref(false)
 const errorMsg         = ref('')
 
@@ -349,6 +350,7 @@ async function detectLocation({ silent = false } = {}) {
     // the most precise one instead of trusting the first callback, which is
     // what was causing the 1km+ offset and permission-looking failures.
     currentPosition.value = await getAccurateLocation()
+    lastFixAt = Date.now()
   } catch (err) {
     // Swallow silently — GPS acquisition issues resolve themselves on their
     // own via the background refresh/watch and should never interrupt or
@@ -358,23 +360,17 @@ async function detectLocation({ silent = false } = {}) {
   }
 }
 
-// ── Silent background GPS refresh (replaces the old visible "Refresh GPS"
-// button) — keeps currentPosition current every ~2s with zero UI feedback.
-// Runs alongside startAutoWatch()'s continuous watchPosition stream so the
-// position is refreshed both by the live watch and this interval, without
-// ever showing a spinner, error, or toast to the employee.
-let silentRefreshTimer = null
-function startSilentRefresh() {
-  if (silentRefreshTimer) return
-  silentRefreshTimer = setInterval(() => {
-    detectLocation({ silent: true })
-  }, 2000)
-}
-function stopSilentRefresh() {
-  if (silentRefreshTimer) { clearInterval(silentRefreshTimer); silentRefreshTimer = null }
-}
-
 /* ── Auto GPS watch ── */
+// Single source of truth: one continuous watchAccurateLocation() stream
+// drives both the live map marker and the check-in radius logic. There is
+// no separate interval-based poller — a previous setInterval that called
+// getAccurateLocation() every 2s was spawning overlapping watchPosition
+// listeners (each open for up to 12s) that raced the continuous watch and
+// each other, and whichever resolved last — not most accurate — won. That
+// race is what produced the "sometimes accurate, sometimes 1km+ off"
+// behavior. Now there's exactly one live stream, ever.
+const MIN_FIX_INTERVAL_FOR_DOWNGRADE_MS = 10000 // only accept a worse fix once the current one is this stale
+
 function startAutoWatch() {
   // Always request real GPS-grade accuracy for radius/auto check-in — a
   // network-based fix (enableHighAccuracy: false) is exactly what produced
@@ -383,17 +379,26 @@ function startAutoWatch() {
     pos => onAutoGPS({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.accuracy } }),
     err => console.warn('Auto GPS:', err.message)
   )
-  startSilentRefresh()
 }
 function stopAutoWatch() {
   if (autoWatchId !== null) { clearLocationWatch(autoWatchId); autoWatchId = null }
   if (autoCheckoutTime) { clearTimeout(autoCheckoutTime); autoCheckoutTime = null }
-  stopSilentRefresh()
 }
 
 async function onAutoGPS(pos) {
-  const lat = pos.coords.latitude, lng = pos.coords.longitude
-  currentPosition.value = { lat, lng, accuracy: pos.coords.accuracy }
+  const lat = pos.coords.latitude, lng = pos.coords.longitude, accuracy = pos.coords.accuracy
+  const prev = currentPosition.value
+  const now = Date.now()
+
+  // Accuracy guard: never let a worse fix overwrite a better one unless the
+  // current fix is old enough that we'd rather have a fresh-but-imprecise
+  // reading than a stale-but-precise one. This keeps the map marker stable
+  // instead of jittering between good and bad fixes as new samples arrive.
+  const shouldAccept = !prev || accuracy <= prev.accuracy || (now - lastFixAt) >= MIN_FIX_INTERVAL_FOR_DOWNGRADE_MS
+  if (!shouldAccept) return
+
+  currentPosition.value = { lat, lng, accuracy }
+  lastFixAt = now
 
   const s = schoolSettings.value
   if (!s || !s.gps_enabled || !s.school_lat || !s.school_lng) return

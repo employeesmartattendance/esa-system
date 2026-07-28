@@ -222,24 +222,24 @@ function addRouteSources() {
     layout: { 'line-cap': 'round' } })
 }
 
+// ── Circle geometry helper (shared by radius zone + GPS accuracy circle) ───
+function makeCircle(lng, lat, radius) {
+  const pts = 64
+  const coords = []
+  for (let i = 0; i <= pts; i++) {
+    const angle = (i / pts) * 2 * Math.PI
+    const dx = radius / (111320 * Math.cos(lat * Math.PI / 180))
+    const dy = radius / 110540
+    coords.push([lng + dx * Math.cos(angle), lat + dy * Math.sin(angle)])
+  }
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } }
+}
+
 // ── Radius circle (blinking) ────────────────────────────────────────────────
 function addRadiusCircle() {
   if (!map || !props.schoolLat || !props.schoolLng) return
   const center = [props.schoolLng, props.schoolLat]
   const radiusM = props.schoolRadius || 200
-
-  // Build GeoJSON circle polygon
-  function makeCircle(lng, lat, radius) {
-    const pts = 64
-    const coords = []
-    for (let i = 0; i <= pts; i++) {
-      const angle = (i / pts) * 2 * Math.PI
-      const dx = radius / (111320 * Math.cos(lat * Math.PI / 180))
-      const dy = radius / 110540
-      coords.push([lng + dx * Math.cos(angle), lat + dy * Math.sin(angle)])
-    }
-    return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } }
-  }
 
   const circle = makeCircle(props.schoolLng, props.schoolLat, radiusM)
   const outerCircle = makeCircle(props.schoolLng, props.schoolLat, radiusM * 1.18)
@@ -283,6 +283,37 @@ function addRadiusCircle() {
   pulseAnimId = requestAnimationFrame(animatePulse)
 }
 
+
+// ── GPS accuracy circle ──────────────────────────────────────────────────
+// Shows the real uncertainty of the current fix as a circle around the
+// employee marker (radius = accuracy in meters) — the standard pattern used
+// by native map "blue dot" UIs and Leaflet/Mapbox geolocate controls. This
+// makes GPS trustworthiness visible instead of hiding it behind a single
+// dot that looks equally confident whether accuracy is 8m or 800m.
+function accuracyColor(accuracy) {
+  if (accuracy <= 15) return '#10b981' // green — GPS-grade fix
+  if (accuracy <= 50) return '#f59e0b' // amber — decent, network-assisted-ish
+  return '#ef4444'                     // red — unreliable, treat with caution
+}
+
+function upsertAccuracyCircle(lat, lng, accuracy) {
+  if (!map || !mapReady.value) return
+  const circle = makeCircle(lng, lat, accuracy)
+  const color = accuracyColor(accuracy)
+
+  if (map.getSource('gps-accuracy')) {
+    map.getSource('gps-accuracy').setData(circle)
+    if (map.getLayer('gps-accuracy-fill'))   map.setPaintProperty('gps-accuracy-fill', 'fill-color', color)
+    if (map.getLayer('gps-accuracy-border')) map.setPaintProperty('gps-accuracy-border', 'line-color', color)
+    return
+  }
+
+  map.addSource('gps-accuracy', { type: 'geojson', data: circle })
+  map.addLayer({ id: 'gps-accuracy-fill', type: 'fill', source: 'gps-accuracy',
+    paint: { 'fill-color': color, 'fill-opacity': 0.12 } })
+  map.addLayer({ id: 'gps-accuracy-border', type: 'line', source: 'gps-accuracy',
+    paint: { 'line-color': color, 'line-width': 1.5, 'line-opacity': 0.6, 'line-dasharray': [2, 2] } })
+}
 
 function addSchoolMarker() {
   if (!props.schoolLat || !props.schoolLng || !map) return
@@ -354,7 +385,18 @@ async function drawRoute(fLat, fLng, tLat, tLng) {
 }
 
 // ── GPS Tracking ───────────────────────────────────────────────────────────
-let silentRefreshTimer = null
+// Single source of truth: one continuous watchAccurateLocation() stream.
+// A previous setInterval polled getCurrentPosition() every ~2s alongside
+// this watch as a "belt-and-braces" measure, but since watchPosition
+// callbacks aren't guaranteed to arrive in accuracy order, the two streams
+// raced and whichever resolved last — not most accurate — overwrote
+// teacherPos. That's what caused the marker to sometimes jump 1km+ off.
+// The accuracy/staleness guard in onGPS below replaces the poller: it keeps
+// the marker fed by a single stream and only accepts a worse fix once the
+// current one is stale enough to prefer freshness over precision.
+const MIN_FIX_INTERVAL_FOR_DOWNGRADE_MS = 10000
+let lastFixAt = 0
+
 function startTracking() {
   if (!navigator.geolocation) return
   tracking.value = true
@@ -362,34 +404,31 @@ function startTracking() {
   // let the browser fall back to cell-tower/Wi-Fi positioning, which is what
   // caused the 1km+ map drift for live tracking.
   watchId = watchAccurateLocation(onGPS, err => console.warn('GPS:', err.message))
-  // Belt-and-braces: some browsers throttle watchPosition callbacks in the
-  // background/inactive tabs, so also poll for a fresh fix every ~2s. This
-  // keeps the employee marker moving smoothly with zero UI feedback either
-  // way — same silent behaviour as the Check-In card's background refresh.
-  if (!silentRefreshTimer) {
-    silentRefreshTimer = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(
-        pos => onGPS({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-        () => {}, // silent — never surface an error here
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-      )
-    }, 2000)
-  }
 }
 function stopTracking() {
   if (watchId !== null) { clearLocationWatch(watchId); watchId = null }
   if (broadcastTimer) { clearTimeout(broadcastTimer); broadcastTimer = null }
-  if (silentRefreshTimer) { clearInterval(silentRefreshTimer); silentRefreshTimer = null }
   tracking.value = false
 }
 function toggleTracking() { tracking.value ? stopTracking() : startTracking() }
 
 function onGPS(pos) {
-  const lat = pos.lat, lng = pos.lng
-  teacherPos.value = { lat, lng, accuracy: pos.accuracy }
+  const lat = pos.lat, lng = pos.lng, accuracy = pos.accuracy
+  const prev = teacherPos.value
+  const now = Date.now()
+
+  // Never let a worse fix overwrite a better one unless the current fix is
+  // old enough that freshness should win over precision — keeps the marker
+  // from jittering between good and bad samples.
+  const shouldAccept = !prev || accuracy <= prev.accuracy || (now - lastFixAt) >= MIN_FIX_INTERVAL_FOR_DOWNGRADE_MS
+  if (!shouldAccept) return
+
+  teacherPos.value = { lat, lng, accuracy }
+  lastFixAt = now
   emit('location-update', { lat, lng })
   if (mapReady.value) {
     upsertTeacherMarker(lat, lng)
+    upsertAccuracyCircle(lat, lng, accuracy)
     if (!schoolMarker && props.schoolLat && props.schoolLng) addSchoolMarker()
 
     // Auto view mode: every time the employee marker moves, keep the camera

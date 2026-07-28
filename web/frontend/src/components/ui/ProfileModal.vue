@@ -195,4 +195,10 @@ function goToSettings() {
 .modal-fade-enter-active .profile-drawer, .modal-fade-leave-active .profile-drawer { transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 .modal-fade-enter-from .profile-drawer, .modal-fade-leave-to .profile-drawer { transform: translateX(100%); }
+
+/* Mobile — leave a 20% strip of the overlay clickable at the left of the
+   drawer so users can tap it to close, same as the sidebar's own overlay. */
+@media (max-width: 768px) {
+  .profile-drawer { width: 80%; max-width: 80%; }
+}
 </style>

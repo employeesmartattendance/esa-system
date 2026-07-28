@@ -257,6 +257,7 @@ import AppIcon  from '../ui/AppIcon.vue'
 import AppModal from '../ui/AppModal.vue'
 import api      from '../../api'
 import { useToast } from '../../composables/useToast'
+import { compressImage } from '../../composables/useImageCompress'
 
 const { showToast } = useToast()
 const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
@@ -346,7 +347,7 @@ function onDrop(e) {
   if (file) handleFile(file)
 }
 
-function handleFile(file) {
+async function handleFile(file) {
   uploadError.value = ''
   if (!file.type.startsWith('image/')) {
     uploadError.value = 'Only image files are allowed (PNG, JPG, SVG)'
@@ -356,12 +357,14 @@ function handleFile(file) {
     uploadError.value = 'File size must be under 5MB'
     return
   }
-  selectedFile.value = file
+  // SVG/GIF pass through unchanged (compressImage handles the skip);
+  // everything else gets resized/re-encoded before it's stored for upload.
+  selectedFile.value = await compressImage(file)
   savedLogoUrl.value = '' // will be uploaded on save
 
   const reader = new FileReader()
   reader.onload = (ev) => { previewSrc.value = ev.target.result }
-  reader.readAsDataURL(file)
+  reader.readAsDataURL(selectedFile.value)
 }
 
 async function uploadLogo() {

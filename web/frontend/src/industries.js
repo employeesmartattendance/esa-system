@@ -23,6 +23,8 @@ export const INDUSTRIES = {
     adminLabel: 'School Admin',
     dashboardSubtitle: 'School Administration',
     secondaryGroup: null,              // schools only track one group: teachers
+    subjectFieldLabel: 'Subject',
+    subjectFieldPlaceholder: 'e.g. Mathematics',
   },
   company: {
     key: 'company',
@@ -35,6 +37,8 @@ export const INDUSTRIES = {
     adminLabel: 'Company Admin',
     dashboardSubtitle: 'Company Admin',
     secondaryGroup: { key: 'contractor', label: 'Contractor', labelPlural: 'Contractors' },
+    subjectFieldLabel: 'Position',
+    subjectFieldPlaceholder: 'e.g. Marketing Manager',
   },
   business: {
     key: 'business',
@@ -47,6 +51,8 @@ export const INDUSTRIES = {
     adminLabel: 'Business Admin',
     dashboardSubtitle: 'Business Administration',
     secondaryGroup: null,
+    subjectFieldLabel: 'Role',
+    subjectFieldPlaceholder: 'e.g. Sales Associate',
   },
   hospital: {
     key: 'hospital',
@@ -59,6 +65,8 @@ export const INDUSTRIES = {
     adminLabel: 'Hospital Admin',
     dashboardSubtitle: 'Hospital Administration',
     secondaryGroup: { key: 'doctor', label: 'Doctor', labelPlural: 'Doctors' },
+    subjectFieldLabel: 'Specialty',
+    subjectFieldPlaceholder: 'e.g. Cardiology',
   },
   factory: {
     key: 'factory',
@@ -71,6 +79,8 @@ export const INDUSTRIES = {
     adminLabel: 'Facility Admin',
     dashboardSubtitle: 'Facility Administration',
     secondaryGroup: { key: 'supervisor', label: 'Supervisor', labelPlural: 'Supervisors' },
+    subjectFieldLabel: 'Task/Line',
+    subjectFieldPlaceholder: 'e.g. Assembly Line 2',
   },
   other: {
     key: 'other',
@@ -83,6 +93,8 @@ export const INDUSTRIES = {
     adminLabel: 'Organization Admin',
     dashboardSubtitle: 'Organization Administration',
     secondaryGroup: null,
+    subjectFieldLabel: 'Role/Task',
+    subjectFieldPlaceholder: 'e.g. Front Desk',
   },
 }
 

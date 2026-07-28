@@ -35,6 +35,7 @@
 import { ref, computed } from 'vue'
 import AppIcon from './AppIcon.vue'
 import api from '../../api'
+import { compressImage } from '../../composables/useImageCompress'
 
 const props = defineProps({
   avatar:  { type: String, default: '' },
@@ -93,8 +94,9 @@ async function onFileSelected(e) {
 
   uploading.value = true
   try {
+    const compressed = await compressImage(file)
     const fd = new FormData()
-    fd.append('avatar', file)
+    fd.append('avatar', compressed)
     const updated = await api.post('/auth/avatar', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

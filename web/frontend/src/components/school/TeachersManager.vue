@@ -62,7 +62,7 @@
         <div class="vd-row"><span class="vd-label">Name</span><span class="vd-val">{{ viewTarget.name }}</span></div>
         <div class="vd-row"><span class="vd-label">Email</span><span class="vd-val">{{ viewTarget.email }}</span></div>
         <div class="vd-row"><span class="vd-label">Phone</span><span class="vd-val">{{ viewTarget.phone || '—' }}</span></div>
-        <div class="vd-row"><span class="vd-label">Subject</span><span class="vd-val">{{ viewTarget.subject || '—' }}</span></div>
+        <div class="vd-row"><span class="vd-label">{{ vocab.subjectFieldLabel }}</span><span class="vd-val">{{ viewTarget.subject || '—' }}</span></div>
         <div class="vd-row"><span class="vd-label">Today</span><span class="vd-val"><AppBadge :variant="viewTarget.today_status||'absent'" :label="viewTarget.today_status||'absent'" dot /></span></div>
         <div class="vd-row"><span class="vd-label">Biometric</span><span class="vd-val"><AppBadge :variant="viewTarget.biometric_enrolled ? 'active' : 'inactive'" :label="viewTarget.biometric_enrolled ? 'Enrolled' : 'Not set up'" dot /></span></div>
         <div class="vd-row"><span class="vd-label">Status</span><span class="vd-val"><AppBadge :variant="viewTarget.status==='active'?'active':'inactive'" :label="viewTarget.status||'active'" dot /></span></div>
@@ -108,8 +108,8 @@
             <input v-model="form.phone" class="form-input" placeholder="+250 7xx xxx xxx" />
           </div>
           <div class="form-group">
-            <label class="form-label">Subject</label>
-            <input v-model="form.subject" class="form-input" placeholder="e.g. Mathematics" />
+            <label class="form-label">{{ vocab.subjectFieldLabel }}</label>
+            <input v-model="form.subject" class="form-input" :placeholder="vocab.subjectFieldPlaceholder" />
           </div>
         </div>
         <div class="form-group" v-if="!editing">
@@ -152,6 +152,7 @@ import AppIcon from '../ui/AppIcon.vue'
 import { useToast } from '../../composables/useToast'
 import { useIndustry } from '../../composables/useIndustry'
 import { getIndustry } from '../../industries'
+import { compressImage } from '../../composables/useImageCompress'
 import api from '../../api'
 
 const props = defineProps({
@@ -233,8 +234,9 @@ async function onAvatarSelected(e) {
 
   uploadingAvatar.value = true
   try {
+    const compressed = await compressImage(file)
     const fd = new FormData()
-    fd.append('avatar', file)
+    fd.append('avatar', compressed)
     // No timeout override needed here — the shared api client no longer
     // applies a fixed timeout to upload (multipart/form-data) requests, so
     // large photos are given as long as they need to finish uploading.
@@ -262,7 +264,7 @@ function openView(row) { viewTarget.value = row; showViewModal.value = true }
 
 const cols = computed(() => [
   { key: 'name', label: groupVocab.value.personNoun, sortable: true },
-  { key: 'subject', label: 'Subject', hideMobile: true },
+  { key: 'subject', label: vocab.value.subjectFieldLabel, hideMobile: true },
   { key: 'phone', label: 'Phone', hideMobile: true },
   { key: 'today', label: "Today's Status", hideMobile: true },
   { key: 'biometric', label: 'Biometric', hideMobile: true },
