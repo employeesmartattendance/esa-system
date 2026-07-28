@@ -31,6 +31,7 @@
                    visible in frame (regardless of centering) and while capturing,
                    giving the familiar scanning-ring feedback users expect. -->
               <div v-if="stage === 'ready' && liveStatus !== 'searching'" class="fcm-scan-anim" aria-hidden="true">
+                <span class="fcm-scan-band"></span>
                 <span class="fcm-scan-line"></span>
                 <svg class="fcm-scan-corners" viewBox="0 0 100 100" preserveAspectRatio="none">
                   <path d="M8,22 V10 A4,4 0 0 1 12,6 H24" class="fcm-corner" />
@@ -62,6 +63,7 @@
               </div>
               <div v-else-if="stage === 'capturing'" class="fcm-overlay-msg fcm-overlay-scanning">
                 <div class="fcm-scan-anim fcm-scan-anim-fast" aria-hidden="true">
+                  <span class="fcm-scan-band"></span>
                   <span class="fcm-scan-line"></span>
                   <svg class="fcm-scan-corners" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <path d="M8,22 V10 A4,4 0 0 1 12,6 H24" class="fcm-corner" />
@@ -84,6 +86,10 @@
                 <AppIcon name="x-circle" :size="22" color="var(--danger)" />
                 <span>{{ mismatchMsg }}</span>
               </div>
+              <div v-else-if="stage === 'already-enrolled'" class="fcm-overlay-msg fcm-overlay-warn">
+                <AppIcon name="info" :size="22" color="var(--warning)" />
+                <span>{{ mismatchMsg }}</span>
+              </div>
               <div v-else-if="stage === 'success'" class="fcm-overlay-msg fcm-overlay-success">
                 <AppIcon name="check-circle" :size="24" color="var(--success)" />
                 <span>{{ mode === 'enroll' ? 'Face captured!' : 'Verified!' }}</span>
@@ -97,14 +103,22 @@
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-ghost" @click="close" :disabled="stage === 'capturing'">Cancel</button>
+            <button class="btn btn-ghost" @click="close" :disabled="stage === 'capturing'">
+              {{ stage === 'already-enrolled' ? 'Close' : 'Cancel' }}
+            </button>
             <button
+              v-if="stage !== 'already-enrolled'"
               class="btn btn-primary"
               @click="capture"
-              :disabled="stage !== 'ready' && stage !== 'no-face' && stage !== 'mismatch' && stage !== 'models-error'"
+              :disabled="!canCapture"
             >
-              <AppIcon name="camera" :size="15" />
-              {{ mode === 'enroll' ? 'Capture' : 'Verify' }}
+              <span v-if="stage === 'capturing'" class="fcm-btn-spinner"></span>
+              <AppIcon v-else name="camera" :size="15" />
+              {{ stage === 'capturing' ? (mode === 'enroll' ? 'Capturing…' : 'Verifying…') : (mode === 'enroll' ? 'Capture' : 'Verify') }}
+            </button>
+            <button v-else class="btn btn-primary" @click="close">
+              <AppIcon name="check" :size="15" />
+              Got it
             </button>
           </div>
         </div>
@@ -114,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { useBiometric } from '../../composables/useBiometric'
 
@@ -127,9 +141,21 @@ const emit = defineEmits(['update:modelValue', 'success', 'error'])
 const biometric = useBiometric()
 const videoRef = ref(null)
 const canvasRef = ref(null)
-const stage = ref('loading') // loading | ready | capturing | no-face | models-error | mismatch | success | denied | unsupported
+const stage = ref('loading') // loading | ready | capturing | no-face | models-error | mismatch | already-enrolled | success | denied | unsupported
 const mismatchMsg = ref('')
 let stream = null
+let capturing = false // re-entrancy guard — belt-and-braces alongside :disabled
+
+// Capture/Verify is enabled any time we're in a state where pressing it
+// makes sense — including right away once the camera is 'ready', even
+// before the live guide has classified a face. This is deliberate: face
+// detection models loading in the background, or the live guide still
+// warming up, should never make the button feel unresponsive to a tap —
+// captureDescriptor() awaits model readiness internally, so an early press
+// still works, it just takes a beat longer the very first time.
+const canCapture = computed(() =>
+  !capturing && ['ready', 'no-face', 'mismatch', 'models-error'].includes(stage.value)
+)
 
 // ── Live face guide ─────────────────────────────────────────────────────
 // While stage === 'ready', poll the video feed at a light interval and
@@ -196,6 +222,7 @@ function onVideoReady() {
 
 async function startCamera() {
   stage.value = 'loading'
+  mismatchMsg.value = ''
   if (!biometric.isSupported) { stage.value = 'unsupported'; return }
   try {
     // Preload the models in parallel with camera startup so the first
@@ -246,6 +273,8 @@ watch(stage, (s) => {
 })
 
 async function capture() {
+  if (capturing) return // guard against double-fire from a rapid double-tap
+  capturing = true
   stage.value = 'capturing'
   mismatchMsg.value = ''
   try {
@@ -265,6 +294,13 @@ async function capture() {
       if (ok) {
         stage.value = 'success'
         setTimeout(() => { emit('success'); close() }, 700)
+      } else if (biometric.errorIsConflict.value) {
+        // Already enrolled server-side — retrying capture here can never
+        // succeed, so say so plainly instead of implying the face/camera
+        // failed and inviting an infinite "try again" loop.
+        mismatchMsg.value = biometric.error.value || 'Biometric verification is already set up on this account.'
+        stage.value = 'already-enrolled'
+        emit('error', mismatchMsg.value)
       } else {
         mismatchMsg.value = biometric.error.value || 'Could not set up biometric verification.'
         stage.value = 'mismatch'
@@ -292,6 +328,8 @@ async function capture() {
       console.error('[FaceCaptureModal] Unexpected capture error:', e)
       stage.value = 'no-face'
     }
+  } finally {
+    capturing = false
   }
 }
 
@@ -408,8 +446,10 @@ onBeforeUnmount(stopCamera)
 .fcm-guide-live-too-large   { border-color: var(--warning); }
 .fcm-guide-live-detected    { border-color: var(--success); box-shadow: 0 0 0 4px rgba(34,197,94,0.18); }
 
-/* Biometric / Face ID style scan animation — a sweeping line plus animated
-   corner brackets inside the circular guide, shown while a face is present. */
+/* Biometric / Face ID style scan animation — a green sweeping band (with a
+   brighter leading edge) plus animated corner brackets inside the circular
+   guide, shown while a face is present. Green is used throughout (idle scan
+   and active capture alike) to match the familiar biometric-scanner look. */
 .fcm-scan-anim {
   position: absolute; inset: 10%;
   border-radius: 50%;
@@ -417,25 +457,51 @@ onBeforeUnmount(stopCamera)
   pointer-events: none;
 }
 .fcm-scan-anim-fast { animation: fcm-scan-pulse 0.6s ease-in-out infinite; }
+
+/* The band is a soft green glow that trails behind the bright edge line,
+   giving the "light sweeping through the face" effect instead of just a
+   thin line moving down the frame. */
+.fcm-scan-band {
+  position: absolute;
+  left: 0; right: 0;
+  height: 34%;
+  background: linear-gradient(
+    to bottom,
+    rgba(34,197,94,0) 0%,
+    rgba(34,197,94,0.32) 55%,
+    rgba(34,197,94,0.55) 100%
+  );
+  animation: fcm-scan-band-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.fcm-scan-anim-fast .fcm-scan-band {
+  animation: fcm-scan-band-sweep 0.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
 .fcm-scan-line {
   position: absolute;
-  left: 6%; right: 6%;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(34,197,94,0) 0%, var(--success) 50%, rgba(34,197,94,0) 100%);
-  box-shadow: 0 0 8px 1px rgba(34,197,94,0.7);
+  left: 4%; right: 4%;
+  height: 2.5px;
+  background: linear-gradient(90deg, rgba(34,197,94,0) 0%, #22c55e 50%, rgba(34,197,94,0) 100%);
+  box-shadow: 0 0 10px 2px rgba(34,197,94,0.85);
   animation: fcm-scan-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 .fcm-scan-anim-fast .fcm-scan-line {
-  background: linear-gradient(90deg, rgba(37,99,235,0) 0%, var(--primary) 50%, rgba(37,99,235,0) 100%);
-  box-shadow: 0 0 8px 1px var(--primary-glow);
   animation: fcm-scan-sweep 0.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 @keyframes fcm-scan-sweep {
-  0%   { top: 4%; opacity: 0; }
+  0%   { top: 2%; opacity: 0; }
   8%   { opacity: 1; }
   50%  { top: 96%; opacity: 1; }
   58%  { opacity: 0; }
-  100% { top: 4%; opacity: 0; }
+  100% { top: 2%; opacity: 0; }
+}
+/* The band sits just above its edge line, so it appears to trail behind it
+   as both sweep down together. */
+@keyframes fcm-scan-band-sweep {
+  0%   { top: -32%; opacity: 0; }
+  8%   { opacity: 1; }
+  50%  { top: 64%; opacity: 1; }
+  58%  { opacity: 0; }
+  100% { top: -32%; opacity: 0; }
 }
 @keyframes fcm-scan-pulse {
   0%, 100% { opacity: 0.85; }
@@ -447,7 +513,7 @@ onBeforeUnmount(stopCamera)
 }
 .fcm-corner {
   fill: none;
-  stroke: var(--success);
+  stroke: #22c55e;
   stroke-width: 3;
   stroke-linecap: round;
   filter: drop-shadow(0 0 3px rgba(34,197,94,0.8));
@@ -527,4 +593,11 @@ onBeforeUnmount(stopCamera)
   background: transparent; border: 1px solid var(--surface-border); color: var(--text-secondary);
 }
 .btn-ghost:not(:disabled):hover { background: var(--surface); }
+
+.fcm-btn-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
+  border-radius: 50%; animation: fcm-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
 </style>

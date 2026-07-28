@@ -50,6 +50,43 @@ const isSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserM
 // video elements can report readyState >= 2 and valid dimensions while still
 // delivering empty/stale frames to canvas drawImage in some browsers, but
 // calling drawImage forces a synchronous frame grab.
+//
+// Also auto-brightens dim/backlit frames before handing them to the
+// detector. Phone front cameras in a dark room or against a bright window
+// behind the user routinely produce frames where the face is a few shades
+// above black — technically visible to a person, but well below what the
+// tiny face detector can pick up. A cheap per-pixel levels stretch fixes
+// this without needing the user to find better lighting.
+function enhanceFrame(canvasEl) {
+  const ctx = canvasEl.getContext('2d')
+  const w = canvasEl.width, h = canvasEl.height
+  if (!w || !h) return
+  const imgData = ctx.getImageData(0, 0, w, h)
+  const data = imgData.data
+
+  // Sample average luminance cheaply (every 8th pixel) to decide whether
+  // this frame actually needs brightening — skip the work entirely for
+  // frames that are already well-lit.
+  let sum = 0, count = 0
+  for (let i = 0; i < data.length; i += 32) {
+    sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+    count++
+  }
+  const avgLuma = count ? sum / count : 128
+  if (avgLuma >= 95) return // plenty bright already, leave frame untouched
+
+  // Gentle levels stretch: lift shadows and add a mild contrast boost,
+  // scaled by how dark the frame is (darker frame → stronger correction).
+  const gain = Math.min(2.2, 1 + (95 - avgLuma) / 60)
+  const lift = Math.min(45, (95 - avgLuma) * 0.5)
+  for (let i = 0; i < data.length; i += 4) {
+    data[i]     = Math.min(255, data[i]     * gain + lift)
+    data[i + 1] = Math.min(255, data[i + 1] * gain + lift)
+    data[i + 2] = Math.min(255, data[i + 2] * gain + lift)
+  }
+  ctx.putImageData(imgData, 0, 0)
+}
+
 function grabFrame(videoEl, canvasEl) {
   if (!canvasEl) {
     canvasEl = document.createElement('canvas')
@@ -60,6 +97,7 @@ function grabFrame(videoEl, canvasEl) {
   canvasEl.height = vh
   const ctx = canvasEl.getContext('2d')
   ctx.drawImage(videoEl, 0, 0, vw, vh)
+  try { enhanceFrame(canvasEl) } catch { /* non-fatal — detect on raw frame */ }
   return canvasEl
 }
 
@@ -100,13 +138,12 @@ async function captureDescriptor(videoEl, canvasEl) {
   const canvas = grabFrame(videoEl, canvasEl)
   console.log('[biometric] Running face detection on canvas', canvas.width, 'x', canvas.height)
   try {
-    // scoreThreshold lowered from 0.3 to allow faces that are off-center,
-    // partially angled, or slightly smaller in the frame to still be picked
-    // up — previously borderline detections here (e.g. face not dead-center)
-    // could fall just under the threshold and surface as "no face detected"
-    // even though a face was clearly visible.
+    // scoreThreshold lowered further (0.3 -> 0.2 -> 0.12) and inputSize raised
+    // to 512 for capture — together with the frame brightening in grabFrame(),
+    // this reliably picks up faces in dim/backlit rooms that were previously
+    // reported as "no face detected" despite a visible face.
     const result = await faceapi
-      .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.2 }))
+      .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.12 }))
       .withFaceLandmarks()
       .withFaceDescriptor()
     if (!result) {
@@ -141,7 +178,7 @@ async function detectFacePosition(videoEl, canvasEl) {
   try {
     const result = await faceapi.detectSingleFace(
       canvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.2 })
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.12 })
     )
     if (!result) return null
     return result.box
@@ -153,6 +190,7 @@ async function detectFacePosition(videoEl, canvasEl) {
 export function useBiometric() {
   const busy = ref(false)
   const error = ref('')
+  const errorIsConflict = ref(false) // true when enroll() failed because a credential already exists
 
   // Employee self-enrollment. Takes a descriptor already captured via the
   // FaceCaptureModal (camera UI) and stores it as this employee's reference
@@ -160,11 +198,22 @@ export function useBiometric() {
   async function enroll(descriptor) {
     busy.value = true
     error.value = ''
+    errorIsConflict.value = false
     try {
       await api.post('/biometric/register', { descriptor })
       return true
     } catch (e) {
-      error.value = e.response?.data?.message || 'Could not set up biometric verification.'
+      // A 409 means a credential already exists for this account — this is
+      // not a capture/detection failure, so don't show the generic "could
+      // not set up" message (which reads as if the camera/face failed and
+      // just invites a retry loop that will 409 forever). Tag it so the
+      // caller can point the user at the actual fix instead.
+      if (e.response?.status === 409) {
+        error.value = e.response?.data?.message || 'Biometric verification is already set up on this account.'
+        errorIsConflict.value = true
+      } else {
+        error.value = e.response?.data?.message || 'Could not set up biometric verification.'
+      }
       return false
     } finally {
       busy.value = false
@@ -188,5 +237,5 @@ export function useBiometric() {
     }
   }
 
-  return { isSupported, busy, error, enroll, verify, captureDescriptor, detectFacePosition, loadModels, grabFrame }
+  return { isSupported, busy, error, errorIsConflict, enroll, verify, captureDescriptor, detectFacePosition, loadModels, grabFrame }
 }
