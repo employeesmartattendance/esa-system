@@ -90,6 +90,7 @@ let watchId       = null
 let broadcastTimer = null
 let lastRouteTime  = 0
 let pulseAnimId    = null
+let hasAutoFitted  = false // ensures we auto "Fit Both Markers" once both are known, on open
 
 // ── Distance info ──────────────────────────────────────────────────────────
 const distInfo = computed(() => {
@@ -147,7 +148,7 @@ onMounted(async () => {
   map = new maplibregl.Map({
     container: mapEl.value,
     style: darkStyle(),
-    center, zoom: 14, pitch: 30, antialias: true,
+    center, zoom: 14, pitch: 60, bearing: -17, antialias: true,
   })
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')
 
@@ -156,6 +157,12 @@ onMounted(async () => {
     addRouteSources()
     addSchoolMarker()
     addRadiusCircle()
+    // Covers the case where a GPS fix already arrived before the map finished
+    // loading — fit both markers now instead of waiting for the next fix.
+    if (!hasAutoFitted && teacherPos.value && props.schoolLat && props.schoolLng) {
+      hasAutoFitted = true
+      fitBoth()
+    }
   })
 
   startTracking()
@@ -347,7 +354,14 @@ function onGPS(pos) {
   if (mapReady.value) {
     upsertTeacherMarker(lat, lng)
     if (!schoolMarker && props.schoolLat && props.schoolLng) addSchoolMarker()
-    
+
+    // Default view on open: fit both the company and employee markers on
+    // screen together, exactly once, the first time both are known.
+    if (!hasAutoFitted && props.schoolLat && props.schoolLng) {
+      hasAutoFitted = true
+      fitBoth()
+    }
+
     // Always try to draw route on first valid position or every 15s
     const now = Date.now()
     if (props.schoolLat && props.schoolLng && (now - lastRouteTime > 15000 || lastRouteTime === 0)) {
@@ -384,7 +398,8 @@ function fitBoth() {
   const b = new maplibregl.LngLatBounds()
   if (teacherPos.value) b.extend([teacherPos.value.lng, teacherPos.value.lat])
   if (props.schoolLat && props.schoolLng) b.extend([props.schoolLng, props.schoolLat])
-  if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 1400, maxZoom: 15 })
+  // Keep the oblique (tilted) view — fitBounds would otherwise reset pitch/bearing to 0.
+  if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 1400, maxZoom: 15, pitch: 60, bearing: -17 })
 }
 
 // ── Watch school coords ────────────────────────────────────────────────────
@@ -394,6 +409,10 @@ watch(() => [props.schoolLat, props.schoolLng, props.schoolRadius], ([lat, lng])
   addSchoolMarker()
   addRadiusCircle()
   if (teacherPos.value) drawRoute(teacherPos.value.lat, teacherPos.value.lng, lat, lng)
+  if (!hasAutoFitted && teacherPos.value) {
+    hasAutoFitted = true
+    fitBoth()
+  }
 })
 
 // ── Math ───────────────────────────────────────────────────────────────────

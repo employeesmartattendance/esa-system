@@ -133,19 +133,9 @@
           <AppIcon name="check-circle" :size="18" color="var(--success)" />
           <span>Day complete · {{ todayRecord.check_in }} – {{ todayRecord.check_out }}</span>
         </div>
-
-        <!-- Refresh GPS button -->
-        <button
-          class="refresh-btn"
-          @click="detectLocation"
-          :disabled="detectingLocation"
-          title="Refresh GPS"
-        >
-          <AppIcon name="refresh" :size="16" :class="{ spinning: detectingLocation }" />
-        </button>
       </div>
 
-      <!-- Error message -->
+      <!-- Error message (check-in/check-out failures only — GPS refresh is silent) -->
       <div v-if="errorMsg" class="error-msg">
         <AppIcon name="alert-triangle" :size="14" />
         <span>{{ errorMsg }}</span>
@@ -347,20 +337,38 @@ function onCaptureError(msg) {
 }
 
 /* ── GPS ── */
-async function detectLocation() {
-  if (!navigator.geolocation) { errorMsg.value = 'GPS not available'; return }
-  detectingLocation.value = true
-  errorMsg.value = ''
+// `silent: true` is used by the background auto-refresh loop — it must
+// never surface an error banner, spinner, or toast; it just keeps
+// currentPosition as fresh as possible behind the scenes.
+async function detectLocation({ silent = false } = {}) {
+  if (!navigator.geolocation) { if (!silent) errorMsg.value = 'GPS not available'; return }
+  if (!silent) { detectingLocation.value = true; errorMsg.value = '' }
   try {
     // Samples several high-accuracy fixes (no premature timeout) and keeps
     // the most precise one instead of trusting the first callback, which is
     // what was causing the 1km+ offset and permission-looking failures.
     currentPosition.value = await getAccurateLocation()
   } catch (err) {
-    errorMsg.value = err?.message || 'Cannot get GPS — enable location permissions.'
+    if (!silent) errorMsg.value = err?.message || 'Cannot get GPS — enable location permissions.'
   } finally {
-    detectingLocation.value = false
+    if (!silent) detectingLocation.value = false
   }
+}
+
+// ── Silent background GPS refresh (replaces the old visible "Refresh GPS"
+// button) — keeps currentPosition current every ~2s with zero UI feedback.
+// Runs alongside startAutoWatch()'s continuous watchPosition stream so the
+// position is refreshed both by the live watch and this interval, without
+// ever showing a spinner, error, or toast to the employee.
+let silentRefreshTimer = null
+function startSilentRefresh() {
+  if (silentRefreshTimer) return
+  silentRefreshTimer = setInterval(() => {
+    detectLocation({ silent: true })
+  }, 2000)
+}
+function stopSilentRefresh() {
+  if (silentRefreshTimer) { clearInterval(silentRefreshTimer); silentRefreshTimer = null }
 }
 
 /* ── Auto GPS watch ── */
@@ -372,10 +380,12 @@ function startAutoWatch() {
     pos => onAutoGPS({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.accuracy } }),
     err => console.warn('Auto GPS:', err.message)
   )
+  startSilentRefresh()
 }
 function stopAutoWatch() {
   if (autoWatchId !== null) { clearLocationWatch(autoWatchId); autoWatchId = null }
   if (autoCheckoutTime) { clearTimeout(autoCheckoutTime); autoCheckoutTime = null }
+  stopSilentRefresh()
 }
 
 async function onAutoGPS(pos) {
@@ -608,14 +618,6 @@ watch(() => props.autoWatch, async (active) => {
   background:rgba(16,185,129,0.08); border:1.5px solid rgba(16,185,129,0.2);
   color:var(--success); font-size:13px; font-weight:600;
 }
-.refresh-btn {
-  width:52px; height:52px; flex-shrink:0; border-radius:var(--radius);
-  border:1.5px solid var(--surface-border); background:var(--surface);
-  color:var(--text-muted); display:flex; align-items:center; justify-content:center;
-  cursor:pointer; transition:all 0.2s;
-}
-.refresh-btn:hover { border-color:var(--primary); color:var(--primary); }
-.refresh-btn:disabled { opacity:0.5; }
 .action-spinner {
   width:20px; height:20px; border:2.5px solid rgba(255,255,255,0.3);
   border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite;
