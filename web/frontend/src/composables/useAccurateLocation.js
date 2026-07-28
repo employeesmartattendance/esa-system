@@ -50,7 +50,7 @@ export function getAccurateLocation({ sampleWindowMs = SAMPLE_WINDOW_MS, maxAccu
       if (best) {
         resolve(best)
       } else {
-        reject(new Error('Could not get an accurate GPS fix — check location permissions and try again outdoors or near a window'))
+        reject(new Error('Could not detect location'))
       }
     }
 

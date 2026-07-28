@@ -337,19 +337,22 @@ function onCaptureError(msg) {
 }
 
 /* ── GPS ── */
-// `silent: true` is used by the background auto-refresh loop — it must
-// never surface an error banner, spinner, or toast; it just keeps
-// currentPosition as fresh as possible behind the scenes.
+// GPS-detection failures are never shown to the employee — no error banner,
+// no toast — regardless of silent mode. errorMsg is reserved for real
+// check-in/check-out failures. detectingLocation still drives the "Locating…"
+// status badge for non-silent calls.
 async function detectLocation({ silent = false } = {}) {
-  if (!navigator.geolocation) { if (!silent) errorMsg.value = 'GPS not available'; return }
-  if (!silent) { detectingLocation.value = true; errorMsg.value = '' }
+  if (!navigator.geolocation) return
+  if (!silent) detectingLocation.value = true
   try {
     // Samples several high-accuracy fixes (no premature timeout) and keeps
     // the most precise one instead of trusting the first callback, which is
     // what was causing the 1km+ offset and permission-looking failures.
     currentPosition.value = await getAccurateLocation()
   } catch (err) {
-    if (!silent) errorMsg.value = err?.message || 'Cannot get GPS — enable location permissions.'
+    // Swallow silently — GPS acquisition issues resolve themselves on their
+    // own via the background refresh/watch and should never interrupt or
+    // alarm the employee.
   } finally {
     if (!silent) detectingLocation.value = false
   }

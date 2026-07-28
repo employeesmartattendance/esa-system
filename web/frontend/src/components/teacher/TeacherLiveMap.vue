@@ -3,10 +3,17 @@
     <!-- Map canvas -->
     <div ref="mapEl" class="map-canvas"></div>
 
-    <!-- Loading screen -->
+    <!-- Loading screen: map tiles/library still loading -->
     <div v-if="!mapReady" class="map-loading">
       <div class="map-spinner"></div>
       <span>Loading map...</span>
+    </div>
+
+    <!-- Loading screen: map is ready but employee GPS fix not found yet —
+         avoids showing an empty map with no employee indicator. -->
+    <div v-else-if="!teacherPos" class="map-loading">
+      <div class="map-spinner"></div>
+      <span>Finding your location...</span>
     </div>
 
     <!-- HUD top bar -->
@@ -36,12 +43,12 @@
 
     <!-- Map control buttons -->
     <div class="map-ctrl-btns" v-if="mapReady">
-      <button class="ctrl-btn" @click="centerMe" title="Center on my location">
+      <button class="ctrl-btn" :class="{ 'ctrl-active': viewMode === 'center' }" @click="manualCenterMe" title="Center on my location">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
         </svg>
       </button>
-      <button class="ctrl-btn" @click="fitBoth" title="Fit both markers">
+      <button class="ctrl-btn" :class="{ 'ctrl-active': viewMode === 'fit' }" @click="manualFitBoth" title="Fit both markers">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
         </svg>
@@ -91,6 +98,19 @@ let broadcastTimer = null
 let lastRouteTime  = 0
 let pulseAnimId    = null
 let hasAutoFitted  = false // ensures we auto "Fit Both Markers" once both are known, on open
+
+// ── Auto view mode ───────────────────────────────────────────────────────────
+// 'fit'    → keep both the company and employee markers in view (used while
+//            the employee is outside the allowed radius, i.e. still en route).
+// 'center' → follow the employee marker directly (used once they're inside
+//            the allowed radius) — updates itself as they move around inside.
+const viewMode = ref('fit')
+const isInsideRadius = computed(() => {
+  if (!teacherPos.value || !props.schoolLat || !props.schoolLng) return false
+  const d = haversineKm(teacherPos.value.lat, teacherPos.value.lng, props.schoolLat, props.schoolLng)
+  const radiusM = props.schoolRadius || 200
+  return d * 1000 <= radiusM
+})
 
 // ── Distance info ──────────────────────────────────────────────────────────
 const distInfo = computed(() => {
@@ -158,10 +178,12 @@ onMounted(async () => {
     addSchoolMarker()
     addRadiusCircle()
     // Covers the case where a GPS fix already arrived before the map finished
-    // loading — fit both markers now instead of waiting for the next fix.
+    // loading — apply the correct auto view now instead of waiting for the next fix.
     if (!hasAutoFitted && teacherPos.value && props.schoolLat && props.schoolLng) {
       hasAutoFitted = true
-      fitBoth()
+      viewMode.value = isInsideRadius.value ? 'center' : 'fit'
+      if (viewMode.value === 'center') centerMe()
+      else fitBoth()
     }
   })
 
@@ -332,6 +354,7 @@ async function drawRoute(fLat, fLng, tLat, tLng) {
 }
 
 // ── GPS Tracking ───────────────────────────────────────────────────────────
+let silentRefreshTimer = null
 function startTracking() {
   if (!navigator.geolocation) return
   tracking.value = true
@@ -339,10 +362,24 @@ function startTracking() {
   // let the browser fall back to cell-tower/Wi-Fi positioning, which is what
   // caused the 1km+ map drift for live tracking.
   watchId = watchAccurateLocation(onGPS, err => console.warn('GPS:', err.message))
+  // Belt-and-braces: some browsers throttle watchPosition callbacks in the
+  // background/inactive tabs, so also poll for a fresh fix every ~2s. This
+  // keeps the employee marker moving smoothly with zero UI feedback either
+  // way — same silent behaviour as the Check-In card's background refresh.
+  if (!silentRefreshTimer) {
+    silentRefreshTimer = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        pos => onGPS({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        () => {}, // silent — never surface an error here
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      )
+    }, 2000)
+  }
 }
 function stopTracking() {
   if (watchId !== null) { clearLocationWatch(watchId); watchId = null }
   if (broadcastTimer) { clearTimeout(broadcastTimer); broadcastTimer = null }
+  if (silentRefreshTimer) { clearInterval(silentRefreshTimer); silentRefreshTimer = null }
   tracking.value = false
 }
 function toggleTracking() { tracking.value ? stopTracking() : startTracking() }
@@ -355,11 +392,16 @@ function onGPS(pos) {
     upsertTeacherMarker(lat, lng)
     if (!schoolMarker && props.schoolLat && props.schoolLng) addSchoolMarker()
 
-    // Default view on open: fit both the company and employee markers on
-    // screen together, exactly once, the first time both are known.
-    if (!hasAutoFitted && props.schoolLat && props.schoolLng) {
+    // Auto view mode: every time the employee marker moves, keep the camera
+    // tracking them. Inside the allowed radius → follow/center on the
+    // employee (updates as they move around inside). Outside the radius →
+    // keep both the company and employee markers fit on screen so their
+    // approach is always visible.
+    if (props.schoolLat && props.schoolLng) {
+      viewMode.value = isInsideRadius.value ? 'center' : 'fit'
+      if (viewMode.value === 'center') centerMe()
+      else fitBoth()
       hasAutoFitted = true
-      fitBoth()
     }
 
     // Always try to draw route on first valid position or every 15s
@@ -389,16 +431,46 @@ function listenSocket() {
 }
 
 // ── Controls ───────────────────────────────────────────────────────────────
+let lastCameraMoveTime = 0
+const CAMERA_MOVE_MIN_INTERVAL = 1500 // avoid spamming flyTo/fitBounds on GPS jitter
+
 function centerMe() {
   if (!map || !teacherPos.value) return
+  const now = Date.now()
+  if (now - lastCameraMoveTime < CAMERA_MOVE_MIN_INTERVAL) return
+  lastCameraMoveTime = now
+  map.flyTo({ center: [teacherPos.value.lng, teacherPos.value.lat], zoom: 16, duration: 1200 })
+}
+// Manual button click: always responsive (bypasses the auto-update
+// throttle) and marks 'center' as the active mode until the next GPS
+// update re-applies the automatic in-radius/out-of-radius rule.
+function manualCenterMe() {
+  if (!map || !teacherPos.value) return
+  viewMode.value = 'center'
+  lastCameraMoveTime = Date.now()
   map.flyTo({ center: [teacherPos.value.lng, teacherPos.value.lat], zoom: 16, duration: 1200 })
 }
 function fitBoth() {
   if (!map) return
+  const now = Date.now()
+  if (now - lastCameraMoveTime < CAMERA_MOVE_MIN_INTERVAL) return
+  lastCameraMoveTime = now
   const b = new maplibregl.LngLatBounds()
   if (teacherPos.value) b.extend([teacherPos.value.lng, teacherPos.value.lat])
   if (props.schoolLat && props.schoolLng) b.extend([props.schoolLng, props.schoolLat])
   // Keep the oblique (tilted) view — fitBounds would otherwise reset pitch/bearing to 0.
+  if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 1400, maxZoom: 15, pitch: 60, bearing: -17 })
+}
+// Manual button click: always responsive (bypasses the auto-update
+// throttle) and marks 'fit' as the active mode until the next GPS update
+// re-applies the automatic in-radius/out-of-radius rule.
+function manualFitBoth() {
+  if (!map) return
+  viewMode.value = 'fit'
+  lastCameraMoveTime = Date.now()
+  const b = new maplibregl.LngLatBounds()
+  if (teacherPos.value) b.extend([teacherPos.value.lng, teacherPos.value.lat])
+  if (props.schoolLat && props.schoolLng) b.extend([props.schoolLng, props.schoolLat])
   if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 1400, maxZoom: 15, pitch: 60, bearing: -17 })
 }
 
@@ -411,7 +483,9 @@ watch(() => [props.schoolLat, props.schoolLng, props.schoolRadius], ([lat, lng])
   if (teacherPos.value) drawRoute(teacherPos.value.lat, teacherPos.value.lng, lat, lng)
   if (!hasAutoFitted && teacherPos.value) {
     hasAutoFitted = true
-    fitBoth()
+    viewMode.value = isInsideRadius.value ? 'center' : 'fit'
+    if (viewMode.value === 'center') centerMe()
+    else fitBoth()
   }
 })
 
