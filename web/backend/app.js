@@ -244,6 +244,29 @@ function parseBool(v) {
 function hasFiniteCoordinates(lat, lng) {
   return Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
 }
+
+// Given a list of employees (each with a createdAt/created_at timestamp)
+// and a list of 'YYYY-MM-DD' date strings, returns how many of those
+// employees actually existed (were created) on or before each date. Used
+// so historical absent-count aggregates never count an employee as absent
+// on days before their account was created — a static "total headcount"
+// applied uniformly across a date range incorrectly inflates absences for
+// any newly added employee.
+function activeHeadcountByDate(employees, dateStrings) {
+  const createdDates = employees
+    .map(e => e.createdAt || e.created_at)
+    .filter(Boolean)
+    .map(d => new Date(d).toISOString().slice(0, 10))
+    .sort();
+  const map = {};
+  for (const ds of dateStrings) {
+    // Count employees whose creation date (YYYY-MM-DD) is <= this date.
+    let count = 0;
+    for (const cd of createdDates) { if (cd <= ds) count++; else break; }
+    map[ds] = count;
+  }
+  return map;
+}
 function calcDistance(lat1, lng1, lat2, lng2) {
   const R = 6371000, dLat = ((lat2-lat1)*Math.PI)/180, dLng = ((lng2-lng1)*Math.PI)/180;
   const a = Math.sin(dLat/2)**2 + Math.cos((lat1*Math.PI)/180)*Math.cos((lat2*Math.PI)/180)*Math.sin(dLng/2)**2;
@@ -679,16 +702,21 @@ app.get('/api/super/teachers', SA, async (req, res) => {
 app.get('/api/super/attendance/overview', SA, async (req, res) => {
   try {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
-    const totalTeachers = await User.countDocuments({ role: 'teacher' });
     const agg = await Attendance.aggregate([
       { $match: { date: { $gte: cutoff.toISOString().slice(0,10) } } },
       { $group: { _id: '$date', total: { $sum: 1 }, present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } } } },
       { $sort: { _id: -1 } }
     ]);
     // Absent = teachers (across all schools) with no attendance record that
-    // day, derived from current headcount rather than a status:'absent'
-    // document, which the check-in flow essentially never creates.
-    return sendSuccess(res, agg.map(r => ({ date: r._id, total: r.total, present: r.present, late: r.late, absent: Math.max(0, totalTeachers - r.present - r.late) })));
+    // day, derived from how many teacher accounts actually existed on each
+    // historical date — not today's total headcount, which would count a
+    // newly created teacher as absent on days before they existed.
+    const allTeachers = await User.find({ role: 'teacher' }).select('createdAt').lean();
+    const headcountByDate = activeHeadcountByDate(allTeachers, agg.map(r => r._id));
+    return sendSuccess(res, agg.map(r => {
+      const activeCount = headcountByDate[r._id] ?? allTeachers.length;
+      return { date: r._id, total: r.total, present: r.present, late: r.late, absent: Math.max(0, activeCount - r.present - r.late) };
+    }));
   } catch { return sendError(res, 'Server error', 500); }
 });
 
@@ -787,7 +815,16 @@ app.get('/api/school/stats', SCH, async (req, res) => {
       { $group: { _id: '$date', present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } }, absent: { $sum: { $cond: [{ $eq: ['$status','absent'] }, 1, 0] } } } },
       { $sort: { _id: 1 } }
     ]);
-    const weeklyData = weeklyAgg.map(r => ({ date: r._id, present: r.present, late: r.late, absent: Math.max(0, totalTeachers - r.present - r.late) }));
+    // Absent counts must be based on how many teachers actually existed on
+    // each historical date, not today's total headcount — otherwise a
+    // recently added teacher shows as "absent" on days before they were
+    // even created.
+    const allSchoolTeachers = await User.find({ school_id: sid, role: 'teacher' }).select('createdAt').lean();
+    const headcountByDate = activeHeadcountByDate(allSchoolTeachers, weeklyAgg.map(r => r._id));
+    const weeklyData = weeklyAgg.map(r => {
+      const activeCount = headcountByDate[r._id] ?? totalTeachers;
+      return { date: r._id, present: r.present, late: r.late, absent: Math.max(0, activeCount - r.present - r.late) };
+    });
     const recentRaw = await Attendance.find({ school_id: sid, date: td })
       .sort({ check_in: -1 }).limit(10)
       .populate({ path: 'teacher_id', populate: { path: 'user_id', select: 'name avatar' } }).lean();
@@ -920,15 +957,21 @@ app.get('/api/school/analytics', SCH, async (req, res) => {
     const { period = 'weekly' } = req.query;
     const days = period === 'yearly' ? 365 : period === 'monthly' ? 30 : 7;
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
-    const totalTeachers = await User.countDocuments({ school_id: req.user.school_id, role: 'teacher' });
     const agg = await Attendance.aggregate([
       { $match: { school_id: new mongoose.Types.ObjectId(req.user.school_id), date: { $gte: cutoff.toISOString().slice(0,10) } } },
       { $group: { _id: '$date', present: { $sum: { $cond: [{ $eq: ['$status','present'] }, 1, 0] } }, late: { $sum: { $cond: [{ $eq: ['$status','late'] }, 1, 0] } } } },
       { $sort: { _id: 1 } }
     ]);
-    // Absent = teachers with no record that day, derived from current
-    // headcount rather than a status:'absent' document (rarely created).
-    return sendSuccess(res, agg.map(r => ({ date: r._id, present: r.present, late: r.late, absent: Math.max(0, totalTeachers - r.present - r.late) })));
+    // Absent = teachers with no record that day, derived from how many
+    // teacher accounts actually existed on each historical date — not
+    // today's total headcount, which would count a newly created teacher
+    // as absent on days before they existed.
+    const schoolTeachers = await User.find({ school_id: req.user.school_id, role: 'teacher' }).select('createdAt').lean();
+    const headcountByDate = activeHeadcountByDate(schoolTeachers, agg.map(r => r._id));
+    return sendSuccess(res, agg.map(r => {
+      const activeCount = headcountByDate[r._id] ?? schoolTeachers.length;
+      return { date: r._id, present: r.present, late: r.late, absent: Math.max(0, activeCount - r.present - r.late) };
+    }));
   } catch { return sendError(res, 'Server error', 500); }
 });
 

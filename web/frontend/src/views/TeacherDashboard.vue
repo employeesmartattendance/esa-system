@@ -9,7 +9,7 @@
 
         <!-- ── MOBILE layout (≤768px): stacked simple cards ── -->
         <div class="mobile-layout">
-          <CheckInCard :todayRecord="todayRecord" :autoWatch="isMobileViewport" @refresh="fetchToday" />
+          <CheckInCard :todayRecord="todayRecord" :autoWatch="isMobileViewport" @refresh="onAttendanceMarked" />
 
           <!-- Live GPS Map — mobile only -->
           <div class="mobile-map-section">
@@ -71,7 +71,7 @@
 
           <!-- LEFT: main column -->
           <div class="desk-main">
-            <CheckInCard :todayRecord="todayRecord" :autoWatch="!isMobileViewport" @refresh="fetchToday" />
+            <CheckInCard :todayRecord="todayRecord" :autoWatch="!isMobileViewport" @refresh="onAttendanceMarked" />
 
             <!-- Week summary chart bar -->
             <div class="glass desk-card">
@@ -406,6 +406,18 @@ const isDesktop = ref(typeof navigator !== 'undefined' && navigator.userAgent.to
 const user     = computed(() => auth.user)
 const initials = computed(() => user.value?.name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'T')
 
+// The date this employee account was actually created. Absent-day counts
+// must never count days before this date — otherwise a newly created
+// employee shows as "absent" for the whole week/month/all-time range even
+// though they simply didn't exist yet. Falls back to the earliest
+// attendance record (then null) if the account creation date isn't
+// available for some reason, so older data still degrades gracefully.
+const employeeJoinDate = computed(() => {
+  const raw = user.value?.createdAt || user.value?.created_at
+  const d = raw ? new Date(raw) : null
+  return (d && !isNaN(d.getTime())) ? d : null
+})
+
 function onProfileUpdated(updatedUser) {
   if (updatedUser && auth.user) {
     auth.user.name = updatedUser.name || auth.user.name
@@ -482,10 +494,17 @@ function tally(records) {
 
 // Counts calendar days between two dates (inclusive) that are not in the
 // future, so "Absent" only reflects days that have already happened.
+// `start` is additionally clamped forward to the employee's account
+// creation date (when known) so absent-day totals never include days
+// before the employee was created in the system.
 function pastDaysInRange(start, end) {
   const today0 = new Date(); today0.setHours(0,0,0,0)
   const cappedEnd = end > today0 ? today0 : end
-  const ms = cappedEnd.setHours(0,0,0,0) - new Date(start).setHours(0,0,0,0)
+  let effectiveStart = new Date(start)
+  if (employeeJoinDate.value && employeeJoinDate.value > effectiveStart) {
+    effectiveStart = employeeJoinDate.value
+  }
+  const ms = cappedEnd.setHours(0,0,0,0) - new Date(effectiveStart).setHours(0,0,0,0)
   return Math.max(0, Math.floor(ms / 86400000) + 1)
 }
 
@@ -555,13 +574,20 @@ const monthAttendanceRate = computed(() => {
 
 /* ── All-time stats ── */
 const allTimeTally = computed(() => tally(records.value))
-// Attendance records only exist for days the employee actually checked in,
-// so "Total Days" here means the tracked range (from the earliest record to
-// today), and Absent is derived from the days in that range with no record.
+// "Total Days" is the tracked range for this employee — from whichever is
+// earliest of (a) their account creation date or (b) their first
+// attendance record — through today. Anchoring on the join date (not just
+// the earliest record) means a newly created employee who hasn't checked
+// in yet still gets a correct day count instead of showing 0, and ensures
+// "Absent" is derived only from days that occurred after they were
+// actually created in the system.
 const allTimeDaysElapsed = computed(() => {
-  if (!records.value.length) return 0
-  const dates = records.value.map(r => new Date(r.date).getTime())
-  const earliest = new Date(Math.min(...dates))
+  const recordDates = records.value.map(r => new Date(r.date).getTime())
+  let earliest = recordDates.length ? new Date(Math.min(...recordDates)) : null
+  if (employeeJoinDate.value && (!earliest || employeeJoinDate.value < earliest)) {
+    earliest = employeeJoinDate.value
+  }
+  if (!earliest) return 0
   return pastDaysInRange(earliest, new Date())
 })
 const allTimeStats = computed(() => {
@@ -584,15 +610,19 @@ const weekDays = computed(() => {
   const full  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
   const now   = new Date()
   const start = new Date(now); start.setDate(now.getDate() - now.getDay())
-  const short = { present:'✓', late:'L', absent:'✗', future:'·' }
+  const short = { present:'✓', late:'L', absent:'✗', future:'·', unjoined:'·' }
   return days.map((d, i) => {
     const date = new Date(start); date.setDate(start.getDate() + i)
     const iso  = date.toISOString().split('T')[0]
     const rec  = records.value.find(r => r.date === iso)
-    const isWeekend = i === 0 || i === 6
-    const isFuture  = date > now && date.toDateString() !== now.toDateString()
-    const status = isWeekend ? 'weekend' : isFuture ? 'future' : rec?.status || 'absent'
-    return { day: d, dayFull: full[i], status, statusShort: isWeekend ? '—' : isFuture ? '·' : short[rec?.status] || '✗' }
+    const isWeekend  = i === 0 || i === 6
+    const isFuture   = date > now && date.toDateString() !== now.toDateString()
+    // Days before the employee's account existed should never render as
+    // "absent" — they simply weren't part of the system yet.
+    const dayEnd     = new Date(date); dayEnd.setHours(23,59,59,999)
+    const isUnjoined = employeeJoinDate.value ? dayEnd < employeeJoinDate.value : false
+    const status = isWeekend ? 'weekend' : isFuture ? 'future' : isUnjoined ? 'unjoined' : rec?.status || 'absent'
+    return { day: d, dayFull: full[i], status, statusShort: isWeekend ? '—' : (isFuture || isUnjoined) ? '·' : short[rec?.status] || '✗' }
   })
 })
 
@@ -658,6 +688,17 @@ async function fetchSchool() {
   } catch {}
 }
 
+// A single handler refetches both "today" (for the check-in card/status)
+// and the full history (for quickStats/monthStats/allTimeStats/weekDays,
+// which are all derived from `records`). Used both as the CheckInCard's
+// local @refresh handler (immediate update for the acting employee) and
+// as the socket 'attendance_marked' handler (updates for other tabs/
+// devices in real time as soon as any attendance event happens).
+function onAttendanceMarked() {
+  fetchToday()
+  fetchHistory()
+}
+
 onMounted(async () => {
   const cur = guardMapRoute(route.path)
   section.value = cur
@@ -675,9 +716,9 @@ onMounted(async () => {
 
   const socket = getSocket()
   if (socket) {
-    socket.on('attendance_marked', fetchToday)
+    socket.on('attendance_marked', onAttendanceMarked)
     socket.on('settings_updated', fetchSchool)
-    socket.on('auto_checkout_complete', fetchToday)
+    socket.on('auto_checkout_complete', onAttendanceMarked)
   }
 
   window.addEventListener('resize', updateViewport)
@@ -685,9 +726,9 @@ onMounted(async () => {
 onUnmounted(() => {
   const socket = getSocket()
   if (socket) {
-    socket.off('attendance_marked', fetchToday)
+    socket.off('attendance_marked', onAttendanceMarked)
     socket.off('settings_updated', fetchSchool)
-    socket.off('auto_checkout_complete', fetchToday)
+    socket.off('auto_checkout_complete', onAttendanceMarked)
   }
   window.removeEventListener('resize', updateViewport)
 })
@@ -782,6 +823,7 @@ onUnmounted(() => {
 .week-day-cell.absent  { border-color:rgba(239,68,68,0.4);   background:rgba(239,68,68,0.06);  }
 .week-day-cell.future  { opacity:0.4; }
 .week-day-cell.weekend { opacity:0.3; }
+.week-day-cell.unjoined { opacity:0.3; }
 .wdc-day    { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; }
 .wdc-dot    { width:7px; height:7px; border-radius:50%; background:var(--surface-border); }
 .week-day-cell.present .wdc-dot { background:var(--success); box-shadow:0 0 6px rgba(16,185,129,0.4); }

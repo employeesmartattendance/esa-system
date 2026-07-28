@@ -31,7 +31,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, provide } from 'vue'
+import { ref, computed, onMounted, onUnmounted, provide, watch, nextTick } from 'vue'
+import { useRoute }       from 'vue-router'
 import AppSidebar         from './AppSidebar.vue'
 import TopBar             from './TopBar.vue'
 import ToastNotification  from '../ui/ToastNotification.vue'
@@ -58,6 +59,19 @@ const showProfile = ref(false)
 const layoutContentRef = ref(null)
 let lastApiErrorAt = 0
 let scrollFadeTimer = null
+const route = useRoute()
+
+// ── Reset scroll position on every internal page/section change ─────────
+// The dashboards (Teacher/School/Super) swap their inner section via
+// vue-router navigation without remounting this layout, so the shared
+// `.layout-content` scroll container previously kept whatever scroll
+// offset the user left on the last page. Force it back to the top
+// whenever the route changes so each page always opens at the top.
+watch(() => route.path, () => {
+  nextTick(() => {
+    if (layoutContentRef.value) layoutContentRef.value.scrollTop = 0
+  })
+})
 
 function checkMobile() {
   isMobile.value = window.innerWidth < 768
