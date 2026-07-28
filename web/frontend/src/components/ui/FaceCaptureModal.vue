@@ -27,11 +27,23 @@
                 :class="stage === 'ready' ? `fcm-guide-live-${liveStatus}` : `fcm-guide-${stage}`"
               ></div>
 
+              <!-- Biometric / Face ID style scan animation. Runs whenever a face is
+                   visible in frame (regardless of centering) and while capturing,
+                   giving the familiar scanning-ring feedback users expect. -->
+              <div v-if="stage === 'ready' && liveStatus !== 'searching'" class="fcm-scan-anim" aria-hidden="true">
+                <span class="fcm-scan-line"></span>
+                <svg class="fcm-scan-corners" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <path d="M8,22 V10 A4,4 0 0 1 12,6 H24" class="fcm-corner" />
+                  <path d="M76,6 H88 A4,4 0 0 1 92,10 V22" class="fcm-corner" />
+                  <path d="M92,78 V90 A4,4 0 0 1 88,94 H76" class="fcm-corner" />
+                  <path d="M24,94 H12 A4,4 0 0 1 8,90 V78" class="fcm-corner" />
+                </svg>
+              </div>
               <div v-if="stage === 'ready'" class="fcm-live-hint" :class="`fcm-live-hint-${liveStatus}`">
                 <AppIcon
-                  :name="liveStatus === 'centered' ? 'check-circle' : 'info'"
+                  :name="liveStatus === 'searching' ? 'info' : 'check-circle'"
                   :size="14"
-                  :color="liveStatus === 'centered' ? 'var(--success)' : '#fff'"
+                  :color="liveStatus === 'searching' ? '#fff' : 'var(--success)'"
                 />
                 <span>{{ liveHintText }}</span>
               </div>
@@ -48,13 +60,21 @@
                 <AppIcon name="alert-triangle" :size="22" color="var(--danger)" />
                 <span>Camera access isn't available on this device or browser.</span>
               </div>
-              <div v-else-if="stage === 'capturing'" class="fcm-overlay-msg">
-                <span class="fcm-spinner"></span>
-                <span>{{ mode === 'enroll' ? 'Capturing your face…' : 'Verifying…' }}</span>
+              <div v-else-if="stage === 'capturing'" class="fcm-overlay-msg fcm-overlay-scanning">
+                <div class="fcm-scan-anim fcm-scan-anim-fast" aria-hidden="true">
+                  <span class="fcm-scan-line"></span>
+                  <svg class="fcm-scan-corners" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <path d="M8,22 V10 A4,4 0 0 1 12,6 H24" class="fcm-corner" />
+                    <path d="M76,6 H88 A4,4 0 0 1 92,10 V22" class="fcm-corner" />
+                    <path d="M92,78 V90 A4,4 0 0 1 88,94 H76" class="fcm-corner" />
+                    <path d="M24,94 H12 A4,4 0 0 1 8,90 V78" class="fcm-corner" />
+                  </svg>
+                </div>
+                <span class="fcm-scanning-text">{{ mode === 'enroll' ? 'Capturing your face…' : 'Verifying…' }}</span>
               </div>
               <div v-else-if="stage === 'no-face'" class="fcm-overlay-msg fcm-overlay-warn">
                 <AppIcon name="alert-triangle" :size="20" color="var(--warning)" />
-                <span>No face detected — center your face in the frame and try again.</span>
+                <span>No face detected — make sure your face is inside the circle, in good lighting, and try again.</span>
               </div>
               <div v-else-if="stage === 'models-error'" class="fcm-overlay-msg fcm-overlay-error">
                 <AppIcon name="alert-triangle" :size="22" color="var(--danger)" />
@@ -116,30 +136,26 @@ let stream = null
 // classify the current frame so the guide ring + hint text can tell the
 // user in real time whether their face is detected and centered — instead
 // of only finding out after pressing Capture.
-const liveStatus = ref('searching') // searching | detected | centered | off-center | too-small | too-large
+const liveStatus = ref('searching') // searching | detected | too-small | too-large
 const liveHintText = ref('Position your face in the circle')
 let liveLoopTimer = null
 let liveLoopRunning = false
 let modelsReady = false
 
+// Any face inside the circle counts as good to capture — this no longer
+// requires the face to be centered. We only flag genuinely unusable frames
+// (face too small/far or too large/close); everything else is 'detected'
+// and ready to capture, matching how Face ID / biometric scanners behave:
+// they scan whatever face is in frame rather than demanding dead-center.
 function computeLiveStatus(box, videoEl) {
   if (!box) return { status: 'searching', text: 'Position your face in the circle' }
 
   const vw = videoEl.videoWidth || 1
-  const vh = videoEl.videoHeight || 1
-  const boxCx = box.x + box.width / 2
-  const boxCy = box.y + box.height / 2
-  const videoCx = vw / 2
-  const videoCy = vh / 2
-
-  const offX = Math.abs(boxCx - videoCx) / vw
-  const offY = Math.abs(boxCy - videoCy) / vh
   const sizeRatio = box.width / vw
 
-  if (sizeRatio < 0.16) return { status: 'too-small', text: 'Move a little closer' }
-  if (sizeRatio > 0.75) return { status: 'too-large', text: 'Move back slightly' }
-  if (offX > 0.16 || offY > 0.16) return { status: 'off-center', text: 'Center your face in the circle' }
-  return { status: 'centered', text: 'Perfect — hold still and tap Capture' }
+  if (sizeRatio < 0.12) return { status: 'too-small', text: 'Move a little closer' }
+  if (sizeRatio > 0.9) return { status: 'too-large', text: 'Move back slightly' }
+  return { status: 'detected', text: 'Face detected — tap Capture' }
 }
 
 async function liveDetectTick() {
@@ -233,7 +249,15 @@ async function capture() {
   stage.value = 'capturing'
   mismatchMsg.value = ''
   try {
-    const descriptor = await biometric.captureDescriptor(videoRef.value, canvasRef.value)
+    // A single frame can occasionally miss (blink, motion blur, brief focus
+    // hiccup) even with a face clearly in view, which is what produced
+    // spurious "no face detected" failures. Retry a couple of times against
+    // fresh frames before surfacing the no-face state to the user.
+    let descriptor = null
+    for (let attempt = 0; attempt < 3 && !descriptor; attempt++) {
+      descriptor = await biometric.captureDescriptor(videoRef.value, canvasRef.value)
+      if (!descriptor && attempt < 2) await new Promise((r) => setTimeout(r, 220))
+    }
     if (!descriptor) { stage.value = 'no-face'; return }
 
     if (props.mode === 'enroll') {
@@ -380,10 +404,59 @@ onBeforeUnmount(stopCamera)
 /* Live guide states — driven by continuous on-device face detection while
    the user positions themselves, so the ring itself signals when to shoot. */
 .fcm-guide-live-searching   { border-color: rgba(255,255,255,0.4); }
-.fcm-guide-live-off-center  { border-color: var(--warning); }
 .fcm-guide-live-too-small   { border-color: var(--warning); }
 .fcm-guide-live-too-large   { border-color: var(--warning); }
-.fcm-guide-live-centered    { border-color: var(--success); box-shadow: 0 0 0 4px rgba(34,197,94,0.18); }
+.fcm-guide-live-detected    { border-color: var(--success); box-shadow: 0 0 0 4px rgba(34,197,94,0.18); }
+
+/* Biometric / Face ID style scan animation — a sweeping line plus animated
+   corner brackets inside the circular guide, shown while a face is present. */
+.fcm-scan-anim {
+  position: absolute; inset: 10%;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.fcm-scan-anim-fast { animation: fcm-scan-pulse 0.6s ease-in-out infinite; }
+.fcm-scan-line {
+  position: absolute;
+  left: 6%; right: 6%;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(34,197,94,0) 0%, var(--success) 50%, rgba(34,197,94,0) 100%);
+  box-shadow: 0 0 8px 1px rgba(34,197,94,0.7);
+  animation: fcm-scan-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.fcm-scan-anim-fast .fcm-scan-line {
+  background: linear-gradient(90deg, rgba(37,99,235,0) 0%, var(--primary) 50%, rgba(37,99,235,0) 100%);
+  box-shadow: 0 0 8px 1px var(--primary-glow);
+  animation: fcm-scan-sweep 0.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes fcm-scan-sweep {
+  0%   { top: 4%; opacity: 0; }
+  8%   { opacity: 1; }
+  50%  { top: 96%; opacity: 1; }
+  58%  { opacity: 0; }
+  100% { top: 4%; opacity: 0; }
+}
+@keyframes fcm-scan-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+.fcm-scan-corners {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+.fcm-corner {
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(34,197,94,0.8));
+  animation: fcm-corner-fade 2.2s ease-in-out infinite;
+}
+@keyframes fcm-corner-fade {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
 
 .fcm-live-hint {
   position: absolute;
@@ -403,7 +476,7 @@ onBeforeUnmount(stopCamera)
   transition: background-color 0.25s ease, color 0.25s ease;
   pointer-events: none;
 }
-.fcm-live-hint-centered {
+.fcm-live-hint-detected {
   background: rgba(22, 163, 74, 0.9);
 }
 
@@ -416,6 +489,13 @@ onBeforeUnmount(stopCamera)
 }
 .fcm-overlay-error   { color: #fecaca; }
 .fcm-overlay-warn    { color: #fde68a; }
+.fcm-overlay-scanning { background: rgba(10,14,20,0.55); }
+.fcm-overlay-scanning .fcm-scan-anim {
+  position: relative; inset: auto;
+  width: 140px; height: 140px;
+  flex-shrink: 0;
+}
+.fcm-scanning-text { font-weight: 600; color: #fff; }
 .fcm-overlay-success { color: #bbf7d0; font-weight: 700; font-size: 14px; }
 
 .fcm-spinner {

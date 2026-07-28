@@ -100,8 +100,13 @@ async function captureDescriptor(videoEl, canvasEl) {
   const canvas = grabFrame(videoEl, canvasEl)
   console.log('[biometric] Running face detection on canvas', canvas.width, 'x', canvas.height)
   try {
+    // scoreThreshold lowered from 0.3 to allow faces that are off-center,
+    // partially angled, or slightly smaller in the frame to still be picked
+    // up — previously borderline detections here (e.g. face not dead-center)
+    // could fall just under the threshold and surface as "no face detected"
+    // even though a face was clearly visible.
     const result = await faceapi
-      .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
+      .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.2 }))
       .withFaceLandmarks()
       .withFaceDescriptor()
     if (!result) {
@@ -136,7 +141,7 @@ async function detectFacePosition(videoEl, canvasEl) {
   try {
     const result = await faceapi.detectSingleFace(
       canvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.2 })
     )
     if (!result) return null
     return result.box
