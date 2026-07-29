@@ -28,9 +28,12 @@
               ></div>
 
               <!-- Biometric / Face ID style scan animation. Runs whenever a face is
-                   visible in frame (regardless of centering) and while capturing,
-                   giving the familiar scanning-ring feedback users expect. -->
-              <div v-if="stage === 'ready' && liveStatus !== 'searching'" class="fcm-scan-anim" aria-hidden="true">
+                   visible in frame (regardless of centering), giving the familiar
+                   scanning-ring feedback while the user positions themselves — this
+                   "detected, not yet verifying" state uses blue (fcm-scan-anim-blue)
+                   to visually distinguish it from the green verifying animation
+                   below, which only plays during the actual capture/verify moment. -->
+              <div v-if="stage === 'ready' && liveStatus !== 'searching'" class="fcm-scan-anim fcm-scan-anim-blue" aria-hidden="true">
                 <span class="fcm-scan-band"></span>
                 <span class="fcm-scan-line"></span>
                 <svg class="fcm-scan-corners" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -44,7 +47,7 @@
                 <AppIcon
                   :name="liveStatus === 'searching' ? 'info' : 'check-circle'"
                   :size="14"
-                  :color="liveStatus === 'searching' ? '#fff' : 'var(--success)'"
+                  :color="liveStatus === 'searching' ? '#fff' : 'var(--primary)'"
                 />
                 <span>{{ liveHintText }}</span>
               </div>
@@ -62,7 +65,7 @@
                 <span>Camera access isn't available on this device or browser.</span>
               </div>
               <div v-else-if="stage === 'capturing'" class="fcm-overlay-msg fcm-overlay-scanning">
-                <div class="fcm-scan-anim fcm-scan-anim-fast" aria-hidden="true">
+                <div class="fcm-scan-anim fcm-scan-anim-fast fcm-scan-anim-green" aria-hidden="true">
                   <span class="fcm-scan-band"></span>
                   <span class="fcm-scan-line"></span>
                   <svg class="fcm-scan-corners" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -283,9 +286,9 @@ async function capture() {
     // spurious "no face detected" failures. Retry a couple of times against
     // fresh frames before surfacing the no-face state to the user.
     let descriptor = null
-    for (let attempt = 0; attempt < 3 && !descriptor; attempt++) {
+    for (let attempt = 0; attempt < 4 && !descriptor; attempt++) {
       descriptor = await biometric.captureDescriptor(videoRef.value, canvasRef.value)
-      if (!descriptor && attempt < 2) await new Promise((r) => setTimeout(r, 220))
+      if (!descriptor && attempt < 3) await new Promise((r) => setTimeout(r, 350))
     }
     if (!descriptor) { stage.value = 'no-face'; return }
 
@@ -325,8 +328,15 @@ async function capture() {
       mismatchMsg.value = e.message || 'Face detection encountered an error.'
       stage.value = 'models-error'
     } else {
+      // Anything reaching here is NOT a "no face in frame" situation — it's an
+      // unexpected/untagged error (e.g. the camera stream ending mid-capture,
+      // a browser API failure). Previously this was mislabeled as 'no-face',
+      // which told the person to reposition their face for a problem that had
+      // nothing to do with their face — misleading, and it hid the real cause.
+      // Reusing 'models-error' surfaces an honest, distinct message instead.
       console.error('[FaceCaptureModal] Unexpected capture error:', e)
-      stage.value = 'no-face'
+      mismatchMsg.value = 'Something went wrong while capturing. Please try again.'
+      stage.value = 'models-error'
     }
   } finally {
     capturing = false
@@ -444,21 +454,41 @@ onBeforeUnmount(stopCamera)
 .fcm-guide-live-searching   { border-color: rgba(255,255,255,0.4); }
 .fcm-guide-live-too-small   { border-color: var(--warning); }
 .fcm-guide-live-too-large   { border-color: var(--warning); }
-.fcm-guide-live-detected    { border-color: var(--success); box-shadow: 0 0 0 4px rgba(34,197,94,0.18); }
+.fcm-guide-live-detected    { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
 
-/* Biometric / Face ID style scan animation — a green sweeping band (with a
+/* Biometric / Face ID style scan animation — a sweeping band (with a
    brighter leading edge) plus animated corner brackets inside the circular
-   guide, shown while a face is present. Green is used throughout (idle scan
-   and active capture alike) to match the familiar biometric-scanner look. */
+   guide, shown while a face is present. Color is driven by --fcm-scan-color
+   (and its -soft/-glow variants) so the same animation can be recolored per
+   stage: blue while positioning/detected (.fcm-scan-anim-blue, used during
+   stage 'ready'), green while actually verifying (.fcm-scan-anim-green,
+   used during stage 'capturing' — this matches the original green look and
+   is the default if no modifier class is present). */
 .fcm-scan-anim {
   position: absolute; inset: 10%;
   border-radius: 50%;
   overflow: hidden;
   pointer-events: none;
+  --fcm-scan-color:      #22c55e;
+  --fcm-scan-color-soft: rgba(34,197,94,0.32);
+  --fcm-scan-color-mid:  rgba(34,197,94,0.55);
+  --fcm-scan-color-glow: rgba(34,197,94,0.85);
+}
+.fcm-scan-anim-green {
+  --fcm-scan-color:      #22c55e;
+  --fcm-scan-color-soft: rgba(34,197,94,0.32);
+  --fcm-scan-color-mid:  rgba(34,197,94,0.55);
+  --fcm-scan-color-glow: rgba(34,197,94,0.85);
+}
+.fcm-scan-anim-blue {
+  --fcm-scan-color:      #2563eb;
+  --fcm-scan-color-soft: rgba(37,99,235,0.32);
+  --fcm-scan-color-mid:  rgba(37,99,235,0.55);
+  --fcm-scan-color-glow: rgba(37,99,235,0.85);
 }
 .fcm-scan-anim-fast { animation: fcm-scan-pulse 0.6s ease-in-out infinite; }
 
-/* The band is a soft green glow that trails behind the bright edge line,
+/* The band is a soft colored glow that trails behind the bright edge line,
    giving the "light sweeping through the face" effect instead of just a
    thin line moving down the frame. */
 .fcm-scan-band {
@@ -467,9 +497,9 @@ onBeforeUnmount(stopCamera)
   height: 34%;
   background: linear-gradient(
     to bottom,
-    rgba(34,197,94,0) 0%,
-    rgba(34,197,94,0.32) 55%,
-    rgba(34,197,94,0.55) 100%
+    rgba(0,0,0,0) 0%,
+    var(--fcm-scan-color-soft) 55%,
+    var(--fcm-scan-color-mid) 100%
   );
   animation: fcm-scan-band-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
@@ -480,8 +510,8 @@ onBeforeUnmount(stopCamera)
   position: absolute;
   left: 4%; right: 4%;
   height: 2.5px;
-  background: linear-gradient(90deg, rgba(34,197,94,0) 0%, #22c55e 50%, rgba(34,197,94,0) 100%);
-  box-shadow: 0 0 10px 2px rgba(34,197,94,0.85);
+  background: linear-gradient(90deg, rgba(0,0,0,0) 0%, var(--fcm-scan-color) 50%, rgba(0,0,0,0) 100%);
+  box-shadow: 0 0 10px 2px var(--fcm-scan-color-glow);
   animation: fcm-scan-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 .fcm-scan-anim-fast .fcm-scan-line {
@@ -513,10 +543,10 @@ onBeforeUnmount(stopCamera)
 }
 .fcm-corner {
   fill: none;
-  stroke: #22c55e;
+  stroke: var(--fcm-scan-color);
   stroke-width: 3;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 3px rgba(34,197,94,0.8));
+  filter: drop-shadow(0 0 3px var(--fcm-scan-color-glow));
   animation: fcm-corner-fade 2.2s ease-in-out infinite;
 }
 @keyframes fcm-corner-fade {
@@ -543,7 +573,7 @@ onBeforeUnmount(stopCamera)
   pointer-events: none;
 }
 .fcm-live-hint-detected {
-  background: rgba(22, 163, 74, 0.9);
+  background: rgba(37, 99, 235, 0.9);
 }
 
 .fcm-overlay-msg {

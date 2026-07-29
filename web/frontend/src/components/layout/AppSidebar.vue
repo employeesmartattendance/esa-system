@@ -56,12 +56,25 @@
 
     <!-- Footer -->
     <div class="sidebar-footer">
-      <button class="logout-btn" @click="handleLogout">
+      <button class="logout-btn" @click="requestLogout">
         <AppIcon name="logout" :size="16" color="var(--danger)" />
         <span>Sign Out</span>
       </button>
     </div>
   </aside>
+
+  <!-- Sign out confirmation -->
+  <AppModal v-model="showSignOutModal" title="Sign Out" subtitle="You'll need to sign in again to continue" icon="logout" icon-color="var(--danger)">
+    <p style="font-size:14px;color:var(--text-secondary);margin-bottom:20px">
+      Are you sure you want to sign out of your account?
+    </p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" @click="showSignOutModal = false">Cancel</button>
+      <button class="btn btn-danger" @click="confirmLogout">
+        <AppIcon name="logout" :size="15" />Sign Out
+      </button>
+    </div>
+  </AppModal>
 </template>
 
 <script setup>
@@ -70,6 +83,7 @@ import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { disconnectSocket } from '../../socket'
 import AppIcon from '../ui/AppIcon.vue'
+import AppModal from '../ui/AppModal.vue'
 import { useScrollLock } from '../../composables/useScrollLock'
 import { useIndustry } from '../../composables/useIndustry'
 
@@ -119,7 +133,17 @@ function handleNavClick() {
   if (isMobile.value) emit('update:modelValue', false)
 }
 
-function handleLogout() {
+const showSignOutModal = ref(false)
+
+// Clicking "Sign Out" closes the sidebar first (mobile overlay), then
+// brings up the confirmation modal once the sidebar is out of the way.
+function requestLogout() {
+  if (isMobile.value) emit('update:modelValue', false)
+  showSignOutModal.value = true
+}
+
+function confirmLogout() {
+  showSignOutModal.value = false
   auth.signingOut = true
   disconnectSocket()
   // Let the signing-out overlay paint over the current page before the
@@ -263,6 +287,8 @@ onUnmounted(() => window.removeEventListener('resize', checkMobile))
   cursor: pointer; transition: all var(--transition);
 }
 .logout-btn:hover { background: rgba(239,68,68,0.12); }
+
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
 /* Mobile */
 @media (max-width: 768px) {

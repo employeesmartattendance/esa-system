@@ -96,7 +96,17 @@ module.exports = function registerBiometricRoutes(
       await logAction('BIOMETRIC_ENROLLED', req.user._id, 'Employee enrolled biometric verification', req.ip);
       return sendSuccess(res, { enrolled: true }, 'Biometric verification set up successfully');
     } catch (err) {
-      // A unique-index race (two concurrent enroll requests) lands here too.
+      // A duplicate-key error (code 11000) here means the unique index on
+      // teacher_id caught a race: another register request for this same
+      // teacher committed between our exists() check above and this create()
+      // call. That is not a server crash and not a face/camera problem — it's
+      // the same "already enrolled" situation as the 409 above, just caught
+      // slightly later, so it gets the exact same message and status instead
+      // of the generic 500 (which previously read as an unexplained failure
+      // and invited an endless, always-failing retry).
+      if (err && err.code === 11000) {
+        return sendError(res, 'Biometric verification is already set up on this account. Ask your admin to reset it if you need to re-enroll.', 409);
+      }
       console.error('Biometric register error:', err);
       return sendError(res, 'Could not set up biometric verification', 500);
     }

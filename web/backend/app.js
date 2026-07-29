@@ -202,7 +202,20 @@ const ContactSchema = new Schema({ full_name: { type: String, required: true }, 
 // photo or video; matching happens server-side via Euclidean distance in
 // biometric-routes.js. Locked to one-time self-enrollment (see that file).
 const BiometricCredentialSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, face_descriptor: { type: [Number], required: true }, device_label: String, last_used_at: Date }, vOpts);
-BiometricCredentialSchema.index({ teacher_id: 1 });
+// unique: true — closes a real race condition. The register route below does
+// a check-then-act (exists() check, then create()) which has a timing gap:
+// two near-simultaneous enroll requests (a double-tap, a client retry firing
+// while the first request is still in flight, etc.) could both pass the
+// exists() check before either had created a document, silently giving one
+// teacher two live face-descriptor credentials. A unique index makes the
+// database itself reject the second concurrent insert with a duplicate-key
+// error, which the route below now catches and reports as the same clear
+// "already enrolled" message as the exists()-check path — instead of a
+// generic 500 that reads like a crash and invites an endless retry loop.
+// If this index ever fails to build on an existing deployment (i.e. duplicate
+// rows already exist from before this index existed), run
+// backend/scripts/migrate-biometric-dedupe.js once to clean them up, then restart.
+BiometricCredentialSchema.index({ teacher_id: 1 }, { unique: true });
 BiometricCredentialSchema.index({ school_id: 1 });
 
 const School        = mongoose.model('School',        SchoolSchema);

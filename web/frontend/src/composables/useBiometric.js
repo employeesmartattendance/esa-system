@@ -87,7 +87,14 @@ function enhanceFrame(canvasEl) {
   ctx.putImageData(imgData, 0, 0)
 }
 
-function grabFrame(videoEl, canvasEl) {
+// `enhance` defaults to true (used by captureDescriptor, where accuracy on a
+// single decisive frame matters most). The live position loop passes false —
+// it runs every ~350ms purely to drive on-screen guide feedback, so paying
+// for a full getImageData/putImageData pass every tick is wasted work that
+// was the main source of jank/slowness on lower-end devices. This keeps the
+// exact same brightening behavior for the frame that actually gets sent for
+// enrollment/verification.
+function grabFrame(videoEl, canvasEl, enhance = true) {
   if (!canvasEl) {
     canvasEl = document.createElement('canvas')
   }
@@ -97,7 +104,9 @@ function grabFrame(videoEl, canvasEl) {
   canvasEl.height = vh
   const ctx = canvasEl.getContext('2d')
   ctx.drawImage(videoEl, 0, 0, vw, vh)
-  try { enhanceFrame(canvasEl) } catch { /* non-fatal — detect on raw frame */ }
+  if (enhance) {
+    try { enhanceFrame(canvasEl) } catch { /* non-fatal — detect on raw frame */ }
+  }
   return canvasEl
 }
 
@@ -174,11 +183,16 @@ async function detectFacePosition(videoEl, canvasEl) {
   } catch {
     return null // models not ready yet, retry on next tick
   }
-  const canvas = grabFrame(videoEl, canvasEl)
+  // enhance=false: this runs on a ~350ms polling loop just to drive the guide
+  // ring/hint, so it skips the per-pixel brightening pass captureDescriptor()
+  // uses — that cost is only worth paying once, for the frame that's actually
+  // captured. inputSize dropped 416->224, which is still plenty for a coarse
+  // "is a face roughly here, and how big" read and meaningfully cheaper per tick.
+  const canvas = grabFrame(videoEl, canvasEl, false)
   try {
     const result = await faceapi.detectSingleFace(
       canvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.12 })
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.12 })
     )
     if (!result) return null
     return result.box
