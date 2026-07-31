@@ -197,26 +197,25 @@ ReportSchema.index({ school_id: 1, report_date: -1 }, { unique: true });
 
 const ContactSchema = new Schema({ full_name: { type: String, required: true }, email: { type: String, required: true }, phone: String, school_name: String, message: String, status: { type: String, enum: ['pending','approved','rejected'], default: 'pending' }, admin_notes: String }, vOpts);
 
-// In-house face verification credential — one per enrolled employee. Only a
-// numeric face descriptor (128 floats from face-api.js) is stored, never a
-// photo or video; matching happens server-side via Euclidean distance in
-// biometric-routes.js. Locked to one-time self-enrollment (see that file).
-const BiometricCredentialSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, face_descriptor: { type: [Number], required: true }, device_label: String, last_used_at: Date }, vOpts);
-// unique: true — closes a real race condition. The register route below does
-// a check-then-act (exists() check, then create()) which has a timing gap:
-// two near-simultaneous enroll requests (a double-tap, a client retry firing
-// while the first request is still in flight, etc.) could both pass the
-// exists() check before either had created a document, silently giving one
-// teacher two live face-descriptor credentials. A unique index makes the
-// database itself reject the second concurrent insert with a duplicate-key
-// error, which the route below now catches and reports as the same clear
-// "already enrolled" message as the exists()-check path — instead of a
-// generic 500 that reads like a crash and invites an endless retry loop.
-// If this index ever fails to build on an existing deployment (i.e. duplicate
-// rows already exist from before this index existed), run
-// backend/scripts/migrate-biometric-dedupe.js once to clean them up, then restart.
+// Server-side biometric credential — stores InsightFace embeddings only.
+// No raw images stored. Supports enrollment auto-detection and face verification.
+const BiometricCredentialSchema = new Schema({ 
+  teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, 
+  school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true },
+  employee_id: String, // Denormalized for quick lookup
+  embedding: { type: [Number], default: null }, // InsightFace embedding vector
+  embedding_model: { type: String, default: 'buffalo_l' }, // Model used for extraction
+  embedding_version: { type: Number, default: 1 }, // Schema version
+  biometric_enabled: { type: Boolean, default: true },
+  enrolled_at: Date, // When first enrolled
+  verification_count: { type: Number, default: 0 }, // Total verifications
+  last_verified: Date, // Last successful/attempted verification
+  last_similarity: { type: Number, default: 0 }, // Last similarity score
+  last_detection_confidence: { type: Number, default: 0 }, // Last detection confidence
+}, vOpts);
 BiometricCredentialSchema.index({ teacher_id: 1 }, { unique: true });
 BiometricCredentialSchema.index({ school_id: 1 });
+BiometricCredentialSchema.index({ employee_id: 1 });
 
 const School        = mongoose.model('School',        SchoolSchema);
 const User          = mongoose.model('User',          UserSchema);
@@ -1324,8 +1323,38 @@ async function runAutoCheckout() {
 // Registered before mobile-routes.js so verifyBiometricGate is already the real
 // implementation (not the no-op placeholder) by the time mobile check-in runs.
 try {
+  const EmbeddingService = require('./services/embeddingService');
+  const insightfaceEngine = require('./services/insightfaceEngine');
+  
+  // Initialize InsightFace engine asynchronously (non-blocking)
+  insightfaceEngine.initialize().catch(err => console.warn('⚠️  InsightFace initialization failed:', err.message));
+  
+  // Create embedding service
+  const embedService = new EmbeddingService({ BiometricCredential, Teacher });
+  
+  // Image upload middleware for biometric verification endpoint
+  const multerMemory = multer.memoryStorage();
+  const biometricImageUpload = multer({ 
+    storage: multerMemory, 
+    limits: { fileSize: 10*1024*1024 }, 
+    fileFilter: imageFileFilter 
+  });
+  
+  // Register biometric routes with image upload middleware
   const registerBiometricRoutes = require('./biometric-routes');
-  verifyBiometricGate = registerBiometricRoutes(app, { Teacher, School, Settings, BiometricCredential }, authMiddleware, logAction, sendSuccess, sendError, toId);
+  verifyBiometricGate = registerBiometricRoutes(
+    app, 
+    { Teacher, School, Settings, BiometricCredential }, 
+    authMiddleware, 
+    logAction, 
+    sendSuccess, 
+    sendError, 
+    toId, 
+    embedService,
+    biometricImageUpload // Pass multer instance to biometric routes
+  );
+  
+  console.log('✅ InsightFace biometric engine initialized');
 } catch (err) { console.warn('⚠️  Biometric routes not loaded:', err.message); }
 
 // ── MOBILE ROUTES ──

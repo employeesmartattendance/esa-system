@@ -101,7 +101,7 @@
 
             <div class="fcm-tip">
               <AppIcon name="info" :size="14" color="var(--text-muted)" />
-              <span>Only a numeric face descriptor is stored — never a photo or video.</span>
+              <span>Your face is processed securely on our servers — photos are not stored.</span>
             </div>
           </div>
 
@@ -131,7 +131,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { useBiometric } from '../../composables/useBiometric'
 
@@ -150,73 +150,14 @@ let stream = null
 let capturing = false // re-entrancy guard — belt-and-braces alongside :disabled
 
 // Capture/Verify is enabled any time we're in a state where pressing it
-// makes sense — including right away once the camera is 'ready', even
-// before the live guide has classified a face. This is deliberate: face
-// detection models loading in the background, or the live guide still
-// warming up, should never make the button feel unresponsive to a tap —
-// captureDescriptor() awaits model readiness internally, so an early press
-// still works, it just takes a beat longer the very first time.
+// makes sense.
 const canCapture = computed(() =>
   !capturing && ['ready', 'no-face', 'mismatch', 'models-error'].includes(stage.value)
 )
 
-// ── Live face guide ─────────────────────────────────────────────────────
-// While stage === 'ready', poll the video feed at a light interval and
-// classify the current frame so the guide ring + hint text can tell the
-// user in real time whether their face is detected and centered — instead
-// of only finding out after pressing Capture.
-const liveStatus = ref('searching') // searching | detected | too-small | too-large
+// Simple waiting state for server-side processing
+const liveStatus = ref('ready')
 const liveHintText = ref('Position your face in the circle')
-let liveLoopTimer = null
-let liveLoopRunning = false
-let modelsReady = false
-
-// Any face inside the circle counts as good to capture — this no longer
-// requires the face to be centered. We only flag genuinely unusable frames
-// (face too small/far or too large/close); everything else is 'detected'
-// and ready to capture, matching how Face ID / biometric scanners behave:
-// they scan whatever face is in frame rather than demanding dead-center.
-function computeLiveStatus(box, videoEl) {
-  if (!box) return { status: 'searching', text: 'Position your face in the circle' }
-
-  const vw = videoEl.videoWidth || 1
-  const sizeRatio = box.width / vw
-
-  if (sizeRatio < 0.12) return { status: 'too-small', text: 'Move a little closer' }
-  if (sizeRatio > 0.9) return { status: 'too-large', text: 'Move back slightly' }
-  return { status: 'detected', text: 'Face detected — tap Capture' }
-}
-
-async function liveDetectTick() {
-  if (!videoRef.value || stage.value !== 'ready') return
-  try {
-    const box = await biometric.detectFacePosition(videoRef.value, canvasRef.value)
-    if (stage.value !== 'ready') return
-    const { status, text } = computeLiveStatus(box, videoRef.value)
-    liveStatus.value = status
-    liveHintText.value = text
-  } catch {
-    // Non-fatal: leave last-known status, retry on next tick.
-  }
-}
-
-function startLiveLoop() {
-  if (liveLoopRunning) return
-  liveLoopRunning = true
-  liveStatus.value = 'searching'
-  liveHintText.value = 'Position your face in the circle'
-  const tick = async () => {
-    if (!liveLoopRunning) return
-    await liveDetectTick()
-    if (liveLoopRunning) liveLoopTimer = setTimeout(tick, 350)
-  }
-  tick()
-}
-
-function stopLiveLoop() {
-  liveLoopRunning = false
-  if (liveLoopTimer) { clearTimeout(liveLoopTimer); liveLoopTimer = null }
-}
 
 function onVideoReady() {
   // Video element has valid dimensions now; live loop starts via the stage
@@ -228,13 +169,7 @@ async function startCamera() {
   mismatchMsg.value = ''
   if (!biometric.isSupported) { stage.value = 'unsupported'; return }
   try {
-    // Preload the models in parallel with camera startup so the first
-    // capture doesn't stall on a cold model download.
-    if (!modelsReady) {
-      biometric.loadModels().then(() => { modelsReady = true }).catch((e) => {
-        console.error('[FaceCaptureModal] Model preload failed:', e)
-      })
-    }
+    // Start camera
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false })
     await nextTick()
     if (videoRef.value) {
@@ -265,15 +200,12 @@ async function startCamera() {
 }
 
 function stopCamera() {
-  stopLiveLoop()
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null }
   if (videoRef.value) videoRef.value.srcObject = null
 }
 
-watch(stage, (s) => {
-  if (s === 'ready') startLiveLoop()
-  else stopLiveLoop()
-})
+// No need for live detection loop with server-side processing
+// Camera is simple capture and upload to backend
 
 async function capture() {
   if (capturing) return // guard against double-fire from a rapid double-tap
@@ -281,53 +213,24 @@ async function capture() {
   stage.value = 'capturing'
   mismatchMsg.value = ''
   try {
-    // A single frame can occasionally miss (blink, motion blur, brief focus
-    // hiccup) even with a face clearly in view, which is what produced
-    // spurious "no face detected" failures. Retry a couple of times against
-    // fresh frames before surfacing the no-face state to the user.
-    let descriptor = null
-    for (let attempt = 0; attempt < 4 && !descriptor; attempt++) {
-      descriptor = await biometric.captureDescriptor(videoRef.value, canvasRef.value)
-      if (!descriptor && attempt < 3) await new Promise((r) => setTimeout(r, 350))
-    }
-    if (!descriptor) { stage.value = 'no-face'; return }
+    // Capture image from video and upload to backend for verification/enrollment
+    // Server-side InsightFace handles all face detection and recognition
+    const token = await biometric.verifyAndUpload(videoRef.value)
 
-    if (props.mode === 'enroll') {
-      const ok = await biometric.enroll(descriptor)
-      if (ok) {
-        stage.value = 'success'
-        setTimeout(() => { emit('success'); close() }, 700)
-      } else if (biometric.errorIsConflict.value) {
-        // Already enrolled server-side — retrying capture here can never
-        // succeed, so say so plainly instead of implying the face/camera
-        // failed and inviting an infinite "try again" loop.
-        mismatchMsg.value = biometric.error.value || 'Biometric verification is already set up on this account.'
-        stage.value = 'already-enrolled'
-        emit('error', mismatchMsg.value)
-      } else {
-        mismatchMsg.value = biometric.error.value || 'Could not set up biometric verification.'
-        stage.value = 'mismatch'
-        emit('error', mismatchMsg.value)
-      }
+    if (token) {
+      stage.value = 'success'
+      setTimeout(() => { emit('success', token); close() }, 700)
+    } else if (biometric.error.value.includes('already set up')) {
+      // Already enrolled server-side
+      mismatchMsg.value = biometric.error.value || 'Biometric verification is already set up on this account.'
+      stage.value = 'already-enrolled'
+      emit('error', mismatchMsg.value)
     } else {
-      const token = await biometric.verify(descriptor)
-      if (token) {
-        stage.value = 'success'
-        setTimeout(() => { emit('success', token); close() }, 500)
-      } else {
-        mismatchMsg.value = biometric.error.value || 'Face did not match.'
-        stage.value = 'mismatch'
-        emit('error', mismatchMsg.value)
-      }
+      mismatchMsg.value = biometric.error.value || 'Could not process face.'
+      stage.value = 'mismatch'
+      emit('error', mismatchMsg.value)
     }
   } catch (e) {
-    if (e?.code === 'MODELS_UNAVAILABLE') {
-      mismatchMsg.value = e.message || 'Face detection could not start. Check your connection and try again.'
-      stage.value = 'models-error'
-    } else if (e?.code === 'DETECTION_ERROR') {
-      mismatchMsg.value = e.message || 'Face detection encountered an error.'
-      stage.value = 'models-error'
-    } else {
       // Anything reaching here is NOT a "no face in frame" situation — it's an
       // unexpected/untagged error (e.g. the camera stream ending mid-capture,
       // a browser API failure). Previously this was mislabeled as 'no-face',
