@@ -33,26 +33,44 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="sidebar-nav">
-      <template v-for="section in navSections" :key="section.group">
-        <div v-if="section.group" class="nav-group-label">{{ section.group }}</div>
-        <RouterLink
-          v-for="item in section.items"
-          :key="item.to"
-          :to="item.to"
-          class="nav-link"
-          :class="{ 'nav-active': isActive(item) }"
-          @click="handleNavClick"
+    <div class="sidebar-nav-wrap">
+      <nav class="sidebar-nav" ref="navRef" @scroll.passive="handleNavScroll">
+        <template v-for="section in navSections" :key="section.group">
+          <div v-if="section.group" class="nav-group-label">{{ section.group }}</div>
+          <RouterLink
+            v-for="item in section.items"
+            :key="item.to"
+            :to="item.to"
+            class="nav-link"
+            :class="{ 'nav-active': isActive(item) }"
+            @click="handleNavClick"
+          >
+            <span class="nav-link-icon">
+              <AppIcon :name="item.icon" :size="18" />
+            </span>
+            <span class="nav-link-label">{{ item.label }}</span>
+            <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+            <span v-if="isActive(item)" class="nav-active-pill" />
+          </RouterLink>
+        </template>
+      </nav>
+
+      <!-- Mobile-only "more links below" cue: centered chevron pinned to the
+           bottom of the nav area, shown only while the list overflows and
+           hasn't been scrolled to the end. Tapping it scrolls the nav down
+           a bit so users discover links hidden below the fold. -->
+      <Transition name="fade">
+        <button
+          v-if="isMobile && navOverflowing && !navAtBottom"
+          type="button"
+          class="nav-scroll-hint"
+          aria-label="Scroll for more links"
+          @click="scrollNavDown"
         >
-          <span class="nav-link-icon">
-            <AppIcon :name="item.icon" :size="18" />
-          </span>
-          <span class="nav-link-label">{{ item.label }}</span>
-          <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
-          <span v-if="isActive(item)" class="nav-active-pill" />
-        </RouterLink>
-      </template>
-    </nav>
+          <AppIcon name="chevron-down" :size="16" />
+        </button>
+      </Transition>
+    </div>
 
     <!-- Footer -->
     <div class="sidebar-footer">
@@ -78,7 +96,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { disconnectSocket } from '../../socket'
@@ -159,8 +177,59 @@ function checkMobile() {
   isMobile.value = window.innerWidth < 768
 }
 
-onMounted(() => { checkMobile(); window.addEventListener('resize', checkMobile) })
-onUnmounted(() => window.removeEventListener('resize', checkMobile))
+// ── Mobile "scroll for more links" hint ──────────────────────────────────
+// The nav list has no visible scrollbar (by design — see .sidebar-nav CSS),
+// so on small screens with several nav sections there's otherwise no cue
+// that more links exist below the fold. This tracks whether the nav
+// content overflows its box and whether the user has already scrolled to
+// the bottom, so a small centered chevron can appear/disappear accordingly.
+const navRef = ref(null)
+const navOverflowing = ref(false)
+const navAtBottom = ref(false)
+
+function updateNavOverflow() {
+  const el = navRef.value
+  if (!el) return
+  navOverflowing.value = el.scrollHeight > el.clientHeight + 4
+  navAtBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 12
+}
+
+function handleNavScroll() {
+  updateNavOverflow()
+}
+
+function scrollNavDown() {
+  const el = navRef.value
+  if (!el) return
+  el.scrollBy({ top: Math.min(el.clientHeight * 0.7, el.scrollHeight - el.scrollTop - el.clientHeight), behavior: 'smooth' })
+}
+
+let navResizeObserver = null
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  window.addEventListener('resize', updateNavOverflow)
+  nextTickUpdateNavOverflow()
+  if (navRef.value && typeof ResizeObserver !== 'undefined') {
+    navResizeObserver = new ResizeObserver(updateNavOverflow)
+    navResizeObserver.observe(navRef.value)
+  }
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+  window.removeEventListener('resize', updateNavOverflow)
+  navResizeObserver?.disconnect()
+})
+
+// Nav content (navSections) can arrive/change after mount (e.g. once the
+// user/industry vocabulary loads), so re-check overflow shortly after —
+// a plain onMounted check can run before the final link list is rendered.
+function nextTickUpdateNavOverflow() {
+  updateNavOverflow()
+  setTimeout(updateNavOverflow, 250)
+}
+watch(() => props.navSections, () => { setTimeout(updateNavOverflow, 50) }, { deep: true })
 </script>
 
 <style scoped>
@@ -234,8 +303,40 @@ onUnmounted(() => window.removeEventListener('resize', checkMobile))
 }
 
 /* Nav */
+.sidebar-nav-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
 .sidebar-nav { flex: 1; overflow-y: auto; padding: 8px 12px; scrollbar-width: none; }
 .sidebar-nav::-webkit-scrollbar { display: none; }
+
+/* Scroll-to-bottom hint — mobile only, see media query below for visibility.
+   Centered at the bottom of the nav area, floating above a soft fade so it
+   reads clearly regardless of which nav link sits behind it. */
+.nav-scroll-hint {
+  display: none;
+  position: absolute; left: 50%; bottom: 6px;
+  transform: translateX(-50%);
+  width: 30px; height: 22px;
+  align-items: center; justify-content: center;
+  background: var(--sidebar-bg, var(--surface));
+  border: 1px solid var(--surface-border);
+  border-radius: 99px;
+  color: var(--primary);
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+  z-index: 2;
+  animation: nav-scroll-hint-bounce 1.6s ease-in-out infinite;
+}
+.nav-scroll-hint::before {
+  content: '';
+  position: absolute; left: 50%; bottom: 100%;
+  transform: translateX(-50%);
+  width: 64px; height: 26px;
+  background: linear-gradient(to bottom, transparent, var(--sidebar-bg, var(--surface)) 85%);
+  pointer-events: none;
+}
+@keyframes nav-scroll-hint-bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(3px); }
+}
 .nav-group-label {
   font-size: 10px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.1em; color: var(--text-muted);
@@ -295,6 +396,7 @@ onUnmounted(() => window.removeEventListener('resize', checkMobile))
   .sidebar { transform: translateX(-100%); }
   .sidebar-open { transform: translateX(0); box-shadow: 8px 0 40px rgba(0,0,0,0.3); }
   .brand-close { display: flex; }
+  .nav-scroll-hint { display: flex; }
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }

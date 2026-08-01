@@ -142,6 +142,13 @@
             </div>
 
             <div class="emp-status">
+              <!-- Day attendance is informational only — it never disables
+                   selection here, since regular attendance is tracked
+                   separately from a normal day check-in. -->
+              <span v-if="e.day_status" class="status-chip day-status-chip" title="Today's day attendance — informational only, does not block regular attendance">
+                <AppIcon name="check-circle" :size="12" />
+                Day: {{ e.day_status }}
+              </span>
               <span v-if="e.already_marked" class="status-chip marked">
                 <AppIcon name="check-circle" :size="12" />
                 {{ e.already_status }} · {{ e.already_check_in }}
@@ -419,12 +426,13 @@ onMounted(async () => {
 .emp-info { flex:1; min-width:0; }
 .emp-name { font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .emp-sub  { font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.emp-status { flex-shrink:0; }
+.emp-status { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
 .status-chip { display:flex; align-items:center; gap:4px; padding:4px 9px; border-radius:99px; font-size:11px; font-weight:700; white-space:nowrap; }
 .status-chip.marked      { background:rgba(16,185,129,0.12); color:var(--success); }
 .status-chip.no-signal   { background:rgba(148,163,184,0.12); color:var(--text-muted); }
 .status-chip.in-zone-chip{ background:rgba(37,99,235,0.12);  color:var(--primary); }
 .status-chip.out-zone    { background:rgba(245,158,11,0.1);  color:var(--warning); }
+.status-chip.day-status-chip { background:rgba(148,163,184,0.1); color:var(--text-secondary); font-weight:600; }
 
 .mark-action-bar { display:flex; align-items:flex-end; gap:10px; padding:16px 18px; border-top:1px solid var(--surface-border); background:rgba(37,99,235,0.02); flex-wrap:wrap; }
 .mark-status-select { display:flex; flex-direction:column; gap:6px; min-width:140px; }

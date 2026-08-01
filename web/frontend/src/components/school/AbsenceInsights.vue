@@ -73,8 +73,10 @@
       <EmptyState
         v-else-if="!activeList.length"
         icon="attendance"
-        title="No data yet"
-        message="Attendance insights will appear once records start coming in."
+        :title="tab === 'absent' ? 'No absences in this range' : 'No late arrivals in this range'"
+        :message="tab === 'absent'
+          ? `Great news — no ${vocab.personNounPlural.toLowerCase()} have any absences in this date range.`
+          : `Great news — no ${vocab.personNounPlural.toLowerCase()} have arrived late in this date range.`"
       />
 
       <div v-else class="rank-list">
@@ -99,14 +101,22 @@
           <div class="rank-metrics">
             <template v-if="tab === 'absent'">
               <div class="rank-metric-main danger">{{ e.absent_count }}<span>absences</span></div>
+              <div class="rank-rate">
+                <div class="rate-bar"><div class="rate-fill" :style="`width:${e.absent_rate_relative}%;background:var(--danger)`"></div></div>
+                <span class="rate-text">{{ e.absent_rate_relative }}% of most absent</span>
+              </div>
             </template>
             <template v-else>
               <div class="rank-metric-main warning">{{ e.late_count }}<span>late</span></div>
+              <!-- Red "late line": late percentage scaled relative to the
+                   most-late-prone employee in this list, so it highlights
+                   who is closest to being the one most likely to be
+                   absent/late compared to others — not a flat rate. -->
+              <div class="rank-rate">
+                <div class="rate-bar"><div class="rate-fill rate-fill-late" :style="`width:${e.late_rate_relative}%`"></div></div>
+                <span class="rate-text late-rate-text">{{ e.late_rate_relative }}% of most late</span>
+              </div>
             </template>
-            <div class="rank-rate">
-              <div class="rate-bar"><div class="rate-fill" :style="`width:${e.attendance_rate}%;background:${rateColor(e.attendance_rate)}`"></div></div>
-              <span class="rate-text">{{ e.attendance_rate }}% attendance</span>
-            </div>
           </div>
         </div>
       </div>
@@ -150,12 +160,6 @@ const totalEmployees = ref(0)
 const activeList = computed(() => tab.value === 'absent' ? mostAbsent.value : mostLate.value)
 const topAbsentCount = computed(() => mostAbsent.value[0]?.absent_count ?? 0)
 const topLateCount = computed(() => mostLate.value[0]?.late_count ?? 0)
-
-function rateColor(pct) {
-  if (pct >= 80) return 'var(--success)'
-  if (pct >= 60) return 'var(--warning)'
-  return 'var(--danger)'
-}
 
 async function load() {
   loading.value = true
@@ -241,7 +245,9 @@ onMounted(load)
 .rank-rate { display:flex; flex-direction:column; align-items:flex-end; gap:3px; width:100%; }
 .rate-bar { width:100%; max-width:110px; height:4px; background:var(--surface-border); border-radius:99px; overflow:hidden; }
 .rate-fill { height:100%; border-radius:99px; transition:width 0.6s ease; }
+.rate-fill-late { background:var(--danger); }
 .rate-text { font-size:10px; color:var(--text-muted); font-weight:600; }
+.late-rate-text { color:var(--danger); font-weight:700; }
 
 .spinning { animation:spin 1s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }

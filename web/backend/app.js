@@ -186,6 +186,18 @@ const AttendanceSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId,
 AttendanceSchema.index({ teacher_id: 1, date: 1 }, { unique: true });
 AttendanceSchema.index({ school_id: 1, date: 1 });
 
+// Regular Attendance — a fully separate record type from day Attendance
+// above. This is the admin-triggered "scan nearby & mark silently" flow.
+// It intentionally does NOT share the (teacher_id, date) unique constraint
+// that day Attendance has, and allows multiple entries per employee per
+// day, so an employee who already has a normal day-attendance check-in
+// (present/late/etc.) can still be selected and recorded again here —
+// this is a distinct, separately-tracked record, not a replacement for
+// their day attendance.
+const RegularAttendanceSchema = new Schema({ teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, date: { type: String, required: true }, check_in: { type: Date, default: Date.now }, status: { type: String, enum: ['present','late'], default: 'present' }, check_in_lat: Number, check_in_lng: Number, recorded_by: { type: Schema.Types.ObjectId, ref: 'User' }, notes: String }, vOpts);
+RegularAttendanceSchema.index({ teacher_id: 1, date: 1 });
+RegularAttendanceSchema.index({ school_id: 1, date: 1 });
+
 const LogSchema = new Schema({ action: { type: String, required: true }, user_id: { type: Schema.Types.ObjectId, ref: 'User', default: null }, details: String, ip_address: String, timestamp: { type: Date, default: Date.now } });
 LogSchema.index({ user_id: 1, timestamp: -1 });
 
@@ -222,6 +234,7 @@ const User          = mongoose.model('User',          UserSchema);
 const Teacher       = mongoose.model('Teacher',       TeacherSchema);
 const Settings      = mongoose.model('Settings',      SettingsSchema);
 const Attendance    = mongoose.model('Attendance',    AttendanceSchema);
+const RegularAttendance = mongoose.model('RegularAttendance', RegularAttendanceSchema);
 const Log           = mongoose.model('Log',           LogSchema);
 const TrustedSchool = mongoose.model('TrustedSchool', TrustedSchoolSchema);
 const Report        = mongoose.model('Report',        ReportSchema);
@@ -1153,12 +1166,25 @@ app.post('/api/school/regular-attendance/scan', SCH, async (req, res) => {
     const td = today();
     const teachers = await Teacher.find({ school_id: req.user.school_id }).populate({ path: 'user_id', select: 'name email avatar status', match: { status: 'active' } }).lean();
     const activeTeachers = teachers.filter(t => t.user_id);
-    const existingAttendance = await Attendance.find({ teacher_id: { $in: activeTeachers.map(t => t._id) }, date: td }).lean();
-    const attMap = new Map(existingAttendance.map(a => [toId(a.teacher_id), a]));
+    const teacherIds = activeTeachers.map(t => t._id);
+
+    // Day attendance (biometric/normal check-in) — shown as read-only info
+    // so the admin can see who's already present for the day, but this
+    // does NOT block selection here.
+    const dayAttendance = await Attendance.find({ teacher_id: { $in: teacherIds }, date: td }).lean();
+    const dayMap = new Map(dayAttendance.map(a => [toId(a.teacher_id), a]));
+
+    // Regular attendance (this silent scan-and-mark flow) — its own,
+    // separate record set. An employee only counts as "already marked"
+    // here if they already have a Regular Attendance entry for today,
+    // regardless of their day-attendance status.
+    const regularToday = await RegularAttendance.find({ teacher_id: { $in: teacherIds }, date: td }).lean();
+    const regularMap = new Map(regularToday.map(a => [toId(a.teacher_id), a]));
 
     const results = activeTeachers.map(t => {
       const loc = teacherLocations.get(toId(t._id));
-      const already = attMap.get(toId(t._id)) || null;
+      const dayAtt = dayMap.get(toId(t._id)) || null;
+      const already = regularMap.get(toId(t._id)) || null;
       let distance = null, inZone = false;
       if (loc && hasFiniteCoordinates(loc.lat, loc.lng)) {
         distance = Math.round(calcDistance(centerLat, centerLng, loc.lat, loc.lng));
@@ -1176,6 +1202,10 @@ app.post('/api/school/regular-attendance/scan', SCH, async (req, res) => {
         distance,
         in_zone: inZone,
         location_updated_at: loc?.updatedAt || null,
+        // Day attendance — informational only, never disables selection.
+        day_status: dayAtt?.status || null,
+        day_check_in: fmtTime(dayAtt?.check_in),
+        // Regular attendance — this is what actually disables re-selection.
         already_marked: !!already,
         already_status: already?.status || null,
         already_check_in: fmtTime(already?.check_in),
@@ -1213,19 +1243,21 @@ app.post('/api/school/regular-attendance/mark', SCH, async (req, res) => {
 
     const marked = [], skipped = [];
     for (const t of teachers) {
-      const existing = await Attendance.findOne({ teacher_id: t._id, date: td }).lean();
-      if (existing) { skipped.push({ teacher_id: toId(t._id), name: t.user_id?.name, reason: 'Already has an attendance record today' }); continue; }
+      // Only checks RegularAttendance for today — day Attendance (normal
+      // check-in / already present) never blocks a regular-attendance mark,
+      // since these are tracked as separate, independent records.
+      const existing = await RegularAttendance.findOne({ teacher_id: t._id, date: td }).lean();
+      if (existing) { skipped.push({ teacher_id: toId(t._id), name: t.user_id?.name, reason: 'Already has a regular attendance record today' }); continue; }
       const now = new Date();
-      await Attendance.create({
+      await RegularAttendance.create({
         teacher_id: t._id,
         school_id: t.school_id,
         date: td,
         check_in: now,
         status: useStatus,
-        gps_valid: true,
-        wifi_valid: false,
         check_in_lat: hasCoords ? centerLat : null,
         check_in_lng: hasCoords ? centerLng : null,
+        recorded_by: req.user._id,
         notes: '[Regular attendance — recorded by admin]',
       });
       marked.push({ teacher_id: toId(t._id), name: t.user_id?.name });
@@ -1300,14 +1332,30 @@ app.get('/api/school/absence-insights', SCH, async (req, res) => {
       };
     });
 
-    const mostAbsent = [...insights].sort((a, b) => b.absent_count - a.absent_count || a.attendance_rate - b.attendance_rate).slice(0, 50);
-    const mostLate   = [...insights].sort((a, b) => b.late_count - a.late_count).slice(0, 50);
+    // Only surface employees who actually have an absence or late record in
+    // range — employees with a clean record (0 absences, 0 lates) should
+    // not appear in either ranked list at all.
+    const absentPool = insights.filter(e => e.absent_count > 0);
+    const latePool   = insights.filter(e => e.late_count > 0);
+
+    const mostAbsent = [...absentPool].sort((a, b) => b.absent_count - a.absent_count || a.attendance_rate - b.attendance_rate).slice(0, 50);
+    const mostLate   = [...latePool].sort((a, b) => b.late_count - a.late_count).slice(0, 50);
+
+    // Relative rates for the ranked bars: each employee's count scaled
+    // against the highest count in that SAME filtered list (0-100%), so the
+    // bar communicates "how close to the most late/most absent person" —
+    // i.e. who is most prone to being absent relative to their peers —
+    // rather than a flat attendance-rate percentage.
+    const maxAbsent = mostAbsent.length ? mostAbsent[0].absent_count : 0;
+    const maxLate   = mostLate.length ? mostLate[0].late_count : 0;
+    const mostAbsentWithRate = mostAbsent.map(e => ({ ...e, absent_rate_relative: maxAbsent ? Math.round((e.absent_count / maxAbsent) * 100) : 0 }));
+    const mostLateWithRate   = mostLate.map(e => ({ ...e, late_rate_relative: maxLate ? Math.round((e.late_count / maxLate) * 100) : 0 }));
 
     return sendSuccess(res, {
       range: { start, end },
       total_employees: activeTeachers.length,
-      most_absent: mostAbsent,
-      most_late: mostLate,
+      most_absent: mostAbsentWithRate,
+      most_late: mostLateWithRate,
       all: insights,
     });
   } catch (err) { console.error('Absence insights error:', err); return sendError(res, 'Server error', 500); }
