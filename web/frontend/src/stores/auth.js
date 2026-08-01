@@ -46,7 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await api.post('/auth/login', { email, password })
       if (res?.offline_queued) {
-        throw new Error('Authentication server is unreachable. Please check backend connectivity and CORS settings.')
+        throw new Error('We couldn\'t sign you in right now. Please check your internet connection and try again.')
       }
 
       const payload = res?.token

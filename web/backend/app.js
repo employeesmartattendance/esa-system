@@ -230,9 +230,15 @@ const PasswordReset = mongoose.model('PasswordReset', PasswordResetSchema);
 const BiometricCredential = mongoose.model('BiometricCredential', BiometricCredentialSchema);
 
 // ── HELPERS ──
+// App timezone offset in minutes (used so attendance times always reflect the
+// school's local time regardless of what timezone the server itself runs in,
+// e.g. many hosts default to UTC which previously showed times 2h behind).
+const APP_TZ_OFFSET_MINUTES = parseInt(process.env.APP_TZ_OFFSET_MINUTES || '120', 10); // default: Africa/Kigali (UTC+2)
+const toLocalDate = d => new Date((d instanceof Date ? d : new Date(d)).getTime() + APP_TZ_OFFSET_MINUTES * 60000);
 const toId   = v  => v ? v.toString() : null;
-const today  = () => new Date().toISOString().slice(0, 10);
-const fmtTime = d => { if (!d) return null; const t = new Date(d); return `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`; };
+const today  = () => toLocalDate(new Date()).toISOString().slice(0, 10);
+const fmtTime = d => { if (!d) return null; const t = toLocalDate(d); return `${String(t.getUTCHours()).padStart(2,'0')}:${String(t.getUTCMinutes()).padStart(2,'0')}`; };
+const localTimeStr = d => { const t = toLocalDate(d); return `${String(t.getUTCHours()).padStart(2,'0')}:${String(t.getUTCMinutes()).padStart(2,'0')}`; };
 const lean   = doc => { if (!doc) return null; const o = typeof doc.toObject === 'function' ? doc.toObject({ virtuals: true }) : { ...doc }; o.id = toId(o._id); if (o.school_id) o.school_id = toId(o.school_id); return o; };
 const leanA  = arr => arr.map(lean);
 
@@ -1083,7 +1089,7 @@ app.post('/api/attendance/checkin', TCH, async (req, res) => {
     }
     const now = offline_timestamp ? new Date(offline_timestamp) : new Date();
     if (Number.isNaN(now.getTime())) return sendError(res, 'Invalid offline timestamp');
-    const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const timeStr = localTimeStr(now);
     let status = 'present';
     if (timeStr > (s.absent_threshold || '09:00')) status = 'absent';
     else if (timeStr > (s.late_threshold || '08:00')) status = 'late';
@@ -1299,7 +1305,7 @@ async function runDailyReports() {
 async function runAutoCheckout() {
   try {
     const now = new Date();
-    const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const currentTime = localTimeStr(now);
     const schools = await School.find({ status: 'active' }).lean();
     for (const school of schools) {
       const cfg = await Settings.findOne({ school_id: school._id, auto_checkout_enabled: true }).lean();
@@ -1360,7 +1366,7 @@ try {
 // ── MOBILE ROUTES ──
 try {
   const registerMobileRoutes = require('./mobile-routes');
-  registerMobileRoutes(app, { Teacher, Attendance, Settings, School, User, Log }, authMiddleware, logAction, sendSuccess, sendError, calcDistance, emitToSchool, io, today, fmtTime, toId, verifyBiometricGate);
+  registerMobileRoutes(app, { Teacher, Attendance, Settings, School, User, Log }, authMiddleware, logAction, sendSuccess, sendError, calcDistance, emitToSchool, io, today, fmtTime, toId, verifyBiometricGate, d => toLocalDate(d).toISOString().slice(0, 10));
 } catch (err) { console.warn('⚠️  Mobile routes not loaded:', err.message); }
 
 // ── 404 & ERROR HANDLERS ──

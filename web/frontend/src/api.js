@@ -176,7 +176,7 @@ api.interceptors.response.use(
 
     const deriveErrorMessage = () => {
       if (contentType.includes('text/html')) {
-        return 'Server returned HTML instead of JSON. Check frontend API base URL and backend route.'
+        return 'Something went wrong on our end. Please try again in a moment.'
       }
       return response?.data?.message || response?.data?.error || err.message || 'Request failed'
     }
@@ -193,8 +193,8 @@ api.interceptors.response.use(
     // Offline or network error → try SQLite
     if (isOffline) {
       const offlineMsg = isLoginRequest
-        ? 'Unable to reach the authentication server. Check API URL, CORS, and backend status.'
-        : 'Unable to reach the backend server. Check your network or backend URL.'
+        ? 'We couldn\'t sign you in. Please check your connection and retry.'
+        : 'We\'re having trouble connecting. Please check your connection and retry.'
       dispatchApiError(offlineMsg)
       const fallback = await _offlineFallback(config?.url, method)
       if (fallback !== null) return fallback

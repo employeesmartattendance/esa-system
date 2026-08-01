@@ -320,6 +320,7 @@ async function onCaptureSuccess(token) {
   capturePurpose = null
 
   if (purpose === 'verify-pending') {
+    showCapture.value = false
     if (!pendingConfirm.value) return
     const { lat, lng } = pendingConfirm.value
     pendingConfirm.value = null
@@ -327,6 +328,7 @@ async function onCaptureSuccess(token) {
     return
   }
   if (purpose === 'verify-manual-checkin') {
+    showCapture.value = false
     await runCheckIn(token)
   }
 }
@@ -449,7 +451,7 @@ async function doAutoCheckIn(lat, lng, biometricToken = null) {
   try {
     await api.post('/attendance/checkin', { latitude: lat, longitude: lng, biometric_token: biometricToken })
     gpsVerified.value = true
-    toast.success('✅ Auto check-in — you\'re in the school zone!')
+    toast.success('Auto check-in — you\'re in the school zone!')
     emit('refresh')
   } catch (e) {
     // Silently fail auto check-in (e.g. already checked in)
@@ -469,7 +471,7 @@ async function doAutoCheckOut() {
   }
   try {
     await api.post('/attendance/checkout')
-    toast.success('✅ Auto check-out — you left the school zone')
+    toast.success('Auto check-out — you left the school zone')
     emit('refresh')
   } catch {}
 }

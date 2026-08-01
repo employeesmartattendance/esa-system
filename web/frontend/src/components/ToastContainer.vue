@@ -14,7 +14,7 @@
 import { ref } from 'vue'
 
 const toasts = ref([])
-const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }
+const icons = { success: '', error: '❌', warning: '⚠️', info: 'ℹ️' }
 
 function add(message, type = 'info', duration = 3500) {
   const id = Date.now()

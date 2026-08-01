@@ -5,12 +5,15 @@
  * Receives: app, models, authMiddleware, logAction, sendSuccess, sendError,
  *           calcDistance, emitToSchool, io, today, fmtTime, toId,
  *           verifyBiometricGate (optional — defaults to an always-pass no-op so
- *           this module keeps working even if it's ever called without it)
+ *           this module keeps working even if it's ever called without it),
+ *           localDateStr (optional — timezone-aware YYYY-MM-DD formatter;
+ *           defaults to UTC-based formatting if not provided)
  */
 module.exports = function registerMobileRoutes(
   app, models, authMiddleware, logAction,
   sendSuccess, sendError, calcDistance, emitToSchool, io,
-  today, fmtTime, toId, verifyBiometricGate = async () => ({ ok: true })
+  today, fmtTime, toId, verifyBiometricGate = async () => ({ ok: true }),
+  localDateStr = d => new Date(d).toISOString().slice(0, 10)
 ) {
   const { Teacher, Attendance, Settings } = models;
   const TCH = authMiddleware(['teacher']);
@@ -76,9 +79,9 @@ module.exports = function registerMobileRoutes(
 
       const checkInTime = offline_timestamp ? new Date(offline_timestamp) : new Date();
       if (Number.isNaN(checkInTime.getTime())) return sendError(res, 'Invalid offline timestamp');
-      const checkInDate = checkInTime.toISOString().slice(0, 10);
+      const checkInDate = localDateStr(checkInTime);
       const useDate     = checkInDate === td ? checkInDate : td;
-      const timeStr     = `${String(checkInTime.getHours()).padStart(2,'0')}:${String(checkInTime.getMinutes()).padStart(2,'0')}`;
+      const timeStr     = fmtTime(checkInTime);
       let status = 'present';
       if (timeStr > (s.absent_threshold || '09:00')) status = 'absent';
       else if (timeStr > (s.late_threshold || '08:00')) status = 'late';

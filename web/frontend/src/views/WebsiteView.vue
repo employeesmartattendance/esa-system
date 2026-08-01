@@ -865,7 +865,7 @@ async function submitContact() {
     const msg = e?.response?.data?.message
       || e?.response?.data?.error
       || e?.message
-      || 'Unable to submit request right now. Please verify backend URL and CORS configuration.'
+      || 'We couldn\'t send your request. Please retry in a moment.'
     formMsg.value = { type:'error', text: msg }
   } finally {
     submitting.value = false
