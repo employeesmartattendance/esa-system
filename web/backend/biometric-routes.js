@@ -72,7 +72,11 @@ module.exports = function registerBiometricRoutes(
 
       if (!result.ok) {
         await logAction('BIOMETRIC_VERIFICATION_FAILED', req.user._id, result.message, req.ip);
-        return sendError(res, result.message, 401);
+        // 422 (not 401): this is a failed face match/enrollment, not an
+        // authentication failure. The frontend's global response interceptor
+        // treats any 401 as "session expired" and force-logs-out the user —
+        // which was happening here even though their login session was fine.
+        return sendError(res, result.message, 422);
       }
 
       // On success, issue a short-lived verification token

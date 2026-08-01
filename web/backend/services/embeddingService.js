@@ -71,12 +71,12 @@ class EmbeddingService {
    *   4. If enrolled → compare embeddings using cosine similarity
    *   5. Update verification stats
    *
-   * @param {string} employeeId - Employee ID
-   * @param {string} companyId - Company ID (for data isolation)
+   * @param {string} teacherId - Teacher/employee ID
+   * @param {string} schoolId - School ID (for data isolation)
    * @param {Buffer} imageBuffer - Captured image
    * @returns {Promise<{ok: boolean, enrolled: boolean, similarity: number|null, message: string}>}
    */
-  async verifyOrEnroll(employeeId, companyId, imageBuffer) {
+  async verifyOrEnroll(teacherId, schoolId, imageBuffer) {
     // Validate image
     if (!imageBuffer || imageBuffer.length < 1000) {
       return {
@@ -106,14 +106,14 @@ class EmbeddingService {
       };
     }
 
-    const empStr = employeeId.toString();
+    const teacherIdStr = teacherId.toString();
 
     try {
       // Extract embedding from the uploaded image
       const { embedding: newEmbedding, confidence } = await insightface.extractEmbedding(imageBuffer);
 
-      // Check current enrollment status
-      const existing = await this.BiometricCredential.findOne({ employee_id: empStr })
+      // Check current enrollment status — schema's unique index is on teacher_id
+      const existing = await this.BiometricCredential.findOne({ teacher_id: teacherIdStr })
         .sort({ createdAt: -1 });
 
       // ── NOT ENROLLED → Auto-enroll ──
@@ -121,8 +121,9 @@ class EmbeddingService {
         try {
           const now = new Date();
           const enrollData = {
-            employee_id: empStr,
-            company_id: companyId,
+            teacher_id: teacherIdStr,
+            school_id: schoolId,
+            employee_id: teacherIdStr, // Denormalized for quick lookup, per schema
             embedding: Array.from(newEmbedding), // Store as array in MongoDB
             embedding_model: 'face-api-recognition-v1',
             embedding_version: 1,
@@ -221,12 +222,12 @@ class EmbeddingService {
   }
 
   /**
-   * Get set of enrolled employee IDs for a company.
+   * Get set of enrolled employee IDs for a school.
    * Used for quick lookups on employee lists.
    */
-  async getEnrolledEmployeeIds(companyId) {
+  async getEnrolledEmployeeIds(schoolId) {
     const creds = await this.BiometricCredential.find({
-      company_id: companyId,
+      school_id: schoolId,
       embedding: { $ne: null, $exists: true },
     })
       .select('employee_id')
