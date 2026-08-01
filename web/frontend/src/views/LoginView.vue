@@ -204,6 +204,18 @@
 
         </div>
         <div class="form-footer">
+          <button
+            v-if="showInstallButton"
+            type="button"
+            class="btn-install-app"
+            @click="handleInstallClick"
+          >
+            <AppIcon name="download" :size="15" color="currentColor" />
+            <span>Install App</span>
+          </button>
+          <div v-if="iosInstallHint" class="install-ios-hint">
+            Tap the Share icon in Safari, then "Add to Home Screen"
+          </div>
           <div class="footer-copy">ESA v1.0 · Secured · &copy; {{ new Date().getFullYear() }}</div>
           <a href="#" class="btn-website" @click.prevent="openWebsite">
             <span class="btn-website-icon">
@@ -219,16 +231,36 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useDark } from '../composables/useDark'
+import { usePwaInstall } from '../composables/usePwaInstall'
 import AppIcon from '../components/ui/AppIcon.vue'
 import api from '../api'
 
 const router = useRouter()
 const auth = useAuthStore()
 const { isDark, toggleDark } = useDark()
+const { isInstallable, isInstalled, isIos, promptInstall } = usePwaInstall()
+const iosInstallHint = ref(false)
+
+// Show the button for real installable browsers (Chrome/Edge/Android) once the
+// beforeinstallprompt event has fired, and also for iOS Safari (which never
+// fires that event) so those users get manual "Add to Home Screen" guidance —
+// but never once the app is already running installed/standalone.
+const showInstallButton = computed(() => !isInstalled.value && (isInstallable.value || isIos.value))
+
+async function handleInstallClick() {
+  if (isInstallable.value) {
+    await promptInstall()
+    return
+  }
+  if (isIos.value) {
+    iosInstallHint.value = true
+    setTimeout(() => { iosInstallHint.value = false }, 5000)
+  }
+}
 
 // ── Login state ──
 const form = ref({ email: '', password: '' })
@@ -482,6 +514,23 @@ onUnmounted(() => {
 .demo-hint { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); justify-content: center; }
 .demo-hint strong { color: var(--text-secondary); }
 .form-footer { margin-top: 32px; font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.btn-install-app {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 18px; border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff; font-size: 13px; font-weight: 600;
+  font-family: var(--font); border: none; cursor: pointer;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 14px rgba(37,99,235,0.25);
+  transition: transform var(--transition), box-shadow var(--transition), filter var(--transition);
+}
+.btn-install-app:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37,99,235,0.32); filter: brightness(1.03); }
+.btn-install-app:active { transform: translateY(0); }
+.install-ios-hint {
+  font-size: 11.5px; color: var(--text-muted);
+  text-align: center; max-width: 260px; line-height: 1.4;
+  margin-top: -2px;
+}
 .footer-copy { font-size: 12px; color: var(--text-muted); }
 .btn-website {
   display: inline-flex; align-items: center; gap: 7px;

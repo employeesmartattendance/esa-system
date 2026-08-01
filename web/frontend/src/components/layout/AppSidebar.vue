@@ -308,34 +308,28 @@ watch(() => props.navSections, () => { setTimeout(updateNavOverflow, 50) }, { de
 .sidebar-nav::-webkit-scrollbar { display: none; }
 
 /* Scroll-to-bottom hint — mobile only, see media query below for visibility.
-   Centered at the bottom of the nav area, floating above a soft fade so it
-   reads clearly regardless of which nav link sits behind it. */
+   Pinned to the bottom-right of the nav area, static (no floating/bounce
+   animation), a perfect circle with no shadow. */
 .nav-scroll-hint {
   display: none;
-  position: absolute; left: 50%; bottom: 6px;
-  transform: translateX(-50%);
-  width: 30px; height: 22px;
+  position: absolute; right: 10px; bottom: 6px;
+  width: 34px; height: 34px;
+  aspect-ratio: 1 / 1;
   align-items: center; justify-content: center;
   background: var(--sidebar-bg, var(--surface));
   border: 1px solid var(--surface-border);
-  border-radius: 99px;
+  border-radius: 50%;
   color: var(--primary);
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+  box-shadow: none;
   z-index: 2;
-  animation: nav-scroll-hint-bounce 1.6s ease-in-out infinite;
 }
 .nav-scroll-hint::before {
   content: '';
-  position: absolute; left: 50%; bottom: 100%;
-  transform: translateX(-50%);
+  position: absolute; right: 0; bottom: 100%;
   width: 64px; height: 26px;
   background: linear-gradient(to bottom, transparent, var(--sidebar-bg, var(--surface)) 85%);
   pointer-events: none;
-}
-@keyframes nav-scroll-hint-bounce {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50%      { transform: translateX(-50%) translateY(3px); }
 }
 .nav-group-label {
   font-size: 10px; font-weight: 700; text-transform: uppercase;

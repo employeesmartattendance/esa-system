@@ -3,6 +3,12 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import './assets/main.css'
+import { usePwaInstall } from './composables/usePwaInstall'
+
+// Registers the service worker and starts listening for the browser's
+// install-prompt event so the "Install App" button on the login page (and
+// anywhere else) can trigger a real install.
+usePwaInstall()
 
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID
 

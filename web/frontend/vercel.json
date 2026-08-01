@@ -1,6 +1,16 @@
 {
   "routes": [
     { "handle": "filesystem" },
+    {
+      "src": "/service-worker.js",
+      "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" },
+      "dest": "/service-worker.js"
+    },
+    {
+      "src": "/manifest.webmanifest",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" },
+      "dest": "/manifest.webmanifest"
+    },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
