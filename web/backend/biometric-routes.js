@@ -1,10 +1,10 @@
 /**
- * ESA Biometric Verification Routes — Server-side face recognition with InsightFace
+ * ESA Biometric Verification Routes — Server-side face recognition
  *
  * Architecture:
  *   - Browser captures image only
  *   - Sends image to backend for processing
- *   - Backend extracts embedding using InsightFace
+ *   - Backend extracts embedding using @vladmandic/face-api
  *   - Backend compares embeddings (no client-side AI)
  *   - Returns verification result with short-lived token on success
  *
@@ -50,7 +50,7 @@ module.exports = function registerBiometricRoutes(
     } catch (err) { console.error('Biometric status error:', err); return sendError(res, 'Server error', 500); }
   });
 
-  // ── 2. Enrollment + Verification (server-side InsightFace) ──
+  // ── 2. Enrollment + Verification (server-side face recognition) ──
   // Handles both first-time enrollment and subsequent verification
   app.post('/api/biometric/verify', imageUploadSingle, TCH, async (req, res) => {
     try {
@@ -63,7 +63,7 @@ module.exports = function registerBiometricRoutes(
 
       const imageBuffer = req.file.buffer;
 
-      // Process via InsightFace
+      // Process via server-side face recognition engine
       const result = await embedService.verifyOrEnroll(
         t._id.toString(),
         t.school_id.toString(),
@@ -109,7 +109,7 @@ module.exports = function registerBiometricRoutes(
     } catch (err) { console.error('Biometric reset error:', err); return sendError(res, 'Server error', 500); }
   });
 
-  console.log('✅ Biometric verification routes registered (server-side InsightFace)');
+  console.log('✅ Biometric verification routes registered (server-side face recognition)');
 
   // ── Consumed by the check-in routes in app.js and mobile-routes.js ──
   return async function verifyAndConsumeBiometricToken(teacherId, token) {

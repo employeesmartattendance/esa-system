@@ -1,5 +1,5 @@
 /**
- * Embedding Service — Orchestrates InsightFace-based biometric verification
+ * Embedding Service — Orchestrates server-side biometric verification
  *
  * Workflow:
  *   1. Check if employee is enrolled (has biometric embedding)
@@ -22,7 +22,7 @@
 
 'use strict';
 
-const insightface = require('./insightfaceEngine');
+const insightface = require('./faceRecognitionEngine');
 
 class EmbeddingService {
   /**
@@ -96,7 +96,7 @@ class EmbeddingService {
       };
     }
 
-    // Check if InsightFace is initialized
+    // Check if the face recognition engine is initialized
     if (!insightface.isInitialized()) {
       return {
         ok: false,
@@ -124,7 +124,7 @@ class EmbeddingService {
             employee_id: empStr,
             company_id: companyId,
             embedding: Array.from(newEmbedding), // Store as array in MongoDB
-            embedding_model: 'buffalo_l',
+            embedding_model: 'face-api-recognition-v1',
             embedding_version: 1,
             biometric_enabled: true,
             enrolled_at: now,

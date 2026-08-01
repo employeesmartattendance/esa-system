@@ -1324,10 +1324,10 @@ async function runAutoCheckout() {
 // implementation (not the no-op placeholder) by the time mobile check-in runs.
 try {
   const EmbeddingService = require('./services/embeddingService');
-  const insightfaceEngine = require('./services/insightfaceEngine');
+  const faceEngine = require('./services/faceRecognitionEngine');
   
-  // Initialize InsightFace engine asynchronously (non-blocking)
-  insightfaceEngine.initialize().catch(err => console.warn('⚠️  InsightFace initialization failed:', err.message));
+  // Initialize the face recognition engine asynchronously (non-blocking)
+  faceEngine.initialize().catch(err => console.warn('⚠️  Face recognition engine initialization failed:', err.message));
   
   // Create embedding service
   const embedService = new EmbeddingService({ BiometricCredential, Teacher });
@@ -1354,7 +1354,7 @@ try {
     biometricImageUpload // Pass multer instance to biometric routes
   );
   
-  console.log('✅ InsightFace biometric engine initialized');
+  console.log('✅ Face recognition biometric engine initialized');
 } catch (err) { console.warn('⚠️  Biometric routes not loaded:', err.message); }
 
 // ── MOBILE ROUTES ──
