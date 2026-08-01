@@ -31,6 +31,12 @@
         :group="vocab.secondaryGroup?.key || 'secondary'"
         @refresh="fetchTeachers"
       />
+      <ShiftsManager
+        v-else-if="section === 'shifts'"
+        key="shifts"
+        :teachers="teachers"
+        @refresh="fetchTeachers"
+      />
       <AttendanceView
         v-else-if="section === 'attendance'"
         key="attendance"
@@ -66,6 +72,7 @@ import { useRoute, useRouter } from 'vue-router'
 import DashboardLayout   from '../components/layout/DashboardLayout.vue'
 import SchoolOverview    from '../components/school/SchoolOverview.vue'
 import TeachersManager   from '../components/school/TeachersManager.vue'
+import ShiftsManager     from '../components/school/ShiftsManager.vue'
 import AttendanceView    from '../components/school/AttendanceView.vue'
 import SettingsPanel     from '../components/school/SettingsPanel.vue'
 import ReportsView      from '../components/school/ReportsView.vue'
@@ -89,20 +96,21 @@ const routeMap = {
   '/school/settings':   'settings',
   '/school/reports':    'reports',
   '/school/secondary-group': 'secondary',
+  '/school/shifts':     'shifts',
   '/school/regular-attendance': 'regular-attendance',
   '/school/absence-insights':   'absence-insights',
 }
 const section = ref(routeMap[route.path] || 'dashboard')
 
 function goSection(s) {
-  const pathMap = { dashboard:'/school/dashboard', teachers:'/school/teachers', attendance:'/school/attendance', settings:'/school/settings', reports:'/school/reports', secondary:'/school/secondary-group', 'regular-attendance':'/school/regular-attendance', 'absence-insights':'/school/absence-insights' }
+  const pathMap = { dashboard:'/school/dashboard', teachers:'/school/teachers', attendance:'/school/attendance', settings:'/school/settings', reports:'/school/reports', secondary:'/school/secondary-group', shifts:'/school/shifts', 'regular-attendance':'/school/regular-attendance', 'absence-insights':'/school/absence-insights' }
   router.push(pathMap[s] || '/school/dashboard')
 }
 
 watch(() => route.path, (p) => {
   const s = routeMap[p] || 'dashboard'
   section.value = s
-  if (s === 'teachers' || s === 'secondary') fetchTeachers()
+  if (s === 'teachers' || s === 'secondary' || s === 'shifts') fetchTeachers()
   if (s === 'attendance') fetchAttendance()
   if (s === 'dashboard')  fetchStats()
 }, { immediate: false })
@@ -124,6 +132,7 @@ const navSections = computed(() => {
   if (vocab.value.secondaryGroup) {
     managementItems.push({ to: '/school/secondary-group', label: vocab.value.secondaryGroup.labelPlural, icon: 'teachers' })
   }
+  managementItems.push({ to: '/school/shifts', label: 'Shifts', icon: 'clock' })
   managementItems.push({ to: '/school/attendance', label: 'Attendance', icon: 'attendance' })
   managementItems.push({ to: '/school/regular-attendance', label: 'Regular Attendance', icon: 'checkin' })
   return [
@@ -140,6 +149,7 @@ const pageTitles = computed(() => ({
   dashboard: 'Dashboard',
   teachers: vocab.value.personNounPlural,
   secondary: vocab.value.secondaryGroup?.labelPlural || 'Team',
+  shifts: 'Shifts',
   attendance: 'Attendance',
   settings: 'Settings',
   reports: 'Reports',
@@ -188,7 +198,7 @@ onMounted(async () => {
     fetchStats()
     fetchAttendance() // Recent list is on dashboard
     fetchTeachers()   // Live list is on dashboard
-  } else if (cur === 'teachers' || cur === 'secondary') {
+  } else if (cur === 'teachers' || cur === 'secondary' || cur === 'shifts') {
     fetchTeachers()
   } else if (cur === 'attendance' || cur === 'reports') {
     fetchAttendance()

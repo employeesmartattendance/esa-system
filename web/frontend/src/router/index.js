@@ -113,6 +113,12 @@ const routes = [
     meta: { requiresAuth: true, role: 'school_admin', title: 'Team Management | ESA', robots: 'noindex,nofollow' },
   },
   {
+    path: '/school/shifts',
+    name: 'SchoolShifts',
+    component: () => import('../views/SchoolAdminDashboard.vue'),
+    meta: { requiresAuth: true, role: 'school_admin', title: 'Shift Management | ESA', robots: 'noindex,nofollow' },
+  },
+  {
     path: '/school/regular-attendance',
     name: 'SchoolRegularAttendance',
     component: () => import('../views/SchoolAdminDashboard.vue'),

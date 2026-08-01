@@ -13,9 +13,22 @@ module.exports = function registerMobileRoutes(
   app, models, authMiddleware, logAction,
   sendSuccess, sendError, calcDistance, emitToSchool, io,
   today, fmtTime, toId, verifyBiometricGate = async () => ({ ok: true }),
-  localDateStr = d => new Date(d).toISOString().slice(0, 10)
+  localDateStr = d => new Date(d).toISOString().slice(0, 10),
+  // Merges a teacher's assigned shift over the school's global Settings —
+  // passed in from app.js so both the web and mobile check-in flows use
+  // the exact same shift-resolution logic. Falls back to a Settings-only
+  // resolver if the caller doesn't provide one (keeps this module working
+  // standalone).
+  resolveAttendanceRules = (s) => ({
+    checkin_start: s?.checkin_start || '06:00:00',
+    late_threshold: s?.late_threshold || '08:00:00',
+    absent_threshold: s?.absent_threshold || '09:00:00',
+    checkout_time: s?.checkout_time || '17:00:00',
+    auto_checkout_enabled: !!s?.auto_checkout_enabled,
+    shift_id: null, shift_name: null,
+  })
 ) {
-  const { Teacher, Attendance, Settings } = models;
+  const { Teacher, Attendance, Settings, Shift } = models;
   const TCH = authMiddleware(['teacher']);
   const parseBool = (v) => {
     if (typeof v === 'boolean') return v;
@@ -54,6 +67,8 @@ module.exports = function registerMobileRoutes(
       }
 
       const s = await Settings.findOne({ school_id: t.school_id }).lean() || {};
+      const shift = t.shift_id && Shift ? await Shift.findOne({ _id: t.shift_id, status: 'active' }).lean() : null;
+      const rules = resolveAttendanceRules(s, shift);
       if (s.biometric_enabled) {
         const gate = await verifyBiometricGate(t._id.toString(), req.body.biometric_token);
         if (!gate.ok) return sendError(res, gate.message || 'Biometric verification required', 401);
@@ -83,8 +98,8 @@ module.exports = function registerMobileRoutes(
       const useDate     = checkInDate === td ? checkInDate : td;
       const timeStr     = fmtTime(checkInTime);
       let status = 'present';
-      if (timeStr > (s.absent_threshold || '09:00')) status = 'absent';
-      else if (timeStr > (s.late_threshold || '08:00')) status = 'late';
+      if (timeStr > (rules.absent_threshold || '09:00')) status = 'absent';
+      else if (timeStr > (rules.late_threshold || '08:00')) status = 'late';
 
       const doc = await Attendance.create({
         teacher_id: t._id, school_id: t.school_id, date: useDate,
@@ -162,12 +177,14 @@ module.exports = function registerMobileRoutes(
       const t = await Teacher.findOne({ user_id: req.user._id }).populate('school_id', 'name').lean();
       if (!t) return sendError(res, 'Profile not found', 404);
       const s = await Settings.findOne({ school_id: t.school_id }).lean() || {};
+      const shift = t.shift_id && Shift ? await Shift.findOne({ _id: t.shift_id }).lean() : null;
+      const rules = resolveAttendanceRules(s, shift);
       const u = req.user;
       return sendSuccess(res, {
         user:     { id: u.id, name: u.name, email: u.email, phone: u.phone, last_login: u.last_login },
-        teacher:  { id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date },
+        teacher:  { id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, shift_id: toId(t.shift_id), shift_name: shift?.name || null },
         school:   { id: toId(t.school_id?._id || t.school_id), name: t.school_id?.name, lat: s.school_lat || null, lng: s.school_lng || null, radius: s.radius || 200 },
-        settings: { gps_enabled: s.gps_enabled, wifi_enabled: s.wifi_enabled, late_threshold: s.late_threshold || '08:00:00', absent_threshold: s.absent_threshold || '09:00:00', checkin_start: s.checkin_start || '06:00:00', checkout_time: s.checkout_time || '17:00:00', work_start: s.work_start || '07:30:00', work_end: s.work_end || '17:00:00' }
+        settings: { gps_enabled: s.gps_enabled, wifi_enabled: s.wifi_enabled, late_threshold: rules.late_threshold, absent_threshold: rules.absent_threshold, checkin_start: rules.checkin_start, checkout_time: rules.checkout_time, work_start: shift?.start_time || s.work_start || '07:30:00', work_end: shift?.end_time || s.work_end || '17:00:00' }
       });
     } catch { return sendError(res, 'Server error', 500); }
   });

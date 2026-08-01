@@ -176,8 +176,31 @@ SchoolSchema.index({ status: 1 });
 const UserSchema = new Schema({ name: { type: String, required: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true }, password: { type: String, required: true }, role: { type: String, enum: ['super_admin','school_admin','teacher'], required: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', default: null }, phone: String, avatar: String, status: { type: String, enum: ['active','inactive'], default: 'active' }, last_login: Date }, vOpts);
 UserSchema.index({ role: 1 }); UserSchema.index({ school_id: 1 });
 
-const TeacherSchema = new Schema({ user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, employee_id: String, department: String, position: String, hire_date: String, phone: String, subject: String, group: { type: String, default: 'primary' } }, vOpts);
+const TeacherSchema = new Schema({ user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true }, school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true }, employee_id: String, department: String, position: String, hire_date: String, phone: String, subject: String, group: { type: String, default: 'primary' }, shift_id: { type: Schema.Types.ObjectId, ref: 'Shift', default: null } }, vOpts);
 TeacherSchema.index({ school_id: 1 });
+TeacherSchema.index({ shift_id: 1 });
+
+// A named work shift a school/company defines (e.g. "Morning 08h-17h",
+// "Evening 17h-23h"). Employees are assigned to a shift, and their
+// check-in/check-out validation (late/absent thresholds, checkout time)
+// uses the shift's own times instead of the school's single global
+// Settings times. A teacher with no shift_id falls back to the school's
+// global Settings, so existing schools/teachers keep working unchanged.
+const ShiftSchema = new Schema({
+  school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true },
+  name: { type: String, required: true },
+  start_time: { type: String, default: '08:00:00' },
+  end_time: { type: String, default: '17:00:00' },
+  checkin_start: { type: String, default: null },
+  late_threshold: { type: String, default: null },
+  absent_threshold: { type: String, default: null },
+  checkout_time: { type: String, default: null },
+  auto_checkout_enabled: { type: Boolean, default: true },
+  days: { type: [Number], default: [1,2,3,4,5] },
+  color: { type: String, default: '#6366f1' },
+  status: { type: String, enum: ['active','inactive'], default: 'active' },
+}, vOpts);
+ShiftSchema.index({ school_id: 1 });
 
 const SettingsSchema = new Schema({ school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true, unique: true }, school_lat: { type: Number, default: 0 }, school_lng: { type: Number, default: 0 }, radius: { type: Number, default: 200 }, wifi_bssid: String, gps_enabled: { type: Boolean, default: true }, wifi_enabled: { type: Boolean, default: false }, biometric_enabled: { type: Boolean, default: false }, late_threshold: { type: String, default: '08:00:00' }, work_start: { type: String, default: '07:30:00' }, work_end: { type: String, default: '17:00:00' }, absent_threshold: { type: String, default: '09:00:00' }, checkin_start: { type: String, default: '06:00:00' }, checkout_time: { type: String, default: '17:00:00' }, auto_checkout_enabled: { type: Boolean, default: true }, notify_admin_checkout: { type: Boolean, default: true }, allowed_days: { type: [Number], default: [1,2,3,4,5] } }, vOpts);
 // school_id already indexed via unique:true in schema field definition
@@ -232,6 +255,7 @@ BiometricCredentialSchema.index({ employee_id: 1 });
 const School        = mongoose.model('School',        SchoolSchema);
 const User          = mongoose.model('User',          UserSchema);
 const Teacher       = mongoose.model('Teacher',       TeacherSchema);
+const Shift         = mongoose.model('Shift',         ShiftSchema);
 const Settings      = mongoose.model('Settings',      SettingsSchema);
 const Attendance    = mongoose.model('Attendance',    AttendanceSchema);
 const RegularAttendance = mongoose.model('RegularAttendance', RegularAttendanceSchema);
@@ -252,6 +276,34 @@ const toId   = v  => v ? v.toString() : null;
 const today  = () => toLocalDate(new Date()).toISOString().slice(0, 10);
 const fmtTime = d => { if (!d) return null; const t = toLocalDate(d); return `${String(t.getUTCHours()).padStart(2,'0')}:${String(t.getUTCMinutes()).padStart(2,'0')}`; };
 const localTimeStr = d => { const t = toLocalDate(d); return `${String(t.getUTCHours()).padStart(2,'0')}:${String(t.getUTCMinutes()).padStart(2,'0')}`; };
+// Merges a teacher's assigned shift (if any) over the school's global
+// Settings to produce the effective check-in/check-out rules to validate
+// against. Any shift field left null/unset falls back to the shift's own
+// start/end time, and finally to the school-wide Settings value — so a
+// shift only needs to define what makes it different from the default.
+function resolveAttendanceRules(settings, shift) {
+  const s = settings || {};
+  if (!shift) {
+    return {
+      checkin_start: s.checkin_start || '06:00:00',
+      late_threshold: s.late_threshold || '08:00:00',
+      absent_threshold: s.absent_threshold || '09:00:00',
+      checkout_time: s.checkout_time || '17:00:00',
+      auto_checkout_enabled: !!s.auto_checkout_enabled,
+      shift_id: null,
+      shift_name: null,
+    };
+  }
+  return {
+    checkin_start: shift.checkin_start || s.checkin_start || '06:00:00',
+    late_threshold: shift.late_threshold || shift.start_time || s.late_threshold || '08:00:00',
+    absent_threshold: shift.absent_threshold || shift.end_time || s.absent_threshold || '09:00:00',
+    checkout_time: shift.checkout_time || shift.end_time || s.checkout_time || '17:00:00',
+    auto_checkout_enabled: shift.auto_checkout_enabled !== undefined ? !!shift.auto_checkout_enabled : !!s.auto_checkout_enabled,
+    shift_id: toId(shift._id),
+    shift_name: shift.name,
+  };
+}
 const lean   = doc => { if (!doc) return null; const o = typeof doc.toObject === 'function' ? doc.toObject({ virtuals: true }) : { ...doc }; o.id = toId(o._id); if (o.school_id) o.school_id = toId(o.school_id); return o; };
 const leanA  = arr => arr.map(lean);
 
@@ -871,9 +923,13 @@ async function getTeachersForSchool(schoolId) {
   // teacher — biometricEnrolledIds is just used as a fast lookup set below.
   const enrolledCreds = await BiometricCredential.find({ school_id: schoolId }).select('teacher_id').lean();
   const biometricEnrolledIds = new Set(enrolledCreds.map(c => toId(c.teacher_id)));
+  const shiftIds = [...new Set(teachers.filter(t => t.shift_id).map(t => toId(t.shift_id)))];
+  const shifts = shiftIds.length ? await Shift.find({ _id: { $in: shiftIds } }).select('name start_time end_time color').lean() : [];
+  const shiftById = new Map(shifts.map(s => [toId(s._id), s]));
   return Promise.all(teachers.filter(t => t.user_id).sort((a,b) => (a.user_id.name||'').localeCompare(b.user_id.name||'')).map(async t => {
     const att = await Attendance.findOne({ teacher_id: t._id, date: td }).lean();
-    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, group: t.group || 'primary', id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, avatar: t.user_id.avatar || null, today_status: att?.status || null, check_in: fmtTime(att?.check_in), biometric_enrolled: biometricEnrolledIds.has(toId(t._id)) };
+    const shift = t.shift_id ? shiftById.get(toId(t.shift_id)) : null;
+    return { teacher_id: toId(t._id), employee_id: t.employee_id, department: t.department, position: t.position, hire_date: t.hire_date, subject: t.subject, group: t.group || 'primary', id: toId(t.user_id._id), name: t.user_id.name, email: t.user_id.email, status: t.user_id.status, last_login: t.user_id.last_login, created_at: t.user_id.created_at, phone: t.user_id.phone || t.phone, t_phone: t.phone, avatar: t.user_id.avatar || null, today_status: att?.status || null, check_in: fmtTime(att?.check_in), biometric_enrolled: biometricEnrolledIds.has(toId(t._id)), shift_id: toId(t.shift_id), shift_name: shift?.name || null, shift_time: shift ? `${(shift.start_time||'').substring(0,5)} - ${(shift.end_time||'').substring(0,5)}` : null, shift_color: shift?.color || null };
   }));
 }
 
@@ -901,13 +957,19 @@ app.post('/api/school/teachers/upload-avatar', SCH, teacherAvatarUpload.single('
 app.post('/api/teachers/upload-avatar', SCH, teacherAvatarUpload.single('avatar'), uploadTeacherAvatar);
 
 async function createTeacher(req, res) {
-  const { name, email, password, phone, department, position, employeeId, hireDate, subject, group, avatar } = req.body;
+  const { name, email, password, phone, department, position, employeeId, hireDate, subject, group, avatar, shiftId } = req.body;
   if (!name || !email || !password) return sendError(res, 'Name, email, and password required');
   if (await User.findOne({ email: email.toLowerCase() })) return sendError(res, 'Email already in use');
   let user;
   try {
+    let validShiftId = null;
+    if (shiftId) {
+      const shift = await Shift.findOne({ _id: shiftId, school_id: req.user.school_id }).lean();
+      if (!shift) return sendError(res, 'Selected shift not found');
+      validShiftId = shift._id;
+    }
     user = await User.create({ name, email: email.toLowerCase(), password: await bcrypt.hash(password, 12), role: 'teacher', school_id: req.user.school_id, phone: phone || null, avatar: avatar || null });
-    await Teacher.create({ user_id: user._id, school_id: req.user.school_id, employee_id: employeeId || null, department: department || null, position: position || null, hire_date: hireDate || null, subject: subject || null, group: group || 'primary' });
+    await Teacher.create({ user_id: user._id, school_id: req.user.school_id, employee_id: employeeId || null, department: department || null, position: position || null, hire_date: hireDate || null, subject: subject || null, group: group || 'primary', shift_id: validShiftId });
     await logAction('CREATE_TEACHER', req.user._id, `Created teacher: ${name}`, req.ip);
     emitToSchool(req.user.school_id, 'teacher_updated', { action: 'created', teacherName: name });
     return sendSuccess(res, { userId: toId(user._id) }, 'Teacher created successfully', 201);
@@ -924,7 +986,7 @@ app.post('/api/school/teachers', SCH, async (req, res) => { try { return await c
 app.post('/api/teachers', SCH, async (req, res) => { try { return await createTeacher(req, res); } catch (err) { return sendError(res, err.message || 'Server error', 500); } });
 
 async function updateTeacher(req, res) {
-  const { name, email, phone, department, position, employeeId, hireDate, subject, status, group, avatar } = req.body;
+  const { name, email, phone, department, position, employeeId, hireDate, subject, status, group, avatar, shiftId } = req.body;
   const t = await Teacher.findOne({ user_id: req.params.id, school_id: req.user.school_id });
   if (!t) return sendError(res, 'Teacher not found', 404);
   const userUpdate = { name, email: email?.toLowerCase(), phone: phone || null, status: status || 'active' };
@@ -932,6 +994,15 @@ async function updateTeacher(req, res) {
   await User.updateOne({ _id: req.params.id }, userUpdate);
   const teacherUpdate = { department: department || null, position: position || null, employee_id: employeeId || null, hire_date: hireDate || null, subject: subject || null };
   if (group) teacherUpdate.group = group;
+  if (shiftId !== undefined) {
+    if (!shiftId) {
+      teacherUpdate.shift_id = null;
+    } else {
+      const shift = await Shift.findOne({ _id: shiftId, school_id: req.user.school_id }).lean();
+      if (!shift) return sendError(res, 'Selected shift not found');
+      teacherUpdate.shift_id = shift._id;
+    }
+  }
   await Teacher.updateOne({ user_id: req.params.id }, teacherUpdate);
   emitToSchool(req.user.school_id, 'teacher_updated', { action: 'updated', teacherId: req.params.id });
   return sendSuccess(res, null, 'Teacher updated successfully');
@@ -964,6 +1035,98 @@ async function upsertSettings(req, res) {
 }
 app.get('/api/school/settings', SCH, getSettings); app.get('/api/settings', SCH, getSettings);
 app.put('/api/school/settings', SCH, upsertSettings); app.post('/api/settings', SCH, upsertSettings);
+
+// ── SHIFTS ──
+// Lets a school/company admin define named work shifts (e.g. "Morning
+// 08h-17h", "Evening 17h-23h") and assign employees to them. Each
+// employee's check-in/out validation then uses their assigned shift's
+// times instead of the single school-wide Settings times — see
+// resolveAttendanceRules(). A shift can't be deleted while employees are
+// still assigned to it, to avoid silently reverting them to the default
+// school-wide schedule.
+async function getShiftsForSchool(schoolId) {
+  const shifts = await Shift.find({ school_id: schoolId }).sort({ name: 1 }).lean();
+  const counts = await Teacher.aggregate([
+    { $match: { school_id: new mongoose.Types.ObjectId(schoolId), shift_id: { $ne: null } } },
+    { $group: { _id: '$shift_id', count: { $sum: 1 } } }
+  ]);
+  const countMap = new Map(counts.map(c => [toId(c._id), c.count]));
+  return shifts.map(s => ({ id: toId(s._id), school_id: toId(s.school_id), name: s.name, start_time: s.start_time, end_time: s.end_time, checkin_start: s.checkin_start, late_threshold: s.late_threshold, absent_threshold: s.absent_threshold, checkout_time: s.checkout_time, auto_checkout_enabled: s.auto_checkout_enabled, days: s.days, color: s.color, status: s.status, employee_count: countMap.get(toId(s._id)) || 0 }));
+}
+app.get('/api/school/shifts', SCH, async (req, res) => {
+  try { return sendSuccess(res, await getShiftsForSchool(req.user.school_id)); } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
+});
+app.post('/api/school/shifts', SCH, async (req, res) => {
+  try {
+    const { name, start_time, end_time, checkin_start, late_threshold, absent_threshold, checkout_time, auto_checkout_enabled, days, color } = req.body;
+    if (!name || !String(name).trim()) return sendError(res, 'Shift name is required');
+    if (!start_time || !end_time) return sendError(res, 'Shift start and end time are required');
+    const shift = await Shift.create({
+      school_id: req.user.school_id, name: String(name).trim(),
+      start_time, end_time,
+      checkin_start: checkin_start || null, late_threshold: late_threshold || null,
+      absent_threshold: absent_threshold || null, checkout_time: checkout_time || null,
+      auto_checkout_enabled: auto_checkout_enabled !== undefined ? !!auto_checkout_enabled : true,
+      days: Array.isArray(days) && days.length ? days : [1,2,3,4,5],
+      color: color || '#6366f1',
+    });
+    await logAction('CREATE_SHIFT', req.user._id, `Created shift: ${shift.name}`, req.ip);
+    emitToSchool(req.user.school_id, 'shift_updated', { action: 'created', shiftId: toId(shift._id) });
+    return sendSuccess(res, { id: toId(shift._id) }, 'Shift created successfully', 201);
+  } catch (err) { console.error(err); return sendError(res, err.message || 'Server error', 500); }
+});
+app.put('/api/school/shifts/:id', SCH, async (req, res) => {
+  try {
+    const shift = await Shift.findOne({ _id: req.params.id, school_id: req.user.school_id });
+    if (!shift) return sendError(res, 'Shift not found', 404);
+    const { name, start_time, end_time, checkin_start, late_threshold, absent_threshold, checkout_time, auto_checkout_enabled, days, color, status } = req.body;
+    if (name !== undefined) { if (!String(name).trim()) return sendError(res, 'Shift name is required'); shift.name = String(name).trim(); }
+    if (start_time !== undefined) shift.start_time = start_time;
+    if (end_time !== undefined) shift.end_time = end_time;
+    if (checkin_start !== undefined) shift.checkin_start = checkin_start || null;
+    if (late_threshold !== undefined) shift.late_threshold = late_threshold || null;
+    if (absent_threshold !== undefined) shift.absent_threshold = absent_threshold || null;
+    if (checkout_time !== undefined) shift.checkout_time = checkout_time || null;
+    if (auto_checkout_enabled !== undefined) shift.auto_checkout_enabled = !!auto_checkout_enabled;
+    if (Array.isArray(days) && days.length) shift.days = days;
+    if (color !== undefined) shift.color = color || '#6366f1';
+    if (status !== undefined && ['active','inactive'].includes(status)) shift.status = status;
+    await shift.save();
+    await logAction('UPDATE_SHIFT', req.user._id, `Updated shift: ${shift.name}`, req.ip);
+    emitToSchool(req.user.school_id, 'shift_updated', { action: 'updated', shiftId: toId(shift._id) });
+    return sendSuccess(res, null, 'Shift updated successfully');
+  } catch (err) { console.error(err); return sendError(res, err.message || 'Server error', 500); }
+});
+app.delete('/api/school/shifts/:id', SCH, async (req, res) => {
+  try {
+    const shift = await Shift.findOne({ _id: req.params.id, school_id: req.user.school_id });
+    if (!shift) return sendError(res, 'Shift not found', 404);
+    const assignedCount = await Teacher.countDocuments({ shift_id: shift._id });
+    if (assignedCount > 0) return sendError(res, `Cannot delete — ${assignedCount} ${assignedCount === 1 ? 'employee is' : 'employees are'} still assigned to this shift. Reassign them first.`);
+    await Shift.deleteOne({ _id: shift._id });
+    await logAction('DELETE_SHIFT', req.user._id, `Deleted shift: ${shift.name}`, req.ip);
+    emitToSchool(req.user.school_id, 'shift_updated', { action: 'deleted', shiftId: toId(shift._id) });
+    return sendSuccess(res, null, 'Shift deleted successfully');
+  } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
+});
+// Bulk-assign a shift (or clear it) across multiple employees at once —
+// used by the "assign employees to this shift" flow in the admin UI.
+app.post('/api/school/shifts/:id/assign', SCH, async (req, res) => {
+  try {
+    const { teacherIds } = req.body;
+    if (!Array.isArray(teacherIds) || !teacherIds.length) return sendError(res, 'teacherIds array required');
+    let shiftId = null;
+    if (req.params.id !== 'none') {
+      const shift = await Shift.findOne({ _id: req.params.id, school_id: req.user.school_id }).lean();
+      if (!shift) return sendError(res, 'Shift not found', 404);
+      shiftId = shift._id;
+    }
+    const result = await Teacher.updateMany({ _id: { $in: teacherIds }, school_id: req.user.school_id }, { shift_id: shiftId });
+    await logAction('ASSIGN_SHIFT', req.user._id, `Assigned ${result.modifiedCount} employee(s) to shift ${shiftId || '(none)'}`, req.ip);
+    emitToSchool(req.user.school_id, 'teacher_updated', { action: 'shift_assigned' });
+    return sendSuccess(res, { count: result.modifiedCount }, 'Employees updated successfully');
+  } catch (err) { console.error(err); return sendError(res, 'Server error', 500); }
+});
 
 // ── SCHOOL ATTENDANCE ──
 async function getAttendance(req, res) {
@@ -1078,6 +1241,8 @@ app.post('/api/attendance/checkin', TCH, async (req, res) => {
     const td = today();
     if (await Attendance.findOne({ teacher_id: t._id, date: td })) return sendError(res, 'Already checked in today');
     const s = await Settings.findOne({ school_id: t.school_id }).lean() || {};
+    const shift = t.shift_id ? await Shift.findOne({ _id: t.shift_id, status: 'active' }).lean() : null;
+    const rules = resolveAttendanceRules(s, shift);
     if (s.biometric_enabled) {
       const gate = await verifyBiometricGate(t._id.toString(), req.body.biometric_token);
       if (!gate.ok) return sendError(res, gate.message || 'Biometric verification required', 401);
@@ -1104,8 +1269,8 @@ app.post('/api/attendance/checkin', TCH, async (req, res) => {
     if (Number.isNaN(now.getTime())) return sendError(res, 'Invalid offline timestamp');
     const timeStr = localTimeStr(now);
     let status = 'present';
-    if (timeStr > (s.absent_threshold || '09:00')) status = 'absent';
-    else if (timeStr > (s.late_threshold || '08:00')) status = 'late';
+    if (timeStr > (rules.absent_threshold || '09:00')) status = 'absent';
+    else if (timeStr > (rules.late_threshold || '08:00')) status = 'late';
     await Attendance.create({
       teacher_id: t._id,
       school_id: t.school_id,
@@ -1538,19 +1703,29 @@ async function runAutoCheckout() {
     const currentTime = localTimeStr(now);
     const schools = await School.find({ status: 'active' }).lean();
     for (const school of schools) {
-      const cfg = await Settings.findOne({ school_id: school._id, auto_checkout_enabled: true }).lean();
+      const cfg = await Settings.findOne({ school_id: school._id }).lean();
       if (!cfg) continue;
-      const checkoutTime = (cfg.checkout_time || '17:00:00').substring(0, 5);
-      if (currentTime !== checkoutTime) continue;
-      const tids = (await Teacher.find({ school_id: school._id }).select('_id user_id').populate('user_id','name').lean());
-      const unchecked = await Attendance.find({ teacher_id: { $in: tids.map(t=>t._id) }, date: today(), check_in: { $ne: null }, check_out: null }).lean();
+      const teachers = await Teacher.find({ school_id: school._id }).select('_id user_id shift_id').populate('user_id', 'name').lean();
+      if (!teachers.length) continue;
+      const shiftIds = [...new Set(teachers.filter(t => t.shift_id).map(t => toId(t.shift_id)))];
+      const shifts = shiftIds.length ? await Shift.find({ _id: { $in: shiftIds } }).lean() : [];
+      const shiftById = new Map(shifts.map(sh => [toId(sh._id), sh]));
+      const unchecked = await Attendance.find({ teacher_id: { $in: teachers.map(t => t._id) }, date: today(), check_in: { $ne: null }, check_out: null }).lean();
+      if (!unchecked.length) continue;
+      let checkedOutCount = 0;
       for (const rec of unchecked) {
-        const t = tids.find(x => toId(x._id) === toId(rec.teacher_id));
-        await Attendance.updateOne({ _id: rec._id }, { check_out: now, notes: (rec.notes || '') + ` [Auto checkout at ${checkoutTime}]` });
-        await logAction('AUTO_CHECKOUT', null, `Auto checkout: ${t?.user_id?.name} at ${checkoutTime}`, 'system');
+        const t = teachers.find(x => toId(x._id) === toId(rec.teacher_id));
+        const shift = t?.shift_id ? shiftById.get(toId(t.shift_id)) : null;
+        const rules = resolveAttendanceRules(cfg, shift);
+        if (!rules.auto_checkout_enabled) continue;
+        const checkoutTime = (rules.checkout_time || '17:00:00').substring(0, 5);
+        if (currentTime !== checkoutTime) continue;
+        await Attendance.updateOne({ _id: rec._id }, { check_out: now, notes: (rec.notes || '') + ` [Auto checkout at ${checkoutTime}${shift ? ` — ${shift.name} shift` : ''}]` });
+        await logAction('AUTO_CHECKOUT', null, `Auto checkout: ${t?.user_id?.name} at ${checkoutTime}${shift ? ` (${shift.name})` : ''}`, 'system');
+        checkedOutCount++;
       }
-      if (unchecked.length && cfg.notify_admin_checkout) emitToSchool(toId(school._id), 'auto_checkout_complete', { count: unchecked.length });
-      if (unchecked.length) console.log(`✅ Auto-checkout: ${unchecked.length} teacher(s) at ${school.name}`);
+      if (checkedOutCount && cfg.notify_admin_checkout) emitToSchool(toId(school._id), 'auto_checkout_complete', { count: checkedOutCount });
+      if (checkedOutCount) console.log(`✅ Auto-checkout: ${checkedOutCount} teacher(s) at ${school.name}`);
     }
   } catch (err) { console.error('Auto-checkout error:', err.message); }
 }
@@ -1596,7 +1771,7 @@ try {
 // ── MOBILE ROUTES ──
 try {
   const registerMobileRoutes = require('./mobile-routes');
-  registerMobileRoutes(app, { Teacher, Attendance, Settings, School, User, Log }, authMiddleware, logAction, sendSuccess, sendError, calcDistance, emitToSchool, io, today, fmtTime, toId, verifyBiometricGate, d => toLocalDate(d).toISOString().slice(0, 10));
+  registerMobileRoutes(app, { Teacher, Attendance, Settings, School, User, Log, Shift }, authMiddleware, logAction, sendSuccess, sendError, calcDistance, emitToSchool, io, today, fmtTime, toId, verifyBiometricGate, d => toLocalDate(d).toISOString().slice(0, 10), resolveAttendanceRules);
 } catch (err) { console.warn('⚠️  Mobile routes not loaded:', err.message); }
 
 // ── 404 & ERROR HANDLERS ──

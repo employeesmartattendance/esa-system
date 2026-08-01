@@ -33,6 +33,13 @@
         <template #cell-subject="{ row }">
           <span class="text-sm">{{ row.subject || '—' }}</span>
         </template>
+        <template #cell-shift="{ row }">
+          <span v-if="row.shift_name" class="shift-tag">
+            <span class="shift-tag-dot" :style="{ background: row.shift_color || '#6366f1' }"></span>
+            {{ row.shift_name }}<span class="shift-tag-time" v-if="row.shift_time"> · {{ row.shift_time }}</span>
+          </span>
+          <span v-else class="text-muted text-sm">—</span>
+        </template>
         <template #cell-status="{ row }">
           <AppBadge :variant="row.status === 'active' ? 'active' : 'inactive'" :label="row.status || 'active'" dot />
         </template>
@@ -63,6 +70,7 @@
         <div class="vd-row"><span class="vd-label">Email</span><span class="vd-val">{{ viewTarget.email }}</span></div>
         <div class="vd-row"><span class="vd-label">Phone</span><span class="vd-val">{{ viewTarget.phone || '—' }}</span></div>
         <div class="vd-row"><span class="vd-label">{{ vocab.subjectFieldLabel }}</span><span class="vd-val">{{ viewTarget.subject || '—' }}</span></div>
+        <div class="vd-row"><span class="vd-label">Shift</span><span class="vd-val">{{ viewTarget.shift_name ? `${viewTarget.shift_name} (${viewTarget.shift_time})` : 'No shift assigned' }}</span></div>
         <div class="vd-row"><span class="vd-label">Today</span><span class="vd-val"><AppBadge :variant="viewTarget.today_status||'absent'" :label="viewTarget.today_status||'absent'" dot /></span></div>
         <div class="vd-row"><span class="vd-label">Biometric</span><span class="vd-val"><AppBadge :variant="viewTarget.biometric_enrolled ? 'active' : 'inactive'" :label="viewTarget.biometric_enrolled ? 'Enrolled' : 'Not set up'" dot /></span></div>
         <div class="vd-row"><span class="vd-label">Status</span><span class="vd-val"><AppBadge :variant="viewTarget.status==='active'?'active':'inactive'" :label="viewTarget.status||'active'" dot /></span></div>
@@ -112,6 +120,13 @@
             <input v-model="form.subject" class="form-input" :placeholder="vocab.subjectFieldPlaceholder" />
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">Shift</label>
+          <select v-model="form.shiftId" class="form-input">
+            <option value="">No shift (use school default hours)</option>
+            <option v-for="s in shifts" :key="s.id" :value="s.id">{{ s.name }} ({{ fmtShiftTime(s.start_time) }} - {{ fmtShiftTime(s.end_time) }})</option>
+          </select>
+        </div>
         <div class="form-group" v-if="!editing">
           <label class="form-label">Password *</label>
           <input v-model="form.password" type="password" class="form-input" placeholder="Minimum 8 characters" required minlength="8" />
@@ -144,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import DataTable from '../ui/DataTable.vue'
 import AppModal from '../ui/AppModal.vue'
 import AppBadge from '../ui/AppBadge.vue'
@@ -201,7 +216,18 @@ const viewTarget = ref(null)
 const editing = ref(false)
 const saving = ref(false)
 const deleteTarget = ref(null)
-const form = ref({ name: '', email: '', phone: '', subject: '', password: '', group: 'primary', avatar: '' })
+const form = ref({ name: '', email: '', phone: '', subject: '', password: '', group: 'primary', avatar: '', shiftId: '' })
+
+// ── Shifts (for the shift picker in the create/edit form) ─────────────
+const shifts = ref([])
+async function fetchShifts() {
+  try {
+    const r = await api.get('/school/shifts')
+    shifts.value = Array.isArray(r) ? r : []
+  } catch (e) { console.error('fetchShifts', e) }
+}
+function fmtShiftTime(t) { return t ? String(t).substring(0, 5) : '' }
+onMounted(fetchShifts)
 
 // ── Photo upload ─────────────────────────────────────────────────────
 const avatarFileInput = ref(null)
@@ -287,8 +313,8 @@ async function resetBiometric(row) {
   }
 }
 
-function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '', group: props.group, avatar: '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
-function openEdit(row) { editing.value = true; form.value = { ...row, password: '', avatar: row.avatar || '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
+function openCreate() { editing.value = false; form.value = { name: '', email: '', phone: '', subject: '', password: '', group: props.group, avatar: '', shiftId: '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
+function openEdit(row) { editing.value = true; form.value = { ...row, password: '', avatar: row.avatar || '', shiftId: row.shift_id || '' }; localAvatarPreview.value = ''; avatarError.value = ''; showModal.value = true }
 function confirmDelete(row) { deleteTarget.value = row; showDeleteModal.value = true }
 
 async function save() {
@@ -337,6 +363,9 @@ async function doDelete() {
 .text-muted { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: normal; word-break: break-word; }
 .text-xs { font-size: 11px; }
 .text-sm { font-size: 13px; }
+.shift-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.shift-tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.shift-tag-time { color: var(--text-muted); font-weight: 500; }
 .row-actions { display: flex; gap: 6px; }
 .icon-btn { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--surface-border); background: var(--surface); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); flex-shrink: 0; }
 .icon-btn:hover { border-color: var(--primary); color: var(--primary); }
