@@ -64,7 +64,12 @@
                 <AppIcon name="alert-triangle" :size="22" color="var(--danger)" />
                 <span>Camera access isn't available on this device or browser.</span>
               </div>
-              <div v-else-if="stage === 'capturing'" class="fcm-overlay-msg fcm-overlay-scanning">
+              <!-- Verifying/capturing: same full-circle moving-light treatment as the
+                   blue "ready" scan (inset 10%, spans the whole main circle) instead
+                   of the previous separate smaller green ring — only the sweeping
+                   light + corner brackets remain, colored green, with no extra
+                   circle drawn on top of the main guide. -->
+              <template v-if="stage === 'capturing'">
                 <div class="fcm-scan-anim fcm-scan-anim-fast fcm-scan-anim-green" aria-hidden="true">
                   <span class="fcm-scan-band"></span>
                   <span class="fcm-scan-line"></span>
@@ -75,9 +80,12 @@
                     <path d="M24,94 H12 A4,4 0 0 1 8,90 V78" class="fcm-corner" />
                   </svg>
                 </div>
-                <span class="fcm-scanning-text">{{ mode === 'enroll' ? 'Capturing your face…' : 'Verifying…' }}</span>
-              </div>
-              <div v-else-if="stage === 'no-face'" class="fcm-overlay-msg fcm-overlay-warn">
+                <div class="fcm-live-hint fcm-live-hint-detected">
+                  <span class="fcm-btn-spinner"></span>
+                  <span>{{ mode === 'enroll' ? 'Capturing your face…' : 'Verifying…' }}</span>
+                </div>
+              </template>
+              <div v-if="stage === 'no-face'" class="fcm-overlay-msg fcm-overlay-warn">
                 <AppIcon name="alert-triangle" :size="20" color="var(--warning)" />
                 <span>No face detected — make sure your face is inside the circle, in good lighting, and try again.</span>
               </div>
@@ -219,7 +227,27 @@ async function capture() {
 
     if (token) {
       stage.value = 'success'
-      setTimeout(() => { emit('success', token); close() }, 700)
+      setTimeout(() => {
+        // Emitting 'success' can synchronously trigger the parent to chain
+        // straight into a second capture (e.g. enroll succeeded -> parent
+        // immediately reopens this same modal in 'verify' mode to finish
+        // checking in). In that case modelValue is already true again by
+        // the time this callback resumes, and unconditionally closing here
+        // would tear down the just-restarted camera/modal instead of
+        // handing off to the follow-up step — which is what produced a
+        // stuck/disabled Verify button after enrollment. Only close if the
+        // parent didn't ask us to stay open for a follow-up capture.
+        emit('success', token)
+        if (props.modelValue) {
+          // Parent kept the modal open for a chained capture — restart the
+          // camera pipeline fresh (stage/canCapture) instead of leaving it
+          // parked on the old 'success' stage, since modelValue didn't
+          // change and the normal open-watcher won't fire again.
+          startCamera()
+        } else {
+          close()
+        }
+      }, 700)
     } else if (biometric.error.value.includes('already set up')) {
       // Already enrolled server-side
       mismatchMsg.value = biometric.error.value || 'Biometric verification is already set up on this account.'
@@ -354,7 +382,7 @@ onBeforeUnmount(stopCamera)
   transition: border-color 0.25s ease;
 }
 .fcm-guide-ready { border-color: var(--primary); }
-.fcm-guide-capturing { border-color: var(--warning); }
+.fcm-guide-capturing { border-color: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,0.25); }
 
 /* Live guide states — driven by continuous on-device face detection while
    the user positions themselves, so the ring itself signals when to shoot. */
