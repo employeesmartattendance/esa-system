@@ -298,7 +298,14 @@ function accuracyColor(accuracy) {
 
 function upsertAccuracyCircle(lat, lng, accuracy) {
   if (!map || !mapReady.value) return
-  const circle = makeCircle(lng, lat, accuracy)
+  // The raw GPS accuracy value (meters) can be very large indoors or with a
+  // weak signal (hundreds of meters), which previously made this circle
+  // balloon far past the employee marker itself. Cap the *visual* radius
+  // to a small range close to the marker so it always reads as "a ring
+  // around the marker" rather than a huge shape dominating the map — the
+  // color still reflects the real accuracy/reliability of the fix.
+  const visualRadius = Math.min(Math.max(accuracy, 6), 20)
+  const circle = makeCircle(lng, lat, visualRadius)
   const color = accuracyColor(accuracy)
 
   if (map.getSource('gps-accuracy')) {

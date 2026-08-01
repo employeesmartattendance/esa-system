@@ -193,8 +193,8 @@ api.interceptors.response.use(
     // Offline or network error → try SQLite
     if (isOffline) {
       const offlineMsg = isLoginRequest
-        ? 'We couldn\'t sign you in. Please check your connection and retry.'
-        : 'We\'re having trouble connecting. Please check your connection and retry.'
+        ? 'We couldn\'t sign you in right now. Please check your internet connection and try again.'
+        : 'We\'re having trouble connecting right now. Please check your internet connection and try again.'
       dispatchApiError(offlineMsg)
       const fallback = await _offlineFallback(config?.url, method)
       if (fallback !== null) return fallback

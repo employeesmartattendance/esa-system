@@ -865,7 +865,7 @@ async function submitContact() {
     const msg = e?.response?.data?.message
       || e?.response?.data?.error
       || e?.message
-      || 'We couldn\'t send your request. Please retry in a moment.'
+      || 'We couldn\'t send your request right now. Please try again in a moment.'
     formMsg.value = { type:'error', text: msg }
   } finally {
     submitting.value = false
