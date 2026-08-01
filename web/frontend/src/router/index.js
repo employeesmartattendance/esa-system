@@ -112,6 +112,18 @@ const routes = [
     component: () => import('../views/SchoolAdminDashboard.vue'),
     meta: { requiresAuth: true, role: 'school_admin', title: 'Team Management | ESA', robots: 'noindex,nofollow' },
   },
+  {
+    path: '/school/regular-attendance',
+    name: 'SchoolRegularAttendance',
+    component: () => import('../views/SchoolAdminDashboard.vue'),
+    meta: { requiresAuth: true, role: 'school_admin', title: 'Regular Attendance | ESA', robots: 'noindex,nofollow' },
+  },
+  {
+    path: '/school/absence-insights',
+    name: 'SchoolAbsenceInsights',
+    component: () => import('../views/SchoolAdminDashboard.vue'),
+    meta: { requiresAuth: true, role: 'school_admin', title: 'Absence Insights | ESA', robots: 'noindex,nofollow' },
+  },
 
   // ── Teacher ──────────────────────────────────────────────────────────────
   {

@@ -48,6 +48,14 @@
         v-else-if="section === 'reports'"
         key="reports"
       />
+      <RegularAttendance
+        v-else-if="section === 'regular-attendance'"
+        key="regular-attendance"
+      />
+      <AbsenceInsights
+        v-else-if="section === 'absence-insights'"
+        key="absence-insights"
+      />
     </Transition>
   </DashboardLayout>
 </template>
@@ -61,6 +69,8 @@ import TeachersManager   from '../components/school/TeachersManager.vue'
 import AttendanceView    from '../components/school/AttendanceView.vue'
 import SettingsPanel     from '../components/school/SettingsPanel.vue'
 import ReportsView      from '../components/school/ReportsView.vue'
+import RegularAttendance from '../components/school/RegularAttendance.vue'
+import AbsenceInsights   from '../components/school/AbsenceInsights.vue'
 import { useAuthStore }  from '../stores/auth'
 import { getSocket }     from '../socket'
 import { useIndustry }   from '../composables/useIndustry'
@@ -79,11 +89,13 @@ const routeMap = {
   '/school/settings':   'settings',
   '/school/reports':    'reports',
   '/school/secondary-group': 'secondary',
+  '/school/regular-attendance': 'regular-attendance',
+  '/school/absence-insights':   'absence-insights',
 }
 const section = ref(routeMap[route.path] || 'dashboard')
 
 function goSection(s) {
-  const pathMap = { dashboard:'/school/dashboard', teachers:'/school/teachers', attendance:'/school/attendance', settings:'/school/settings', reports:'/school/reports', secondary:'/school/secondary-group' }
+  const pathMap = { dashboard:'/school/dashboard', teachers:'/school/teachers', attendance:'/school/attendance', settings:'/school/settings', reports:'/school/reports', secondary:'/school/secondary-group', 'regular-attendance':'/school/regular-attendance', 'absence-insights':'/school/absence-insights' }
   router.push(pathMap[s] || '/school/dashboard')
 }
 
@@ -113,11 +125,15 @@ const navSections = computed(() => {
     managementItems.push({ to: '/school/secondary-group', label: vocab.value.secondaryGroup.labelPlural, icon: 'teachers' })
   }
   managementItems.push({ to: '/school/attendance', label: 'Attendance', icon: 'attendance' })
+  managementItems.push({ to: '/school/regular-attendance', label: 'Regular Attendance', icon: 'checkin' })
   return [
     { group: 'Overview',   items: [{ to: '/school/dashboard',  label: 'Dashboard',  icon: 'dashboard'  }] },
     { group: 'Management', items: managementItems },
     { group: 'Configure',  items: [{ to: '/school/settings',   label: 'Settings',   icon: 'settings'   }] },
-    { group: 'Reports',    items: [{ to: '/school/reports',    label: 'Reports',    icon: 'analytics'  }] },
+    { group: 'Reports',    items: [
+      { to: '/school/reports',          label: 'Reports',          icon: 'analytics' },
+      { to: '/school/absence-insights', label: 'Absence Insights', icon: 'bar-chart' },
+    ] },
   ]
 })
 const pageTitles = computed(() => ({
@@ -127,6 +143,8 @@ const pageTitles = computed(() => ({
   attendance: 'Attendance',
   settings: 'Settings',
   reports: 'Reports',
+  'regular-attendance': 'Regular Attendance',
+  'absence-insights': 'Absence Insights',
 }))
 const currentPageTitle = computed(() => pageTitles.value[section.value] || 'Dashboard')
 

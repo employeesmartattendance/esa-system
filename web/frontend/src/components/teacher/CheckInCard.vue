@@ -165,6 +165,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import { useBiometric } from '../../composables/useBiometric'
 import { getAccurateLocation, watchAccurateLocation, clearLocationWatch } from '../../composables/useAccurateLocation'
+import { usePushNotifications } from '../../composables/usePushNotifications'
 import api from '../../api'
 
 const props  = defineProps({
@@ -217,6 +218,13 @@ const schoolSettings   = ref(null)
 const wasInsideZone    = ref(null)  // null = unknown, true = inside, false = outside
 let   autoWatchId      = null
 let   autoCheckoutTime = null
+
+// ── Push notifications (proximity + attendance-time reminder) ──
+// Best-effort courtesy layer on top of the existing GPS watch/settings —
+// never blocks or alters the core check-in/out flow, and silently no-ops
+// wherever Notification permission isn't granted.
+const push = usePushNotifications()
+let   attendanceReminderInterval = null
 
 /* ── Computed ── */
 const greeting = computed(() => {
@@ -384,10 +392,29 @@ function startAutoWatch() {
     pos => onAutoGPS({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.accuracy } }),
     err => console.warn('Auto GPS:', err.message)
   )
+  startAttendanceReminderPolling()
 }
 function stopAutoWatch() {
   if (autoWatchId !== null) { clearLocationWatch(autoWatchId); autoWatchId = null }
   if (autoCheckoutTime) { clearTimeout(autoCheckoutTime); autoCheckoutTime = null }
+  stopAttendanceReminderPolling()
+}
+
+/* ── Attendance-time reminder polling ──
+   Checks once a minute whether we're inside the pre-attendance reminder
+   window (20 minutes before the configured late-cutoff), independent of
+   GPS — this can fire even indoors/off-zone as a schedule nudge. */
+function startAttendanceReminderPolling() {
+  if (attendanceReminderInterval) return
+  const tick = () => {
+    const lateThreshold = schoolSettings.value?.late_threshold
+    push.checkAttendanceReminder(lateThreshold, { alreadyCheckedIn: !!props.todayRecord?.check_in })
+  }
+  tick()
+  attendanceReminderInterval = setInterval(tick, 60000)
+}
+function stopAttendanceReminderPolling() {
+  if (attendanceReminderInterval) { clearInterval(attendanceReminderInterval); attendanceReminderInterval = null }
 }
 
 async function onAutoGPS(pos) {
@@ -411,6 +438,9 @@ async function onAutoGPS(pos) {
   const dist = calcDist(lat, lng, parseFloat(s.school_lat), parseFloat(s.school_lng))
   const radius = parseInt(s.radius) || 200
   const inside = dist <= radius
+
+  // ── Proximity push notification: heads-up once within 50m of the workplace ──
+  push.checkProximity(dist, { alreadyCheckedIn: !!props.todayRecord?.check_in })
 
   // ── Auto Check-in: first time entering zone with no check-in today ──
   if (inside && !wasInsideZone.value && !props.todayRecord?.check_in) {
@@ -534,6 +564,10 @@ onMounted(async () => {
     await loadSchoolSettings()
     loadBiometricStatus()
     startAutoWatch()
+    // Best-effort — browsers require a user gesture in some contexts, and
+    // this silently no-ops if permission is already granted/denied or the
+    // API isn't supported, so it never interrupts the check-in flow.
+    push.requestPermission()
   }
 })
 onUnmounted(() => {

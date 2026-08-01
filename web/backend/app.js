@@ -1131,6 +1131,188 @@ app.post('/api/attendance/checkout', TCH, async (req, res) => {
   } catch { return sendError(res, 'Server error', 500); }
 });
 
+// ── REGULAR ATTENDANCE (silent admin-triggered attendance) ──
+// Lets a school admin instantly record attendance for whoever is currently
+// inside an allowed zone (the company's configured location, or the admin's
+// own current location when out in the field) without the employee ever
+// being notified. This intentionally never calls emitToSchool(...
+// 'attendance_marked' ...) — that room is shared with employees, who would
+// otherwise see the exact same real-time toast/update they get from their
+// own check-in. Only the requesting admin's own socket room is notified.
+//
+// 1. Scan which employees currently have a live GPS location on file
+//    (from /api/teacher/location, populated by the mobile/web GPS watch)
+//    that falls within the given radius of the given center point.
+app.post('/api/school/regular-attendance/scan', SCH, async (req, res) => {
+  try {
+    const { lat, lng, radius } = req.body;
+    const centerLat = parseFloat(lat), centerLng = parseFloat(lng);
+    const rad = parseInt(radius) || 200;
+    if (!hasFiniteCoordinates(centerLat, centerLng)) return sendError(res, 'A valid center location is required');
+
+    const td = today();
+    const teachers = await Teacher.find({ school_id: req.user.school_id }).populate({ path: 'user_id', select: 'name email avatar status', match: { status: 'active' } }).lean();
+    const activeTeachers = teachers.filter(t => t.user_id);
+    const existingAttendance = await Attendance.find({ teacher_id: { $in: activeTeachers.map(t => t._id) }, date: td }).lean();
+    const attMap = new Map(existingAttendance.map(a => [toId(a.teacher_id), a]));
+
+    const results = activeTeachers.map(t => {
+      const loc = teacherLocations.get(toId(t._id));
+      const already = attMap.get(toId(t._id)) || null;
+      let distance = null, inZone = false;
+      if (loc && hasFiniteCoordinates(loc.lat, loc.lng)) {
+        distance = Math.round(calcDistance(centerLat, centerLng, loc.lat, loc.lng));
+        inZone = distance <= rad;
+      }
+      return {
+        teacher_id: toId(t._id),
+        name: t.user_id?.name,
+        email: t.user_id?.email,
+        avatar: t.user_id?.avatar || null,
+        employee_id: t.employee_id || null,
+        department: t.department || null,
+        position: t.position || null,
+        has_location: !!loc,
+        distance,
+        in_zone: inZone,
+        location_updated_at: loc?.updatedAt || null,
+        already_marked: !!already,
+        already_status: already?.status || null,
+        already_check_in: fmtTime(already?.check_in),
+      };
+    });
+
+    // In-zone first, then by distance, then unlocated employees last
+    results.sort((a, b) => {
+      if (a.in_zone !== b.in_zone) return a.in_zone ? -1 : 1;
+      if (a.distance == null && b.distance == null) return (a.name||'').localeCompare(b.name||'');
+      if (a.distance == null) return 1;
+      if (b.distance == null) return -1;
+      return a.distance - b.distance;
+    });
+
+    return sendSuccess(res, { center: { lat: centerLat, lng: centerLng }, radius: rad, employees: results });
+  } catch (err) { console.error('Regular attendance scan error:', err); return sendError(res, 'Server error', 500); }
+});
+
+// 2. Mark attendance for one or more selected employees, silently — no
+//    school-room broadcast, no toast/notification reaches the employee.
+//    Only the admin who triggered it gets a private confirmation.
+app.post('/api/school/regular-attendance/mark', SCH, async (req, res) => {
+  try {
+    const { teacher_ids, lat, lng, status } = req.body;
+    if (!Array.isArray(teacher_ids) || !teacher_ids.length) return sendError(res, 'teacher_ids array required');
+    const validStatuses = ['present', 'late', 'absent'];
+    const useStatus = validStatuses.includes(status) ? status : 'present';
+    const centerLat = parseFloat(lat), centerLng = parseFloat(lng);
+    const hasCoords = hasFiniteCoordinates(centerLat, centerLng);
+
+    const td = today();
+    const teachers = await Teacher.find({ _id: { $in: teacher_ids }, school_id: req.user.school_id }).populate('user_id', 'name').lean();
+    if (!teachers.length) return sendError(res, 'No matching employees found', 404);
+
+    const marked = [], skipped = [];
+    for (const t of teachers) {
+      const existing = await Attendance.findOne({ teacher_id: t._id, date: td }).lean();
+      if (existing) { skipped.push({ teacher_id: toId(t._id), name: t.user_id?.name, reason: 'Already has an attendance record today' }); continue; }
+      const now = new Date();
+      await Attendance.create({
+        teacher_id: t._id,
+        school_id: t.school_id,
+        date: td,
+        check_in: now,
+        status: useStatus,
+        gps_valid: true,
+        wifi_valid: false,
+        check_in_lat: hasCoords ? centerLat : null,
+        check_in_lng: hasCoords ? centerLng : null,
+        notes: '[Regular attendance — recorded by admin]',
+      });
+      marked.push({ teacher_id: toId(t._id), name: t.user_id?.name });
+    }
+
+    if (marked.length) {
+      await logAction('REGULAR_ATTENDANCE', req.user._id, `Regular attendance recorded for ${marked.length} employee(s): ${marked.map(m => m.name).join(', ')}`, req.ip);
+      // Private confirmation to the admin only — never broadcast to the
+      // school room, which employees also listen on.
+      io.to(`user_${req.user.id}`).emit('regular_attendance_marked', { count: marked.length, marked });
+    }
+
+    return sendSuccess(res, { marked, skipped }, `${marked.length} employee(s) marked${skipped.length ? `, ${skipped.length} skipped` : ''}`);
+  } catch (err) { console.error('Regular attendance mark error:', err); return sendError(res, 'Server error', 500); }
+});
+
+// ── ABSENCE INSIGHTS (most absent / most late employees) ──
+app.get('/api/school/absence-insights', SCH, async (req, res) => {
+  try {
+    const sid = req.user.school_id;
+    const { start_date, end_date } = req.query;
+    const end = end_date || today();
+    // Default lookback window: 90 days, matching other reports' horizon.
+    const start = start_date || (() => { const d = toLocalDate(new Date()); d.setUTCDate(d.getUTCDate() - 90); return d.toISOString().slice(0, 10); })();
+
+    const teachers = await Teacher.find({ school_id: sid }).populate({ path: 'user_id', select: 'name email avatar status createdAt', match: { status: 'active' } }).lean();
+    const activeTeachers = teachers.filter(t => t.user_id);
+    const tids = activeTeachers.map(t => t._id);
+
+    const records = await Attendance.find({ teacher_id: { $in: tids }, date: { $gte: start, $lte: end } }).lean();
+    const byTeacher = new Map();
+    for (const t of activeTeachers) byTeacher.set(toId(t._id), { teacher: t, present: 0, late: 0, absent: 0, dates: new Set() });
+    for (const r of records) {
+      const key = toId(r.teacher_id);
+      const entry = byTeacher.get(key);
+      if (!entry) continue;
+      entry.dates.add(r.date);
+      if (r.status === 'present') entry.present++;
+      else if (r.status === 'late') entry.late++;
+      else if (r.status === 'absent') entry.absent++;
+    }
+
+    // Build the list of calendar dates in range (respecting each employee's
+    // join date, and never counting future days) so "absent" reflects days
+    // the employee should have attended but has no record for at all —
+    // not just days explicitly marked status:'absent'.
+    const allDateStrings = [];
+    { const d0 = new Date(start + 'T00:00:00Z'); const d1 = new Date(end + 'T00:00:00Z'); const now0 = new Date(toLocalDate(new Date()).toISOString().slice(0,10) + 'T00:00:00Z');
+      const cappedEnd = d1 > now0 ? now0 : d1;
+      for (let d = new Date(d0); d <= cappedEnd; d.setUTCDate(d.getUTCDate() + 1)) allDateStrings.push(d.toISOString().slice(0, 10)); }
+
+    const insights = activeTeachers.map(t => {
+      const entry = byTeacher.get(toId(t._id));
+      const joinDate = t.user_id?.createdAt ? new Date(t.user_id.createdAt).toISOString().slice(0, 10) : null;
+      const applicableDates = joinDate ? allDateStrings.filter(ds => ds >= joinDate) : allDateStrings;
+      const totalDays = applicableDates.length;
+      const noRecordDays = applicableDates.filter(ds => !entry.dates.has(ds)).length;
+      const attendanceRate = totalDays ? Math.round(((entry.present + entry.late) / totalDays) * 100) : 100;
+      return {
+        teacher_id: toId(t._id),
+        name: t.user_id?.name,
+        email: t.user_id?.email,
+        avatar: t.user_id?.avatar || null,
+        employee_id: t.employee_id || null,
+        department: t.department || null,
+        position: t.position || null,
+        present_count: entry.present,
+        late_count: entry.late,
+        absent_count: entry.absent + noRecordDays,
+        total_tracked_days: totalDays,
+        attendance_rate: attendanceRate,
+      };
+    });
+
+    const mostAbsent = [...insights].sort((a, b) => b.absent_count - a.absent_count || a.attendance_rate - b.attendance_rate).slice(0, 50);
+    const mostLate   = [...insights].sort((a, b) => b.late_count - a.late_count).slice(0, 50);
+
+    return sendSuccess(res, {
+      range: { start, end },
+      total_employees: activeTeachers.length,
+      most_absent: mostAbsent,
+      most_late: mostLate,
+      all: insights,
+    });
+  } catch (err) { console.error('Absence insights error:', err); return sendError(res, 'Server error', 500); }
+});
+
 // ── SCHOOL REPORTS ──
 app.get('/api/school/reports', SCH, async (req, res) => {
   try {
