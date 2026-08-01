@@ -1387,10 +1387,31 @@ async function createSuperAdmin() {
   } catch (err) { console.error('❌ Error creating super admin:', err.message); }
 }
 
+async function dropStaleBiometricIndex() {
+  // A previous schema version had a unique `credential_id` field/index on the
+  // biometriccredentials collection. That field no longer exists on the
+  // current BiometricCredentialSchema, so every document inserts it as
+  // `credential_id: null` — and the old unique index then rejects every
+  // enrollment after the first with "E11000 duplicate key ... credential_id:
+  // null". This removes that leftover index if present; safe to run on every
+  // startup since it's a no-op once the index is gone.
+  try {
+    const indexes = await BiometricCredential.collection.indexes();
+    const stale = indexes.find(ix => ix.name === 'credential_id_1');
+    if (stale) {
+      await BiometricCredential.collection.dropIndex('credential_id_1');
+      console.log('🧹 Dropped stale credential_id_1 index on biometriccredentials');
+    }
+  } catch (err) {
+    console.error('⚠️  Could not check/drop stale biometric index:', err.message);
+  }
+}
+
 async function startServer() {
   const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/esa_db';
   await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 10000 });
   console.log('✅ Connected to MongoDB');
+  await dropStaleBiometricIndex();
   await createSuperAdmin();
   cron.schedule('59 23 * * *', () => { console.log('🕒 Running daily reports (23:59)...'); runDailyReports(); });
   cron.schedule('30 17 * * *', () => { console.log('🕒 Running afternoon reports (17:30)...'); runDailyReports(); });
