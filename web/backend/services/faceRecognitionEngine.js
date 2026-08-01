@@ -18,7 +18,10 @@
  * Configuration via environment variables:
  *   FACE_SIMILARITY_THRESHOLD - Verification threshold (default: 0.90)
  *   FACE_RETRY_THRESHOLD - Retry suggestion threshold (default: 0.85)
- *   FACE_TIMEOUT_MS - Processing timeout in milliseconds (default: 15000)
+ *   FACE_TIMEOUT_MS - Per-request face-detection timeout in milliseconds.
+ *                     Default: 0 (disabled/unlimited) — detection is allowed
+ *                     to take as long as it needs (useful on slow free-tier
+ *                     hosts). Set a positive number to re-enable a cap.
  *   FACE_MIN_DETECTION_SCORE - Minimum detector confidence (default: 0.5)
  *
  * NOTE on thresholds: these were recalibrated for face-api's embedding
@@ -37,7 +40,7 @@ const path = require('path');
 
 const FACE_SIMILARITY_THRESHOLD = parseFloat(process.env.FACE_SIMILARITY_THRESHOLD || '0.90');
 const FACE_RETRY_THRESHOLD = parseFloat(process.env.FACE_RETRY_THRESHOLD || '0.85');
-const FACE_TIMEOUT_MS = parseInt(process.env.FACE_TIMEOUT_MS || '15000', 10);
+const FACE_TIMEOUT_MS = parseInt(process.env.FACE_TIMEOUT_MS || '0', 10);
 const FACE_MIN_DETECTION_SCORE = parseFloat(process.env.FACE_MIN_DETECTION_SCORE || '0.5');
 
 const MODEL_DIR = path.join(__dirname, '..', 'models', 'face-api');
@@ -124,13 +127,24 @@ async function extractEmbedding(imageBuffer) {
     throw new Error('Image buffer is empty');
   }
 
+  // Model loading (TF.js WASM backend + ~12MB of weights) is a one-time,
+  // potentially slow step — especially right after a deploy/restart on a
+  // free-tier host. It must fully finish before any detection can run, but
+  // it has nothing to do with how long any single face-detection request
+  // should be allowed to take, so it is intentionally NOT wrapped in the
+  // timeout below. Previously it was raced against the same short clock as
+  // the actual detection work, which caused enrollment/verification to fail
+  // with a generic "failed, please try again" whenever the very first
+  // request after startup arrived before the models had finished loading.
   if (!isInitialized) {
     await initialize();
   }
 
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Face embedding extraction timeout')), FACE_TIMEOUT_MS)
-  );
+  const timeoutPromise = FACE_TIMEOUT_MS > 0
+    ? new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Face embedding extraction timeout')), FACE_TIMEOUT_MS)
+      )
+    : null;
 
   const extractPromise = (async () => {
     const canvas = await bufferToCanvas(imageBuffer);
@@ -165,7 +179,7 @@ async function extractEmbedding(imageBuffer) {
   })();
 
   try {
-    return await Promise.race([extractPromise, timeoutPromise]);
+    return await (timeoutPromise ? Promise.race([extractPromise, timeoutPromise]) : extractPromise);
   } catch (err) {
     console.error('[FaceRecognitionEngine] Embedding extraction error:', err.message);
     throw err;
