@@ -334,7 +334,10 @@ async function onCaptureSuccess(token) {
 function onCaptureError(msg) {
   enrolling.value = false
   capturePurpose = null
-  toast.error(msg || 'Biometric verification failed')
+  // An empty message means the modal was simply closed/cancelled by the
+  // user (not a real failure) — don't show an error toast for that, just
+  // make sure the "Setting up…"/"Verifying…" button resets.
+  if (msg) toast.error(msg)
 }
 
 /* ── GPS ── */

@@ -110,5 +110,5 @@ export function useBiometric() {
     }
   }
 
-  return { isSupported: true, busy, error, verifyAndUpload, getStatus }
+  return { isSupported, busy, error, verifyAndUpload, getStatus }
 }

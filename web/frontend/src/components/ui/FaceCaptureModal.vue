@@ -131,7 +131,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { useBiometric } from '../../composables/useBiometric'
 
@@ -247,6 +247,11 @@ async function capture() {
 
 function close() {
   if (stage.value === 'capturing') return
+  // If the user backs out (X / Cancel) before a successful capture, tell the
+  // parent so any "enrolling…"/"verifying…" loading state it's holding gets
+  // reset — otherwise a manual close leaves the triggering button stuck
+  // showing its loading label forever, since only 'success' cleared it before.
+  if (stage.value !== 'success') emit('error', '')
   emit('update:modelValue', false)
 }
 

@@ -73,7 +73,7 @@
       v-model="showCapture"
       mode="enroll"
       @success="onEnrollSuccess"
-      @error="(msg) => { errorMsg = msg }"
+      @error="(msg) => { if (msg) errorMsg = msg }"
     />
   </div>
 </template>
