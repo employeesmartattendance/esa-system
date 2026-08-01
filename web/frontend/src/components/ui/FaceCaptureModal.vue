@@ -214,7 +214,7 @@ async function capture() {
   mismatchMsg.value = ''
   try {
     // Capture image from video and upload to backend for verification/enrollment
-    // Server-side InsightFace handles all face detection and recognition
+    // Server-side face recognition engine handles all face detection and recognition
     const token = await biometric.verifyAndUpload(videoRef.value)
 
     if (token) {
@@ -231,16 +231,15 @@ async function capture() {
       emit('error', mismatchMsg.value)
     }
   } catch (e) {
-      // Anything reaching here is NOT a "no face in frame" situation — it's an
-      // unexpected/untagged error (e.g. the camera stream ending mid-capture,
-      // a browser API failure). Previously this was mislabeled as 'no-face',
-      // which told the person to reposition their face for a problem that had
-      // nothing to do with their face — misleading, and it hid the real cause.
-      // Reusing 'models-error' surfaces an honest, distinct message instead.
-      console.error('[FaceCaptureModal] Unexpected capture error:', e)
-      mismatchMsg.value = 'Something went wrong while capturing. Please try again.'
-      stage.value = 'models-error'
-    }
+    // Anything reaching here is NOT a "no face in frame" situation — it's an
+    // unexpected/untagged error (e.g. the camera stream ending mid-capture,
+    // a browser API failure). Previously this was mislabeled as 'no-face',
+    // which told the person to reposition their face for a problem that had
+    // nothing to do with their face — misleading, and it hid the real cause.
+    // Reusing 'models-error' surfaces an honest, distinct message instead.
+    console.error('[FaceCaptureModal] Unexpected capture error:', e)
+    mismatchMsg.value = 'Something went wrong while capturing. Please try again.'
+    stage.value = 'models-error'
   } finally {
     capturing = false
   }
