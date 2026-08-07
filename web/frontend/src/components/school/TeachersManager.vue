@@ -49,11 +49,15 @@
         <template #cell-biometric="{ row }">
           <AppBadge :variant="row.biometric_enrolled ? 'active' : 'inactive'" :label="row.biometric_enrolled ? 'Enrolled' : 'Not set up'" dot />
         </template>
+        <template #cell-fingerprint="{ row }">
+          <AppBadge :variant="fingerprintStatusMap[row.teacher_id]?.status === 'enrolled' ? 'active' : 'inactive'" :label="fingerprintStatusMap[row.teacher_id]?.status === 'enrolled' ? 'Enrolled' : (fingerprintStatusMap[row.teacher_id]?.status === 'capturing' ? 'Capturing…' : 'Not set up')" dot />
+        </template>
         <template #cell-actions="{ row }">
           <div class="row-actions">
             <button class="icon-btn" title="View details" @click="openView(row)"><AppIcon name="eye" :size="15" /></button>
             <button class="icon-btn" title="Edit" @click="openEdit(row)"><AppIcon name="edit" :size="15" /></button>
             <button v-if="row.biometric_enrolled" class="icon-btn" title="Reset biometric enrollment" :disabled="resettingBiometricId === row.teacher_id" @click="resetBiometric(row)"><AppIcon name="shield" :size="15" /></button>
+            <button class="icon-btn" title="Fingerprint enrollment" @click="openFingerprintModal(row)"><AppIcon name="fingerprint" :size="15" /></button>
             <button class="icon-btn danger" title="Delete" @click="confirmDelete(row)"><AppIcon name="trash" :size="15" /></button>
           </div>
         </template>
@@ -155,6 +159,55 @@
         <button class="btn btn-danger" @click="doDelete" :disabled="saving"><AppIcon name="trash" :size="15" />Remove</button>
       </div>
     </AppModal>
+
+    <!-- Fingerprint Enrollment Modal -->
+    <AppModal v-model="showFingerprintModal" title="Fingerprint Enrollment" subtitle="Hikvision device" icon="fingerprint">
+      <div v-if="fingerprintTarget" class="fp-modal">
+        <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px">
+          Enroll <strong>{{ fingerprintTarget.name }}</strong>'s fingerprint on the physical Hikvision device. Make sure they're standing at the device before you start.
+        </p>
+
+        <div v-if="fpStep === 'idle'">
+          <button class="btn btn-primary" style="width:100%" :disabled="fpStarting" @click="startFingerprintEnroll">
+            <span v-if="fpStarting" class="btn-spinner-sm"></span>
+            <AppIcon v-else name="fingerprint" :size="15" />
+            {{ fpStarting ? 'Starting…' : 'Start Fingerprint Capture' }}
+          </button>
+        </div>
+
+        <div v-else-if="fpStep === 'capturing'" class="fp-capturing">
+          <span class="btn-spinner-sm" style="width:20px;height:20px"></span>
+          <div class="fp-capturing-text">
+            <div class="fp-capturing-title">Waiting for fingerprint scan…</div>
+            <div class="fp-capturing-sub">Have {{ fingerprintTarget.name }} place their finger on the device's scanner now. It may take 2–3 scans.</div>
+          </div>
+        </div>
+
+        <div v-else-if="fpStep === 'enrolled'" class="fp-notice fp-notice-ok">
+          <AppIcon name="user-check" :size="16" color="var(--success)" />
+          <span>Fingerprint enrolled successfully. {{ fingerprintTarget.name }} can now check in/out using this device.</span>
+        </div>
+
+        <div v-else-if="fpStep === 'failed'" class="fp-notice fp-notice-error">
+          <AppIcon name="alert-triangle" :size="16" color="var(--danger)" />
+          <span>Capture failed or timed out. Try again, and make sure the device is powered on and reachable.</span>
+        </div>
+
+        <div v-if="fpErrorMsg" class="fp-notice fp-notice-error">
+          <AppIcon name="alert-triangle" :size="14" color="var(--danger)" />
+          <span>{{ fpErrorMsg }}</span>
+        </div>
+
+        <div v-if="fingerprintStatusMap[fingerprintTarget.teacher_id]?.status === 'enrolled'" class="fp-remove-row">
+          <button class="btn-link-remove" :disabled="fpRemoving" @click="removeFingerprint">
+            {{ fpRemoving ? 'Removing…' : "Remove this employee's fingerprint enrollment" }}
+          </button>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" @click="closeFingerprintModal">Close</button>
+      </div>
+    </AppModal>
   </div>
 </template>
 
@@ -228,6 +281,7 @@ async function fetchShifts() {
 }
 function fmtShiftTime(t) { return t ? String(t).substring(0, 5) : '' }
 onMounted(fetchShifts)
+onMounted(loadFingerprintStatuses)
 
 // ── Photo upload ─────────────────────────────────────────────────────
 const avatarFileInput = ref(null)
@@ -294,9 +348,90 @@ const cols = computed(() => [
   { key: 'phone', label: 'Phone', hideMobile: true },
   { key: 'today', label: "Today's Status", hideMobile: true },
   { key: 'biometric', label: 'Biometric', hideMobile: true },
+  { key: 'fingerprint', label: 'Fingerprint', hideMobile: true },
   { key: 'status', label: 'Account', hideMobile: true },
   { key: 'actions', label: 'Actions' },
 ])
+
+// ── Hikvision fingerprint enrollment ──
+const fingerprintStatusMap = ref({}) // teacher_id -> { status, employee_no, enrolled_at }
+const showFingerprintModal = ref(false)
+const fingerprintTarget = ref(null)
+const fpStep = ref('idle') // idle | capturing | enrolled | failed
+const fpStarting = ref(false)
+const fpRemoving = ref(false)
+const fpErrorMsg = ref('')
+let fpPollTimer = null
+
+async function loadFingerprintStatuses() {
+  try {
+    const r = await api.get('/hikvision/enrollments')
+    fingerprintStatusMap.value = r || {}
+  } catch { /* device may not be configured yet — non-fatal */ }
+}
+
+function openFingerprintModal(row) {
+  fingerprintTarget.value = row
+  const existing = fingerprintStatusMap.value[row.teacher_id]
+  fpStep.value = existing?.status === 'enrolled' ? 'enrolled' : 'idle'
+  fpErrorMsg.value = ''
+  showFingerprintModal.value = true
+}
+
+function closeFingerprintModal() {
+  showFingerprintModal.value = false
+  if (fpPollTimer) { clearInterval(fpPollTimer); fpPollTimer = null }
+}
+
+async function startFingerprintEnroll() {
+  if (!fingerprintTarget.value) return
+  fpStarting.value = true
+  fpErrorMsg.value = ''
+  try {
+    await api.post(`/hikvision/enroll/${fingerprintTarget.value.teacher_id}`)
+    fpStep.value = 'capturing'
+    pollFingerprintProgress()
+  } catch (e) {
+    fpErrorMsg.value = e.response?.data?.message || 'Could not start fingerprint capture'
+  } finally {
+    fpStarting.value = false
+  }
+}
+
+function pollFingerprintProgress() {
+  if (fpPollTimer) clearInterval(fpPollTimer)
+  fpPollTimer = setInterval(async () => {
+    if (!fingerprintTarget.value) return
+    try {
+      const r = await api.get(`/hikvision/enroll/${fingerprintTarget.value.teacher_id}/progress`)
+      if (r?.status === 'enrolled') {
+        fpStep.value = 'enrolled'
+        clearInterval(fpPollTimer); fpPollTimer = null
+        await loadFingerprintStatuses()
+        toast.success('Fingerprint enrolled')
+      } else if (r?.status === 'failed') {
+        fpStep.value = 'failed'
+        clearInterval(fpPollTimer); fpPollTimer = null
+      }
+    } catch { /* keep polling — transient network hiccup */ }
+  }, 2000)
+}
+
+async function removeFingerprint() {
+  if (!fingerprintTarget.value) return
+  if (!confirm(`Remove ${fingerprintTarget.value.name}'s fingerprint enrollment from the device?`)) return
+  fpRemoving.value = true
+  try {
+    await api.delete(`/hikvision/enroll/${fingerprintTarget.value.teacher_id}`)
+    fpStep.value = 'idle'
+    await loadFingerprintStatuses()
+    toast.success('Fingerprint enrollment removed')
+  } catch (e) {
+    fpErrorMsg.value = e.response?.data?.message || 'Could not remove fingerprint enrollment'
+  } finally {
+    fpRemoving.value = false
+  }
+}
 
 const resettingBiometricId = ref(null)
 async function resetBiometric(row) {
@@ -405,6 +540,14 @@ async function doDelete() {
 .vd-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; min-width: 80px; flex-shrink: 0; }
 .vd-val { font-size: 13px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; word-break: break-word; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.fp-capturing { display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.15); border-radius: var(--radius-sm); }
+.fp-capturing .btn-spinner-sm { border-color: rgba(37,99,235,0.25); border-top-color: var(--primary); flex-shrink: 0; }
+.fp-capturing-title { font-size: 13px; font-weight: 700; }
+.fp-capturing-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.fp-notice { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5; margin-top: 4px; }
+.fp-notice-ok { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); color: var(--success); }
+.fp-notice-error { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.2); color: var(--danger); }
+.fp-remove-row { margin-top: 14px; text-align: center; }
 @media (max-width: 768px) { 
   .page-root { padding-right: 0; }
   .section-header { flex-direction: column; align-items: flex-start; padding-right: 0; }

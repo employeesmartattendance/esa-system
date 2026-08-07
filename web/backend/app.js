@@ -252,6 +252,60 @@ BiometricCredentialSchema.index({ teacher_id: 1 }, { unique: true });
 BiometricCredentialSchema.index({ school_id: 1 });
 BiometricCredentialSchema.index({ employee_id: 1 });
 
+// Hikvision standalone fingerprint terminal — one device config per school.
+// Stores the ISAPI connection details ESA uses to talk to the physical
+// device on the local network (or via port-forward/VPN if remote).
+const HikvisionDeviceSchema = new Schema({
+  school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true, unique: true },
+  host: { type: String, required: true },
+  port: { type: Number, default: 80 },
+  username: { type: String, required: true },
+  password: { type: String, required: true },
+  device_name: String,
+  enabled: { type: Boolean, default: true },
+  last_test_ok: { type: Boolean, default: null },
+  last_tested_at: Date,
+  last_poll_at: Date,
+  last_poll_error: String,
+  // Render can't reach a device sitting behind a local router's NAT, so a
+  // small local bridge script (hikvision-agent/) runs on the same LAN as
+  // the device and talks ISAPI to it directly, then pushes results to this
+  // backend over normal outbound HTTPS. This token authenticates that
+  // bridge script's calls — it's shown once in the admin UI after saving
+  // the device and pasted into the bridge's config.js.
+  agent_token: { type: String, default: null },
+  last_agent_seen_at: Date,
+}, vOpts);
+
+// Tracks which employees have a fingerprint template enrolled on the
+// Hikvision device, keyed by the device-side employeeNo (== Teacher._id).
+const HikvisionEnrollmentSchema = new Schema({
+  teacher_id: { type: Schema.Types.ObjectId, ref: 'Teacher', required: true, unique: true },
+  school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true },
+  employee_no: { type: String, required: true },
+  finger_no: { type: Number, default: 1 },
+  status: { type: String, enum: ['pending_capture', 'capturing', 'enrolled', 'failed'], default: 'pending_capture' },
+  started_at: Date,
+  enrolled_at: Date,
+}, vOpts);
+HikvisionEnrollmentSchema.index({ school_id: 1 });
+HikvisionEnrollmentSchema.index({ employee_no: 1 });
+
+// Command queue the local bridge agent drains on each poll — decouples the
+// dashboard's "Start Capture" / "Remove" clicks (which hit Render) from the
+// bridge script's own poll cadence, since Render can never call the bridge
+// directly (it's behind NAT too, just like the device).
+const HikvisionAgentCommandSchema = new Schema({
+  school_id: { type: Schema.Types.ObjectId, ref: 'School', required: true },
+  type: { type: String, enum: ['start_capture', 'delete_user'], required: true },
+  employee_no: { type: String, required: true },
+  finger_no: { type: Number, default: 1 },
+  status: { type: String, enum: ['queued', 'sent', 'done', 'failed'], default: 'queued' },
+  created_at: { type: Date, default: Date.now },
+  sent_at: Date,
+}, vOpts);
+HikvisionAgentCommandSchema.index({ school_id: 1, status: 1 });
+
 const School        = mongoose.model('School',        SchoolSchema);
 const User          = mongoose.model('User',          UserSchema);
 const Teacher       = mongoose.model('Teacher',       TeacherSchema);
@@ -265,6 +319,9 @@ const Report        = mongoose.model('Report',        ReportSchema);
 const Contact       = mongoose.model('Contact',       ContactSchema);
 const PasswordReset = mongoose.model('PasswordReset', PasswordResetSchema);
 const BiometricCredential = mongoose.model('BiometricCredential', BiometricCredentialSchema);
+const HikvisionDevice     = mongoose.model('HikvisionDevice',     HikvisionDeviceSchema);
+const HikvisionEnrollment = mongoose.model('HikvisionEnrollment', HikvisionEnrollmentSchema);
+const HikvisionAgentCommand = mongoose.model('HikvisionAgentCommand', HikvisionAgentCommandSchema);
 
 // ── HELPERS ──
 // App timezone offset in minutes (used so attendance times always reflect the
@@ -1767,6 +1824,29 @@ try {
   
   console.log('✅ Face recognition biometric engine initialized');
 } catch (err) { console.warn('⚠️  Biometric routes not loaded:', err.message); }
+
+// ── HIKVISION FINGERPRINT DEVICE ROUTES ──
+// A second, optional biometric channel (physical fingerprint terminal)
+// that feeds the exact same verifyBiometricGate token system as the
+// face-recognition routes above. Loaded only if biometric-routes.js
+// succeeded, since it needs the issueBiometricToken it exposes.
+try {
+  if (typeof verifyBiometricGate.issueBiometricToken === 'function') {
+    const registerHikvisionRoutes = require('./hikvision-routes');
+    registerHikvisionRoutes(
+      app,
+      { Teacher, School, Settings, HikvisionDevice, HikvisionEnrollment, HikvisionAgentCommand },
+      authMiddleware,
+      logAction,
+      sendSuccess,
+      sendError,
+      toId,
+      verifyBiometricGate.issueBiometricToken
+    );
+  } else {
+    console.warn('⚠️  Hikvision routes skipped: face biometric routes did not load, so no shared token issuer is available');
+  }
+} catch (err) { console.warn('⚠️  Hikvision routes not loaded:', err.message); }
 
 // ── MOBILE ROUTES ──
 try {

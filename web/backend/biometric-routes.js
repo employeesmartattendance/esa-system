@@ -115,8 +115,21 @@ module.exports = function registerBiometricRoutes(
 
   console.log('✅ Biometric verification routes registered (server-side face recognition)');
 
+  // Issues a token into the SAME verifiedTokens map used by face
+  // verification above. Exposed so other biometric channels (e.g. the
+  // Hikvision fingerprint device in hikvision-routes.js) can mint a token
+  // for a successful match through their own hardware, and have it be
+  // accepted by the exact same check-in gate below — no duplicate
+  // token/expiry logic, no separate code path to keep in sync.
+  function issueBiometricToken(teacherId) {
+    cleanupExpired(verifiedTokens);
+    const token = crypto.randomBytes(24).toString('hex');
+    verifiedTokens.set(token, { teacherId: toId(teacherId), expiresAt: Date.now() + TOKEN_TTL_MS });
+    return token;
+  }
+
   // ── Consumed by the check-in routes in app.js and mobile-routes.js ──
-  return async function verifyAndConsumeBiometricToken(teacherId, token) {
+  const verifyAndConsumeBiometricToken = async function (teacherId, token) {
     cleanupExpired(verifiedTokens);
     if (!token) return { ok: false, message: 'Biometric verification is required to check in' };
     const rec = verifiedTokens.get(token);
@@ -124,4 +137,7 @@ module.exports = function registerBiometricRoutes(
     verifiedTokens.delete(token); // one-time use
     return { ok: true };
   };
+
+  verifyAndConsumeBiometricToken.issueBiometricToken = issueBiometricToken;
+  return verifyAndConsumeBiometricToken;
 };

@@ -156,6 +156,8 @@
           </div>
         </div>
 
+        <!-- Hikvision Fingerprint Device Card -->
+        <FingerprintDeviceCard />
 
         <!-- Auto Check-Out Card -->
         <div class="glass settings-card">
@@ -398,6 +400,7 @@
 import { ref, computed, onMounted } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
 import EditProfileCard from '../ui/EditProfileCard.vue'
+import FingerprintDeviceCard from '../ui/FingerprintDeviceCard.vue'
 import { useToast } from '../../composables/useToast'
 import { useAuthStore } from '../../stores/auth'
 import { useIndustry } from '../../composables/useIndustry'

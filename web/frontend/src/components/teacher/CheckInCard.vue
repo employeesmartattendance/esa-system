@@ -102,6 +102,19 @@
         </button>
       </div>
 
+      <!-- Fingerprint device: enrolled — offer scan-to-check-in as an alternative -->
+      <div v-if="fingerprintEnrolled === true && !todayRecord?.check_in" class="biometric-banner fp-banner">
+        <AppIcon name="fingerprint" :size="16" color="var(--primary)" />
+        <div class="biometric-banner-text">
+          <div class="biometric-banner-title">{{ fpWaiting ? 'Waiting for fingerprint scan…' : 'Or scan your fingerprint at the device' }}</div>
+          <div class="biometric-banner-sub">{{ fpWaiting ? 'Place your finger on the device now — this will check you in automatically' : 'Place your finger on the entrance device to check in instantly' }}</div>
+        </div>
+        <span v-if="fpWaiting" class="btn-spinner-sm fp-banner-spinner"></span>
+        <button v-else class="btn btn-ghost btn-sm" @click="startFingerprintWait">
+          Use Fingerprint
+        </button>
+      </div>
+
       <!-- Action buttons -->
       <div class="action-row">
         <!-- Not checked in yet -->
@@ -292,6 +305,47 @@ async function loadBiometricStatus() {
     const r = await api.get('/biometric/status')
     biometricEnrolled.value = !!r?.enrolled
   } catch { biometricEnrolled.value = false }
+}
+
+// ── Fingerprint device (Hikvision) — alternative check-in channel ──
+// Independent of the face-verification flow above; both feed the same
+// backend biometric_token gate, so nothing here touches runCheckIn's
+// existing logic beyond passing along whatever token it receives.
+const fingerprintEnrolled = ref(null) // null = not loaded, true/false once checked
+const fpWaiting = ref(false)
+let fpPollTimer = null
+
+async function loadFingerprintStatus() {
+  try {
+    const r = await api.get('/hikvision/self/status')
+    fingerprintEnrolled.value = !!r?.enrolled
+  } catch { fingerprintEnrolled.value = false }
+}
+
+function startFingerprintWait() {
+  if (fpWaiting.value) return
+  fpWaiting.value = true
+  if (fpPollTimer) clearInterval(fpPollTimer)
+  fpPollTimer = setInterval(async () => {
+    try {
+      const r = await api.get('/hikvision/self/latest-match')
+      if (r?.ready && r?.biometric_token) {
+        clearInterval(fpPollTimer); fpPollTimer = null
+        fpWaiting.value = false
+        if (!currentPosition.value) await detectLocation()
+        await runCheckIn(r.biometric_token)
+      }
+    } catch { /* keep waiting — transient network hiccup */ }
+  }, 2500)
+  // Stop waiting after 2 minutes if nobody scans, so the badge doesn't spin forever
+  setTimeout(() => {
+    if (fpWaiting.value) { fpWaiting.value = false; if (fpPollTimer) { clearInterval(fpPollTimer); fpPollTimer = null } }
+  }, 120000)
+}
+
+function stopFingerprintWait() {
+  fpWaiting.value = false
+  if (fpPollTimer) { clearInterval(fpPollTimer); fpPollTimer = null }
 }
 
 /* ── Capture modal dispatcher ──
@@ -563,6 +617,7 @@ onMounted(async () => {
     detectLocation()
     await loadSchoolSettings()
     loadBiometricStatus()
+    loadFingerprintStatus()
     startAutoWatch()
     // Best-effort — browsers require a user gesture in some contexts, and
     // this silently no-ops if permission is already granted/denied or the
@@ -572,6 +627,7 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   stopAutoWatch()
+  stopFingerprintWait()
 })
 
 // If the viewport crosses the mobile/desktop breakpoint at runtime, hand
@@ -582,9 +638,11 @@ watch(() => props.autoWatch, async (active) => {
     detectLocation()
     if (!schoolSettings.value) await loadSchoolSettings()
     if (biometricEnrolled.value === null) loadBiometricStatus()
+    if (fingerprintEnrolled.value === null) loadFingerprintStatus()
     if (autoWatchId === null) startAutoWatch()
   } else {
     stopAutoWatch()
+    stopFingerprintWait()
   }
 })
 </script>
@@ -682,6 +740,8 @@ watch(() => props.autoWatch, async (active) => {
 }
 .biometric-banner-warn   { border-color:rgba(245,158,11,0.25); background:rgba(245,158,11,0.07); }
 .biometric-banner-active { border-color:rgba(16,185,129,0.25); background:rgba(16,185,129,0.08); }
+.fp-banner { border-color:rgba(139,92,246,0.25); background:rgba(139,92,246,0.06); }
+.fp-banner-spinner { border-color:rgba(139,92,246,0.25); border-top-color:#8b5cf6; }
 .biometric-banner-text  { flex:1; min-width:0; }
 .biometric-banner-title { font-size:13px; font-weight:700; }
 .biometric-banner-sub   { font-size:11.5px; color:var(--text-muted); margin-top:2px; line-height:1.4; }

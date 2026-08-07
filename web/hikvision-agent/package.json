@@ -1,0 +1,11 @@
+{
+  "name": "esa-hikvision-agent",
+  "version": "1.0.0",
+  "description": "Local bridge agent that connects a Hikvision fingerprint terminal (on a local LAN) to the ESA backend hosted on Render.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {},
+  "license": "UNLICENSED"
+}
