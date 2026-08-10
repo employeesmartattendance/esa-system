@@ -16,8 +16,11 @@ export function getSocket() {
     const savedUrl = localStorage.getItem('esa_backend_url') || '';
     const socketUrl = savedUrl || envBase || window.location.origin;
 
-    // Filter out file:// origin which is invalid for Socket.io
-    const finalUrl = socketUrl.startsWith('file://') ? 'https://esa-system.onrender.com' : socketUrl;
+    // Filter out file:// origin (invalid for Socket.io) and the esasystem.online
+    // custom domain (which has no backend of its own — the real backend lives
+    // on Render), falling back to the known production backend in both cases.
+    const isInvalidOrigin = socketUrl.startsWith('file://') || socketUrl.includes('esasystem.online')
+    const finalUrl = isInvalidOrigin ? 'https://esa-system.onrender.com' : socketUrl;
 
     console.log(`[Socket] Connecting to: ${finalUrl}`);
     

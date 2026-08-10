@@ -33,6 +33,7 @@ const getBaseUrl = () => {
   if (isLocalhostHost(window.location.hostname)) return 'https://esa-system.onrender.com/api'
   if (window.location.hostname.endsWith('onrender.com')) return `${window.location.origin.replace(/\/+$/, '')}/api`
   if (window.location.hostname.endsWith('vercel.app')) return DEFAULT_PROD_API_BASE
+  if (window.location.hostname.endsWith('esasystem.online')) return DEFAULT_PROD_API_BASE
   return '/api'
 }
 
