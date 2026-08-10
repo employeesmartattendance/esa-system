@@ -17,6 +17,7 @@ const DEFAULT_PROD_API_BASE = 'https://esa-system.onrender.com/api'
 
 // ── Base URL resolution ────────────────────────────────────────────────────────
 const isLocalhostHost = (host) => ['localhost', '127.0.0.1', '::1'].includes(host)
+const isLocalhostUrl = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|\[?::1\]?)(:|\/|$)/i.test(String(url).trim())
 const normalizeApiBase = (url) => {
   if (!url) return ''
   const trimmed = String(url).trim().replace(/\/+$/, '')
@@ -25,10 +26,17 @@ const normalizeApiBase = (url) => {
 
 const getBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL
-  if (envUrl) return normalizeApiBase(envUrl)
+  const runningOnLocalhost = isLocalhostHost(window.location.hostname)
+  // A VITE_API_URL pointing at localhost only makes sense when the app itself
+  // is being served from localhost. If it's set to localhost while the app is
+  // actually deployed (e.g. a stray/leftover env var in the Vercel or Render
+  // dashboard), honoring it would make every visitor's browser try to reach
+  // their own machine and always fail — so ignore it in that case and fall
+  // through to the production defaults below instead.
+  if (envUrl && !(isLocalhostUrl(envUrl) && !runningOnLocalhost)) return normalizeApiBase(envUrl)
 
   const customUrl = localStorage.getItem('esa_backend_url')
-  if (customUrl) return normalizeApiBase(customUrl)
+  if (customUrl && !(isLocalhostUrl(customUrl) && !runningOnLocalhost)) return normalizeApiBase(customUrl)
 
   if (isLocalhostHost(window.location.hostname)) return 'https://esa-system.onrender.com/api'
   if (window.location.hostname.endsWith('onrender.com')) return `${window.location.origin.replace(/\/+$/, '')}/api`

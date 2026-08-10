@@ -80,6 +80,10 @@ async function sendEmail({ to, subject, html }) {
 }
 
 const app = express();
+// Render (and most PaaS hosts) sit behind a reverse proxy, so trust the
+// first hop's X-Forwarded-* headers — otherwise express-rate-limit can't
+// safely read the real client IP and logs a validation error on every request.
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
@@ -109,6 +113,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 
   .filter(Boolean);
 const fallbackOrigins = [
   'https://esasystem.online',
+  'https://www.esasystem.online',
   'http://127.0.0.1:5173',
   'https://esa-system.onrender.com',
 ];
@@ -133,6 +138,7 @@ const io = socketIo(server, {
 });
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(morgan('dev'));
 app.use(cors({
   origin(origin, callback) {
     if (isAllowedOrigin(origin)) return callback(null, true);
@@ -141,7 +147,6 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
-app.use(morgan('dev'));
 app.use('/api', apiLimiter);
 app.use('/uploads', express.static(UPLOADS_DIR));
 

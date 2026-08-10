@@ -9,12 +9,20 @@ let socket = null
  */
 export function getSocket() {
   if (!socket) {
+    const runningOnLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+    const isLocalhostUrl = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|\[?::1\]?)(:|\/|$)/i.test(String(url).trim())
+
     const envApiUrl = import.meta.env.VITE_API_URL || ''
     const envBase = envApiUrl
       ? envApiUrl.replace(/\/+$/, '').replace(/\/api$/, '')
       : ''
-    const savedUrl = localStorage.getItem('esa_backend_url') || '';
-    const socketUrl = savedUrl || envBase || window.location.origin;
+    const savedUrlRaw = localStorage.getItem('esa_backend_url') || '';
+    // Ignore an env/saved URL that points at localhost while the app itself
+    // is NOT running locally (e.g. a stray dashboard env var) — it would
+    // otherwise make every deployed visitor's browser try to reach itself.
+    const savedUrl = (savedUrlRaw && !(isLocalhostUrl(savedUrlRaw) && !runningOnLocalhost)) ? savedUrlRaw : ''
+    const safeEnvBase = (envBase && !(isLocalhostUrl(envBase) && !runningOnLocalhost)) ? envBase : ''
+    const socketUrl = savedUrl || safeEnvBase || window.location.origin;
 
     // Filter out file:// origin (invalid for Socket.io) and the esasystem.online
     // custom domain (which has no backend of its own — the real backend lives
