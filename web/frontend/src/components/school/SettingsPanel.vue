@@ -386,7 +386,7 @@
               <button class="btn btn-ghost btn-sm full-w" @click="triggerManualCheckout" :disabled="triggering">
                 <span v-if="triggering" class="btn-spinner-xs"></span>
                 <AppIcon v-else name="checkout" :size="14" />
-                {{ triggering ? 'Processing...' : `Checkout All Currently Checked-In ${vocab.personNounPlural} Now` }}
+                {{ triggering ? 'Processing...' : `Checkout All Checked-In ${vocab.personNounPlural}` }}
               </button>
             </div>
           </div>
