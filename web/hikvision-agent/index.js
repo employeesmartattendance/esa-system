@@ -12,10 +12,9 @@
  * What it does, on a loop:
  *   1. Fetches this school's device connection details (host/port/
  *      username/password) from Render, using the agent token below.
- *   2. Talks ISAPI to the physical device (register users, arm
- *      fingerprint capture, poll capture progress, fetch recent match
- *      events) exactly as ESA's backend used to do directly, before it
- *      moved to Render.
+ *   2. Talks ISAPI to the physical device (register users, run
+ *      fingerprint capture, fetch recent match events) exactly as ESA's
+ *      backend used to do directly, before it moved to Render.
  *   3. Executes any queued commands from the admin dashboard (start
  *      capture / delete user) and reports results back.
  *   4. Reports new fingerprint match events back to Render, which turns
@@ -109,13 +108,20 @@ async function testConnectionOnce() {
   }
 }
 
+// A start_capture command now blocks for up to ~75s (the device holds the
+// connection open while the employee scans) — this guard stops the 4s
+// poll interval from overlapping itself while a capture is in progress.
+let commandsInFlight = false;
+
 async function processCommands() {
-  if (!cachedDevice) return;
+  if (!cachedDevice || commandsInFlight) return;
   let commands = [];
   try { commands = await backendRequest('GET', '/api/hikvision/agent/commands'); }
   catch (err) { console.error('Could not fetch commands:', err.message); return; }
   if (!Array.isArray(commands) || !commands.length) return;
 
+  commandsInFlight = true;
+  try {
   for (const cmd of commands) {
     try {
       if (cmd.type === 'start_capture') {
@@ -123,11 +129,22 @@ async function processCommands() {
         const userResult = await deviceClient.ensureUserOnDevice(cachedDevice, { employeeNo: cmd.employee_no, name: `Employee ${cmd.employee_no}` });
         if (!userResult.ok) throw new Error(userResult.message || 'Could not register user on device');
 
-        const captureResult = await deviceClient.startFingerprintCapture(cachedDevice, { employeeNo: cmd.employee_no, fingerNo: cmd.finger_no });
-        if (!captureResult.ok) throw new Error(captureResult.message || 'Device did not start capture');
-
         await backendRequest('POST', '/api/hikvision/agent/enrollment-result', { command_id: cmd.id, employee_no: cmd.employee_no, status: 'capturing' });
-        watchCaptureProgress(cmd);
+        console.log(`   Have employee ${cmd.employee_no} scan their finger at the device now — waiting up to ~60s…`);
+
+        // This call blocks on the device side until the employee finishes
+        // scanning, the device gives up, or it times out — Hikvision
+        // doesn't expose a separate progress-polling endpoint for
+        // fingerprint capture (unlike its face-capture flow), so the
+        // single response here IS the final result.
+        const captureResult = await deviceClient.startFingerprintCapture(cachedDevice, { employeeNo: cmd.employee_no, fingerNo: cmd.finger_no });
+        if (captureResult.ok) {
+          console.log(`✅ Fingerprint enrolled for employee ${cmd.employee_no}`);
+          await backendRequest('POST', '/api/hikvision/agent/enrollment-result', { employee_no: cmd.employee_no, status: 'enrolled' });
+        } else {
+          console.warn(`❌ Fingerprint capture failed for employee ${cmd.employee_no}: ${captureResult.message}`);
+          await backendRequest('POST', '/api/hikvision/agent/enrollment-result', { employee_no: cmd.employee_no, status: 'failed' });
+        }
       } else if (cmd.type === 'delete_user') {
         console.log(`→ Removing employee ${cmd.employee_no} from device`);
         await deviceClient.deleteUserFromDevice(cachedDevice, { employeeNo: cmd.employee_no });
@@ -138,32 +155,9 @@ async function processCommands() {
       await backendRequest('POST', '/api/hikvision/agent/enrollment-result', { command_id: cmd.id, employee_no: cmd.employee_no, status: 'failed' }).catch(() => {});
     }
   }
-}
-
-// Polls the device's own capture-progress endpoint until it finishes or
-// times out (~60s), then reports the final result to the backend.
-function watchCaptureProgress(cmd) {
-  const startedAt = Date.now();
-  const interval = setInterval(async () => {
-    try {
-      const progress = await deviceClient.pollFingerprintCaptureStatus(cachedDevice);
-      if (progress.ok && progress.finished) {
-        clearInterval(interval);
-        console.log(`✅ Fingerprint enrolled for employee ${cmd.employee_no}`);
-        await backendRequest('POST', '/api/hikvision/agent/enrollment-result', { employee_no: cmd.employee_no, status: 'enrolled' });
-      } else if (progress.ok && progress.failed) {
-        clearInterval(interval);
-        console.warn(`❌ Fingerprint capture failed for employee ${cmd.employee_no}`);
-        await backendRequest('POST', '/api/hikvision/agent/enrollment-result', { employee_no: cmd.employee_no, status: 'failed' });
-      } else if (Date.now() - startedAt > 60000) {
-        clearInterval(interval);
-        console.warn(`⏱️  Fingerprint capture timed out for employee ${cmd.employee_no}`);
-        await backendRequest('POST', '/api/hikvision/agent/enrollment-result', { employee_no: cmd.employee_no, status: 'failed' });
-      }
-    } catch (err) {
-      console.error('Capture progress check failed:', err.message);
-    }
-  }, 2000);
+  } finally {
+    commandsInFlight = false;
+  }
 }
 
 async function pollMatchEvents() {

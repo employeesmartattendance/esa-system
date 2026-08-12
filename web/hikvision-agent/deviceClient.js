@@ -99,9 +99,19 @@ function safeJsonParse(str) {
  * Ensures a person record exists on the device for this employee. Hikvision
  * ISAPI identifies people on the device by an `employeeNo` — we use the
  * ESA teacher's Mongo _id so device records map 1:1 back to a Teacher.
+ *
+ * Per Hikvision's own ISAPI person-management flow:
+ *   - POST /ISAPI/AccessControl/UserInfo/Record  → ADD a new person
+ *     (the device errors if this employeeNo already exists)
+ *   - PUT  /ISAPI/AccessControl/UserInfo/Modify  → EDIT an existing person
+ * (An earlier version of this file PUT the /Record path directly, which
+ * isn't a documented operation on that endpoint and would fail every time
+ * — most visibly when re-running enrollment for someone whose person
+ * record the device already created on a prior attempt.)
  */
 async function ensureUserOnDevice(device, { employeeNo, name }) {
-  const path = '/ISAPI/AccessControl/UserInfo/Record?format=json';
+  const recordPath = '/ISAPI/AccessControl/UserInfo/Record?format=json';
+  const modifyPath = '/ISAPI/AccessControl/UserInfo/Modify?format=json';
   const payload = JSON.stringify({
     UserInfo: {
       employeeNo: String(employeeNo),
@@ -112,49 +122,57 @@ async function ensureUserOnDevice(device, { employeeNo, name }) {
       RightPlan: [{ doorNo: 1, planTemplateNo: '1' }],
     },
   });
-  const res = await deviceRequest(device, { method: 'PUT', path, body: payload });
-  // 200 = updated, 400 with "not found" on PUT means create instead
-  if (res.statusCode === 200) return { ok: true, created: false };
-  const addPath = '/ISAPI/AccessControl/UserInfo/Record?format=json';
-  const addRes = await deviceRequest(device, { method: 'POST', path: addPath, body: payload });
+
+  const addRes = await deviceRequest(device, { method: 'POST', path: recordPath, body: payload });
   if (addRes.statusCode === 200) return { ok: true, created: true };
-  return { ok: false, message: `Device rejected user record (HTTP ${addRes.statusCode})`, raw: addRes.body };
+
+  // Most common reason POST fails: this employeeNo is already on the
+  // device from an earlier enroll attempt — edit it instead of adding.
+  const modRes = await deviceRequest(device, { method: 'PUT', path: modifyPath, body: payload });
+  if (modRes.statusCode === 200) return { ok: true, created: false };
+
+  return { ok: false, message: `Device rejected user record (add: HTTP ${addRes.statusCode}, edit: HTTP ${modRes.statusCode})`, raw: modRes.body || addRes.body };
 }
 
 /**
- * Starts fingerprint collection MODE on the device for a given employeeNo.
- * The employee then physically places their finger on the scanner (2–3
- * times, per Hikvision's own capture flow) and the device stores the
- * resulting template locally, associated with that employeeNo. This call
- * only arms the device to start capture — it returns immediately.
+ * Collects a fingerprint on the device for a given employeeNo.
+ *
+ * IMPORTANT: unlike Hikvision's face-capture flow (which has a separate
+ * CaptureFaceData + CaptureFaceData/Progress pair of endpoints), the
+ * fingerprint flow is a SINGLE call — POST /ISAPI/AccessControl/
+ * CaptureFingerPrint — and Hikvision does not document (or ship, on the
+ * DS-K1T802 family) any "CaptureFingerPrintProgress" endpoint. This call
+ * blocks on the device side: the HTTP connection stays open while the
+ * employee places their finger on the scanner (2–3 times), and the
+ * device only responds once it succeeds, fails, or times out internally.
+ * (An earlier version of this file polled a "CaptureFingerPrintProgress"
+ * endpoint that doesn't exist on real hardware — every capture would
+ * have appeared to time out after 60s even when the employee scanned
+ * successfully, because that poll always got HTTP 404.)
+ *
+ * Because of that blocking behavior, this needs a generous client-side
+ * timeout — comfortably longer than the ~60s the device itself allows
+ * for someone to finish scanning.
  */
 async function startFingerprintCapture(device, { employeeNo, fingerNo = 1 }) {
   const path = '/ISAPI/AccessControl/CaptureFingerPrint?format=json';
   const payload = JSON.stringify({ CaptureFingerPrintCond: { employeeNo: String(employeeNo), fingerNo } });
-  const res = await deviceRequest(device, { method: 'POST', path, body: payload });
-  if (res.statusCode === 200) {
-    const parsed = safeJsonParse(res.body);
-    return { ok: true, data: parsed };
-  }
-  return { ok: false, message: `Device did not accept capture request (HTTP ${res.statusCode})`, raw: res.body };
-}
-
-/** Polls the device for the result of an in-progress fingerprint capture. */
-async function pollFingerprintCaptureStatus(device) {
-  const path = '/ISAPI/AccessControl/CaptureFingerPrintProgress?format=json';
-  const res = await deviceRequest(device, { method: 'GET', path });
-  if (res.statusCode !== 200) return { ok: false, message: `HTTP ${res.statusCode}` };
+  const res = await deviceRequest(device, { method: 'POST', path, body: payload, timeoutMs: 75000 });
   const parsed = safeJsonParse(res.body) || {};
-  // Hikvision reports progress via a status/progress-style field; we
-  // normalize the handful of shapes seen across firmware versions.
-  const info = parsed.CaptureFingerPrintProgress || parsed;
-  const status = (info.status || info.Status || '').toString().toLowerCase();
-  return {
-    ok: true,
-    finished: status.includes('success') || status.includes('ok') || info.progress === 100,
-    failed: status.includes('fail') || status.includes('error') || status.includes('timeout'),
-    raw: info,
-  };
+
+  if (res.statusCode !== 200) {
+    return { ok: false, message: `Device did not accept/complete the capture (HTTP ${res.statusCode})`, raw: res.body };
+  }
+  // Most ISAPI endpoints report failure via a statusCode field that isn't
+  // 1 (Hikvision's generic "ResponseStatus" shape). Response field names
+  // vary a little across firmware, so be lenient: HTTP 200 with no such
+  // field present is treated as success, but an explicit failure marker
+  // is respected if the device sends one.
+  const explicitStatus = parsed.statusCode !== undefined ? Number(parsed.statusCode) : null;
+  if (explicitStatus !== null && explicitStatus !== 1) {
+    return { ok: false, message: parsed.statusString || parsed.errorMsg || 'Device reported the capture failed', raw: parsed };
+  }
+  return { ok: true, data: parsed };
 }
 
 /** Removes a person (and their fingerprint templates) from the device. */
@@ -199,14 +217,22 @@ async function fetchRecentMatchEvents(device, { sinceIso, maxResults = 30 }) {
   if (res.statusCode !== 200) return { ok: false, events: [], message: `HTTP ${res.statusCode}` };
   const parsed = safeJsonParse(res.body) || {};
   const list = (parsed.AcsEvent && parsed.AcsEvent.InfoList) || parsed.InfoList || [];
-  // Minor type 1 = fingerprint verify success (Hikvision "verify success" via fingerprint).
-  // We also accept 38/75 style card+fingerprint combos some firmwares emit; anything with
-  // a non-empty employeeNo and a "success"-ish name is treated as a valid match.
+  // Hikvision's minor event codes for a successful verification vary by
+  // firmware/model (real-world captures show values like 75 alongside
+  // unrelated door-open/door-close events at 21/22 in the very same
+  // event log) — there's no single documented "fingerprint success"
+  // minor code to hard-match against. Instead we match on the broader,
+  // consistently-present signals a real successful verify carries: a
+  // non-empty employeeNo, PLUS either an attendanceStatus (present on
+  // check-in/check-out events), a currentVerifyMode that mentions
+  // fingerprint ("fp"), or an event description containing "success".
   const matches = list
     .filter(ev => {
-      const name = (ev.subEventType || ev.eventDescription || '').toString().toLowerCase();
+      const name = (ev.subEventType || ev.eventDescription || ev.label || '').toString().toLowerCase();
+      const verifyMode = (ev.currentVerifyMode || '').toString().toLowerCase();
       const hasEmployee = ev.employeeNoString || ev.employeeNo;
-      return hasEmployee && (name.includes('success') || ev.minor === 1 || ev.currentVerifyMode === 'fp' || ev.currentVerifyMode === 'fingerPrint');
+      const looksLikeSuccess = name.includes('success') || !!ev.attendanceStatus || verifyMode.includes('fp');
+      return hasEmployee && looksLikeSuccess;
     })
     .map(ev => ({
       employeeNo: (ev.employeeNoString || ev.employeeNo || '').toString(),
@@ -221,7 +247,6 @@ module.exports = {
   testConnection,
   ensureUserOnDevice,
   startFingerprintCapture,
-  pollFingerprintCaptureStatus,
   deleteUserFromDevice,
   fetchRecentMatchEvents,
 };

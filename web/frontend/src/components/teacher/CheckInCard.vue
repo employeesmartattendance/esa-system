@@ -106,8 +106,8 @@
       <div v-if="fingerprintEnrolled === true && !todayRecord?.check_in" class="biometric-banner fp-banner">
         <AppIcon name="fingerprint" :size="16" color="var(--primary)" />
         <div class="biometric-banner-text">
-          <div class="biometric-banner-title">{{ fpWaiting ? 'Waiting for fingerprint scan…' : 'Or scan your fingerprint at the device' }}</div>
-          <div class="biometric-banner-sub">{{ fpWaiting ? 'Place your finger on the device now — this will check you in automatically' : 'Place your finger on the entrance device to check in instantly' }}</div>
+          <div class="biometric-banner-title">{{ fpWaiting ? 'Waiting for fingerprint scan…' : 'Or scan your fingerprint at the scanner' }}</div>
+          <div class="biometric-banner-sub">{{ fpWaiting ? 'Place your finger on the scanner now — this will check you in automatically' : 'Place your finger on the entrance scanner to check in instantly' }}</div>
         </div>
         <span v-if="fpWaiting" class="btn-spinner-sm fp-banner-spinner"></span>
         <button v-else class="btn btn-ghost btn-sm" @click="startFingerprintWait">

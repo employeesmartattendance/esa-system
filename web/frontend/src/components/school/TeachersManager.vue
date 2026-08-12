@@ -161,10 +161,10 @@
     </AppModal>
 
     <!-- Fingerprint Enrollment Modal -->
-    <AppModal v-model="showFingerprintModal" title="Fingerprint Enrollment" subtitle="Hikvision device" icon="fingerprint">
+    <AppModal v-model="showFingerprintModal" title="Fingerprint Enrollment" subtitle="Fingerprint scanner" icon="fingerprint">
       <div v-if="fingerprintTarget" class="fp-modal">
         <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px">
-          Enroll <strong>{{ fingerprintTarget.name }}</strong>'s fingerprint on the physical Hikvision device. Make sure they're standing at the device before you start.
+          Enroll <strong>{{ fingerprintTarget.name }}</strong>'s fingerprint on the scanner. Make sure they're standing at it before you start.
         </p>
 
         <div v-if="fpStep === 'idle'">
@@ -179,7 +179,7 @@
           <span class="btn-spinner-sm" style="width:20px;height:20px"></span>
           <div class="fp-capturing-text">
             <div class="fp-capturing-title">Waiting for fingerprint scan…</div>
-            <div class="fp-capturing-sub">Have {{ fingerprintTarget.name }} place their finger on the device's scanner now. It may take 2–3 scans.</div>
+            <div class="fp-capturing-sub">Have {{ fingerprintTarget.name }} place their finger on the scanner now. It may take 2–3 scans.</div>
           </div>
         </div>
 
@@ -190,7 +190,7 @@
 
         <div v-else-if="fpStep === 'failed'" class="fp-notice fp-notice-error">
           <AppIcon name="alert-triangle" :size="16" color="var(--danger)" />
-          <span>Capture failed or timed out. Try again, and make sure the device is powered on and reachable.</span>
+          <span>Scan failed or timed out. Try again, and make sure the scanner is powered on and connected.</span>
         </div>
 
         <div v-if="fpErrorMsg" class="fp-notice fp-notice-error">

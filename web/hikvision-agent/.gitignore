@@ -1,0 +1,5 @@
+# Your real config (backend URL + agent token) — never commit this.
+config.js
+
+node_modules/
+npm-debug.log

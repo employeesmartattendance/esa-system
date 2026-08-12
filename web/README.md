@@ -220,6 +220,18 @@ esa-system/
 
 ---
 
+## 👆 Fingerprint Check-In (Hikvision)
+
+ESA supports an optional physical fingerprint terminal (Hikvision
+DS-K1T802-series) as a second biometric check-in channel alongside face
+verification. Since the device lives on a local network and the backend
+runs in the cloud, a small **bridge agent** (`hikvision-agent/`) relays
+between them.
+
+👉 **Full step-by-step setup:** see [`HIKVISION_SETUP_GUIDE.md`](./HIKVISION_SETUP_GUIDE.md)
+
+---
+
 ## 📱 Mobile (Capacitor)
 
 ```bash
