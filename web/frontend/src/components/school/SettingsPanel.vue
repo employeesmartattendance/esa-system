@@ -159,75 +159,9 @@
         <!-- Hikvision Fingerprint Device Card -->
         <FingerprintDeviceCard />
 
-        <!-- Auto Check-Out Card -->
-        <div class="glass settings-card">
-          <div class="card-head">
-            <div class="card-icon-wrap" style="background:rgba(16,185,129,0.12)">
-              <AppIcon name="checkout" :size="20" color="var(--success)" />
-            </div>
-            <div class="card-head-text">
-              <div class="card-title">Automatic Check-Out</div>
-              <div class="card-desc">Auto-close attendance at end of {{ vocab.orgNoun.toLowerCase() }} day</div>
-            </div>
-            <label class="toggle-switch">
-              <input type="checkbox" v-model="form.auto_checkout_enabled" />
-              <span class="toggle-track"></span>
-            </label>
-          </div>
-
-          <div class="card-body" :class="{ 'card-disabled': !form.auto_checkout_enabled }">
-            <div class="form-group">
-              <label class="form-label">{{ vocab.orgNoun }} Day End Time</label>
-              <input v-model="form.checkout_time" type="time" class="form-input mono-font" />
-              <p class="field-hint">All {{ vocab.personNounPlural.toLowerCase() }} still checked in will be automatically checked out at this time</p>
-            </div>
-
-            <!-- How it works -->
-            <div class="how-it-works">
-              <div class="hiw-title"><AppIcon name="info" :size="13" color="var(--primary)" />How Auto Check-Out Works</div>
-              <div class="hiw-steps">
-                <div class="hiw-step">
-                  <div class="step-num">1</div>
-                  <span>At <strong>{{ fmt(form.checkout_time) }}</strong>, the system scans for {{ vocab.personNounPlural.toLowerCase() }} still checked in</span>
-                </div>
-                <div class="hiw-step">
-                  <div class="step-num">2</div>
-                  <span>All open sessions are automatically closed with a system note</span>
-                </div>
-                <div class="hiw-step">
-                  <div class="step-num">3</div>
-                  <span v-if="form.notify_admin_checkout">You receive a real-time notification with the list of auto-checked-out {{ vocab.personNounPlural.toLowerCase() }}</span>
-                  <span v-else>Notifications are disabled — toggle below to enable</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Notify admin toggle -->
-            <div class="notif-toggle-row">
-              <div class="notif-toggle-info">
-                <AppIcon name="bell" :size="15" color="var(--primary)" />
-                <div>
-                  <div class="notif-toggle-label">Admin Notification</div>
-                  <div class="notif-toggle-desc">Receive alert when auto check-out runs</div>
-                </div>
-              </div>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="form.notify_admin_checkout" />
-                <span class="toggle-track"></span>
-              </label>
-            </div>
-
-            <!-- Manual trigger button -->
-            <div class="manual-checkout-section">
-              <div class="manual-label">Manual Trigger</div>
-              <button class="btn btn-ghost btn-sm full-w" @click="triggerManualCheckout" :disabled="triggering">
-                <span v-if="triggering" class="btn-spinner-xs"></span>
-                <AppIcon v-else name="checkout" :size="14" />
-                {{ triggering ? 'Processing...' : `Checkout All Currently Checked-In ${vocab.personNounPlural} Now` }}
-              </button>
-            </div>
-          </div>
-        </div>
+        
+        <!-- Edit Profile Card -->
+        <EditProfileCard :user="auth.user" @updated="onProfileUpdated" />
       </div>
 
       <!-- ── RIGHT COLUMN ── -->
@@ -388,8 +322,75 @@
           </div>
         </div>
         
-        <!-- Edit Profile Card -->
-        <EditProfileCard :user="auth.user" @updated="onProfileUpdated" />
+        <!-- Auto Check-Out Card -->
+        <div class="glass settings-card">
+          <div class="card-head">
+            <div class="card-icon-wrap" style="background:rgba(16,185,129,0.12)">
+              <AppIcon name="checkout" :size="20" color="var(--success)" />
+            </div>
+            <div class="card-head-text">
+              <div class="card-title">Automatic Check-Out</div>
+              <div class="card-desc">Auto-close attendance at end of {{ vocab.orgNoun.toLowerCase() }} day</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="form.auto_checkout_enabled" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="card-body" :class="{ 'card-disabled': !form.auto_checkout_enabled }">
+            <div class="form-group">
+              <label class="form-label">{{ vocab.orgNoun }} Day End Time</label>
+              <input v-model="form.checkout_time" type="time" class="form-input mono-font" />
+              <p class="field-hint">All {{ vocab.personNounPlural.toLowerCase() }} still checked in will be automatically checked out at this time</p>
+            </div>
+
+            <!-- How it works -->
+            <div class="how-it-works">
+              <div class="hiw-title"><AppIcon name="info" :size="13" color="var(--primary)" />How Auto Check-Out Works</div>
+              <div class="hiw-steps">
+                <div class="hiw-step">
+                  <div class="step-num">1</div>
+                  <span>At <strong>{{ fmt(form.checkout_time) }}</strong>, the system scans for {{ vocab.personNounPlural.toLowerCase() }} still checked in</span>
+                </div>
+                <div class="hiw-step">
+                  <div class="step-num">2</div>
+                  <span>All open sessions are automatically closed with a system note</span>
+                </div>
+                <div class="hiw-step">
+                  <div class="step-num">3</div>
+                  <span v-if="form.notify_admin_checkout">You receive a real-time notification with the list of auto-checked-out {{ vocab.personNounPlural.toLowerCase() }}</span>
+                  <span v-else>Notifications are disabled — toggle below to enable</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notify admin toggle -->
+            <div class="notif-toggle-row">
+              <div class="notif-toggle-info">
+                <AppIcon name="bell" :size="15" color="var(--primary)" />
+                <div>
+                  <div class="notif-toggle-label">Admin Notification</div>
+                  <div class="notif-toggle-desc">Receive alert when auto check-out runs</div>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="form.notify_admin_checkout" />
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+
+            <!-- Manual trigger button -->
+            <div class="manual-checkout-section">
+              <div class="manual-label">Manual Trigger</div>
+              <button class="btn btn-ghost btn-sm full-w" @click="triggerManualCheckout" :disabled="triggering">
+                <span v-if="triggering" class="btn-spinner-xs"></span>
+                <AppIcon v-else name="checkout" :size="14" />
+                {{ triggering ? 'Processing...' : `Checkout All Currently Checked-In ${vocab.personNounPlural} Now` }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div><!-- end settings-layout -->
