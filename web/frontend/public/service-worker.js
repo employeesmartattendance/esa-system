@@ -8,7 +8,7 @@
  *  - Static built assets (JS/CSS/images from /assets/): stale-while-revalidate.
  */
 
-const CACHE_VERSION = 'esa-pwa-v5'
+const CACHE_VERSION = 'esa-pwa-v6'
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 

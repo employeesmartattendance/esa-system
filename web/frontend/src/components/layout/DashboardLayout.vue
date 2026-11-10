@@ -58,8 +58,10 @@ const auth = useAuthStore()
 const user = computed(() => auth.user)
 const { isDark, toggleDark } = useDark()
 
-const sidebarOpen = ref(window.innerWidth >= 768)
-const isMobile    = ref(window.innerWidth < 768)
+const MOBILE_BREAKPOINT = 768
+const initialMobile = window.innerWidth <= MOBILE_BREAKPOINT
+const sidebarOpen = ref(!initialMobile)
+const isMobile    = ref(initialMobile)
 const toastRef    = ref(null)
 const showNotif   = ref(false)
 const showProfile = ref(false)
@@ -81,8 +83,15 @@ watch(() => route.path, () => {
 })
 
 function checkMobile() {
-  isMobile.value = window.innerWidth < 768
-  if (!isMobile.value) sidebarOpen.value = true
+  const wasMobile = isMobile.value
+  const nowMobile = window.innerWidth <= MOBILE_BREAKPOINT
+  isMobile.value = nowMobile
+
+  // Keep the drawer closed when a desktop window is resized into the mobile
+  // breakpoint. Otherwise its initial desktop-open state can leave the
+  // bottom navigation translated off-screen in responsive emulation.
+  if (nowMobile !== wasMobile) sidebarOpen.value = !nowMobile
+  else if (!nowMobile) sidebarOpen.value = true
 }
 
 function handleApiError(event) {
@@ -109,6 +118,7 @@ function onContentScroll() {
 }
 
 onMounted(() => {
+  checkMobile()
   window.addEventListener('resize', checkMobile)
   window.addEventListener('esa:api-error', handleApiError)
   // Dashboard pages should only ever scroll inside .layout-content (below

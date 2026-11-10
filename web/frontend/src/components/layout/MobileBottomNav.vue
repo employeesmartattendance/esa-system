@@ -1,48 +1,54 @@
 <template>
-  <nav
-    v-if="mobileItems.length"
-    class="esa-mobile-bottom-nav"
-    :class="{ 'is-hidden': sidebarOpen }"
-    :style="navStyle"
-    aria-label="Mobile primary navigation"
-  >
-    <div class="esa-mobile-nav-indicator" aria-hidden="true"><span /></div>
+  <Teleport to="body">
+    <nav
+      v-if="mobileItems.length"
+      class="esa-mobile-bottom-nav"
+      :class="{ 'is-hidden': sidebarOpen }"
+      :style="navStyle"
+      aria-label="Mobile primary navigation"
+    >
+      <div class="esa-mobile-nav-indicator" aria-hidden="true"><span /></div>
 
-    <div class="esa-mobile-nav-items">
-      <template v-for="(item, index) in mobileItems" :key="item.to || 'more'">
-        <RouterLink
-          v-if="!item.isMore"
-          :to="item.to"
-          class="esa-mobile-nav-item"
-          :class="{ 'is-active': isItemActive(item), 'is-primary-action': index === 2 }"
-          :aria-current="isItemActive(item) ? 'page' : undefined"
-          :title="item.label"
-          :aria-label="item.label"
-        >
-          <span class="esa-mobile-nav-icon">
-            <AppIcon :name="item.icon || 'info'" :size="20" />
-          </span>
-          <span class="esa-mobile-nav-label">{{ item.label }}</span>
-        </RouterLink>
+      <div class="esa-mobile-nav-items">
+        <template v-for="(item, index) in mobileItems" :key="item.to || 'more'">
+          <RouterLink
+            v-if="!item.isMore"
+            :to="item.to"
+            class="esa-mobile-nav-item"
+            :class="{ 'is-active': isItemActive(item), 'is-primary-action': index === 2 }"
+            :aria-current="isItemActive(item) ? 'page' : undefined"
+            :title="item.label"
+            :aria-label="item.label"
+          >
+            <span class="esa-mobile-nav-icon">
+              <AppIcon :name="item.icon || 'info'" :size="20" />
+            </span>
+            <span class="esa-mobile-nav-label">{{ item.label }}</span>
+          </RouterLink>
 
-        <button
-          v-else
-          type="button"
-          class="esa-mobile-nav-item esa-mobile-nav-more"
-          :class="{ 'is-active': isMoreActive }"
-          :aria-expanded="sidebarOpen ? 'true' : 'false'"
-          :aria-label="isMoreActive ? `More: ${item.label}` : 'Open navigation menu'"
-          :title="item.label"
-          @click="emit('open-sidebar')"
-        >
-          <span class="esa-mobile-nav-icon">
-            <AppIcon :name="item.icon || 'menu'" :size="20" />
-          </span>
-          <span class="esa-mobile-nav-label">{{ item.label }}</span>
-        </button>
-      </template>
+          <button
+            v-else
+            type="button"
+            class="esa-mobile-nav-item esa-mobile-nav-more"
+            :class="{ 'is-active': isMoreActive }"
+            :aria-expanded="sidebarOpen ? 'true' : 'false'"
+            :aria-label="isMoreActive ? `More: ${item.label}` : 'Open navigation menu'"
+            :title="item.label"
+            @click="emit('open-sidebar')"
+          >
+            <span class="esa-mobile-nav-icon">
+              <AppIcon :name="item.icon || 'menu'" :size="20" />
+            </span>
+            <span class="esa-mobile-nav-label">{{ item.label }}</span>
+          </button>
+        </template>
+      </div>
+    </nav>
+  </Teleport>
+</template>
     </div>
-  </nav>
+    </nav>
+  </Teleport>
 </template>
 
 <script setup>
@@ -128,6 +134,7 @@ function isItemActive(item) {
 
 @media (max-width: 768px) {
   .esa-mobile-bottom-nav {
+    display: block;
     --esa-mobile-nav-count: 5;
     --esa-mobile-nav-index: 0;
     position: fixed;
