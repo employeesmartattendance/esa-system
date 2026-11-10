@@ -18,7 +18,7 @@
     <!-- Table -->
     <div class="table-scroll">
       <table>
-        <thead v-if="!loading && paginatedRows.length">
+        <thead v-if="paginatedRows.length">
           <tr>
             <th
               v-for="col in columns"
@@ -40,7 +40,7 @@
           </tr>
         </thead>
         <tbody>
-        <tr v-if="loading" class="loading-row">
+        <tr v-if="loading && !paginatedRows.length && showDelayedLoading" class="loading-row">
           <td :colspan="columns.length" class="table-loading-cell">
             <div class="table-loading-inner">
               <div class="spinner-ring">
@@ -50,6 +50,9 @@
             </div>
           </td>
         </tr>
+          <tr v-else-if="loading && !paginatedRows.length">
+            <td :colspan="columns.length"><div class="initial-load-placeholder"></div></td>
+          </tr>
           <tr v-else-if="!paginatedRows.length">
             <td :colspan="columns.length">
               <EmptyState :icon="emptyIcon || 'search'" :title="emptyTitle || 'No results'" :message="emptyMessage || ''" />
@@ -74,6 +77,82 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Mobile record cards: same source rows and cell slots as the desktop table. -->
+    <div class="mobile-record-list">
+      <div v-if="quickFilterOptions.length" class="mobile-filter-strip" role="tablist" aria-label="Filter records">
+        <button
+          v-for="option in quickFilterOptions"
+          :key="option.value"
+          type="button"
+          class="mobile-filter-chip"
+          :class="{ active: activeQuickFilter === option.value }"
+          :aria-selected="activeQuickFilter === option.value"
+          @click="activeQuickFilter = option.value; page = 1"
+        >{{ option.label }}</button>
+      </div>
+      <div v-if="loading && !paginatedRows.length && showDelayedLoading" class="mobile-record-loading">
+        <span class="spinner"></span>
+      </div>
+      <div v-else-if="loading && !paginatedRows.length" class="mobile-record-loading-placeholder"></div>
+      <EmptyState
+        v-else-if="!paginatedRows.length"
+        :icon="emptyIcon || 'search'"
+        :title="emptyTitle || 'No results'"
+        :message="emptyMessage || ''"
+      />
+      <article
+        v-for="(row, idx) in paginatedRows"
+        :key="row.id ?? row._id ?? `${page}-${idx}`"
+        class="mobile-record-card"
+        :class="{ 'is-expanded': expandedRowKey === rowKey(row, idx) }"
+      >
+        <button type="button" class="mobile-record-card__header" :aria-expanded="expandedRowKey === rowKey(row, idx)" @click="toggleMobileDetails(row, idx)">
+          <div class="mobile-record-card__topline">
+            <span v-if="statusColumn" class="mobile-record-card__status">
+              <slot :name="`cell-${statusColumn.key}`" :row="row" :value="row[statusColumn.key]" :index="startRow + idx">{{ humanizeValue(row[statusColumn.key]) }}</slot>
+            </span>
+            <span class="mobile-record-card__chevron"><AppIcon :name="expandedRowKey === rowKey(row, idx) ? 'chevron-up' : 'chevron-down'" :size="17" /></span>
+          </div>
+          <div class="mobile-record-card__title">
+            <slot v-if="primaryColumn" :name="`cell-${primaryColumn.key}`" :row="row" :value="row[primaryColumn.key]" :index="startRow + idx">{{ humanizeValue(row[primaryColumn.key]) }}</slot>
+            <span v-else>Record {{ startRow + idx }}</span>
+          </div>
+          <div v-if="secondaryColumn" class="mobile-record-card__subtitle">
+            <slot :name="`cell-${secondaryColumn.key}`" :row="row" :value="row[secondaryColumn.key]" :index="startRow + idx">{{ humanizeValue(row[secondaryColumn.key]) }}</slot>
+          </div>
+        </button>
+        <div class="mobile-record-card__preview" v-if="previewColumns.length">
+          <div v-for="col in previewColumns" :key="col.key" class="mobile-record-card__preview-row">
+            <span>{{ col.label }}</span>
+            <strong><slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]" :index="startRow + idx">{{ humanizeValue(row[col.key]) }}</slot></strong>
+          </div>
+        </div>
+        <div v-if="expandedRowKey === rowKey(row, idx)" class="mobile-record-card__expanded">
+          <div v-for="col in expandedColumns" :key="col.key" class="mobile-record-card__detail-row">
+            <span>{{ col.label || col.key }}</span>
+            <strong><slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]" :index="startRow + idx">{{ humanizeValue(row[col.key]) }}</slot></strong>
+          </div>
+        </div>
+        <div class="mobile-record-card__actions">
+          <button type="button" class="btn btn-primary btn-sm" @click="openMobileDetails(row, idx)"><AppIcon name="eye" :size="14" />View more</button>
+          <button type="button" class="btn btn-ghost btn-sm" @click="toggleMobileDetails(row, idx)"><AppIcon :name="expandedRowKey === rowKey(row, idx) ? 'chevron-up' : 'list'" :size="14" />{{ expandedRowKey === rowKey(row, idx) ? 'Less' : 'Details' }}</button>
+        </div>
+      </article>
+    </div>
+
+    <AppModal v-model="showMobileDetails" :title="mobileDetailsTitle" icon="file-text" max-width="560px">
+      <div v-if="selectedMobileRow" class="mobile-record-modal-details">
+        <div v-for="col in modalColumns" :key="col.key" class="mobile-record-modal-row">
+          <span>{{ col.label || col.key }}</span>
+          <strong><slot :name="`cell-${col.key}`" :row="selectedMobileRow" :value="selectedMobileRow[col.key]" :index="selectedMobileIndex">{{ humanizeValue(selectedMobileRow[col.key]) }}</slot></strong>
+        </div>
+        <div v-if="$slots['cell-actions']" class="mobile-record-modal-actions">
+          <div class="mobile-record-modal-actions__label">Available actions</div>
+          <slot name="cell-actions" :row="selectedMobileRow" :value="selectedMobileRow" :index="selectedMobileIndex" />
+        </div>
+      </div>
+    </AppModal>
 
     <!-- Pagination -->
     <div v-if="totalPages > 1" class="table-pagination">
@@ -103,6 +182,8 @@
 import { ref, computed, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import EmptyState from './EmptyState.vue'
+import AppModal from './AppModal.vue'
+import { useDelayedLoading } from '../../composables/useDelayedLoading'
 
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -116,10 +197,16 @@ const props = defineProps({
   emptyMessage: String,
 })
 
+const showDelayedLoading = useDelayedLoading(() => props.loading, 180)
 const searchQuery = ref('')
 const sortKey = ref('')
 const sortDir = ref('asc')
 const page = ref(1)
+const activeQuickFilter = ref('all')
+const expandedRowKey = ref(null)
+const showMobileDetails = ref(false)
+const selectedMobileRow = ref(null)
+const selectedMobileIndex = ref(0)
 
 watch(searchQuery, () => { page.value = 1 })
 
@@ -134,11 +221,25 @@ function toggleSort(key) {
   else { sortKey.value = key; sortDir.value = 'asc' }
 }
 
+const quickFilterField = computed(() => {
+  const candidates = ['status', 'today_status', 'subscription_status', 'user_role']
+  return candidates.find(key => props.columns.some(col => col.key === key) && new Set((props.rows || []).map(row => row?.[key]).filter(value => value !== null && value !== undefined && value !== '')).size >= 2) || ''
+})
+const quickFilterOptions = computed(() => {
+  if (!quickFilterField.value) return []
+  const values = [...new Set((props.rows || []).map(row => row?.[quickFilterField.value]).filter(value => value !== null && value !== undefined && value !== ''))].slice(0, 7)
+  if (values.length < 2) return []
+  return [{ value: 'all', label: 'All' }, ...values.map(value => ({ value: String(value), label: humanizeValue(value) }))]
+})
+
 const filteredRows = computed(() => {
   let rows = Array.isArray(props.rows) ? [...props.rows] : []
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     rows = rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)))
+  }
+  if (quickFilterField.value && activeQuickFilter.value !== 'all') {
+    rows = rows.filter(row => String(row?.[quickFilterField.value]) === activeQuickFilter.value)
   }
   if (sortKey.value) {
     rows.sort((a, b) => {
@@ -162,9 +263,80 @@ const visiblePages = computed(() => {
   for (let i = Math.max(1, cur - 2); i <= Math.min(total, cur + 2); i++) pages.push(i)
   return pages
 })
+
+const primaryColumn = computed(() => props.columns.find(col => !col.rowIndex && col.key !== 'actions' && !col.hideMobile) || props.columns.find(col => !col.rowIndex && col.key !== 'actions'))
+const secondaryColumn = computed(() => props.columns.find(col => !col.rowIndex && col.key !== 'actions' && col.key !== primaryColumn.value?.key && !['status', 'today_status', 'subscription_status'].includes(col.key)))
+const statusColumn = computed(() => props.columns.find(col => ['status', 'today_status', 'subscription_status'].includes(col.key) && col.key !== primaryColumn.value?.key && col.key !== secondaryColumn.value?.key))
+const previewColumns = computed(() => props.columns.filter(col => !col.rowIndex && col.key !== 'actions' && col.key !== primaryColumn.value?.key && col.key !== secondaryColumn.value?.key && col.key !== statusColumn.value?.key).slice(0, 2))
+const expandedColumns = computed(() => props.columns.filter(col => !col.rowIndex && col.key !== 'actions' && col.key !== primaryColumn.value?.key && col.key !== secondaryColumn.value?.key && col.key !== statusColumn.value?.key))
+const modalColumns = computed(() => props.columns.filter(col => !col.rowIndex && col.key !== 'actions'))
+const mobileDetailsTitle = computed(() => {
+  const value = selectedMobileRow.value && primaryColumn.value ? selectedMobileRow.value[primaryColumn.value.key] : ''
+  return typeof value === 'string' && value.length ? value : 'Record details'
+})
+function rowKey(row, idx) { return String(row?.id ?? row?._id ?? `${page.value}-${idx}`) }
+function humanizeValue(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'object') return Array.isArray(value) ? value.join(', ') : 'View details'
+  return String(value).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
+}
+function toggleMobileDetails(row, idx) {
+  const key = rowKey(row, idx)
+  expandedRowKey.value = expandedRowKey.value === key ? null : key
+}
+function openMobileDetails(row, idx) {
+  selectedMobileRow.value = row
+  selectedMobileIndex.value = startRow.value + idx
+  showMobileDetails.value = true
+}
 </script>
 
 <style scoped>
+.mobile-record-list { display: none; }
+.mobile-record-modal-details { display: flex; flex-direction: column; gap: 0; }
+.mobile-record-modal-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--surface-border); font-size: 13px; }
+.mobile-record-modal-row > span { color: var(--text-muted); flex: 0 0 37%; }
+.mobile-record-modal-row > strong { text-align: right; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.mobile-record-modal-actions { padding-top: 16px; }
+.mobile-record-modal-actions__label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.mobile-record-modal-actions :deep(.row-actions) { display: flex; flex-wrap: wrap; gap: 8px; }
+.mobile-record-modal-actions :deep(.icon-btn) { min-width: 40px; min-height: 40px; }
+.mobile-record-modal-actions :deep(.action-cell) { white-space: normal; }
+@media (max-width: 768px) {
+  .table-scroll { display: none; }
+  .mobile-record-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  .mobile-filter-strip { display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 1px 0 4px; margin: 0 -1px 2px; }
+  .mobile-filter-strip::-webkit-scrollbar { display: none; }
+  .mobile-filter-chip { flex: 0 0 auto; border: 1px solid var(--surface-border); border-radius: 999px; background: var(--bg); color: var(--text-secondary); padding: 8px 14px; font: 600 12px var(--font); white-space: nowrap; }
+  .mobile-filter-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,.22); }
+  .mobile-record-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(15,23,42,.045); }
+  .mobile-record-card__header { display: flex; flex-direction: column; align-items: stretch; gap: 5px; width: 100%; padding: 14px 15px 11px; border: 0; background: transparent; color: var(--text); text-align: left; }
+  .mobile-record-card__topline { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:22px; }
+  .mobile-record-card__status { font-size:12px; font-weight:600; min-width:0; }
+  .mobile-record-card__chevron { color: var(--text-muted); display:inline-flex; align-items:center; }
+  .mobile-record-card__title { width:100%; min-width:0; font-size:14px; font-weight:700; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mobile-record-card__subtitle { width:100%; min-width:0; font-size:12px; line-height:1.35; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mobile-record-card__preview { padding:0 15px 10px; display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; }
+  .mobile-record-card__preview-row { min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .mobile-record-card__preview-row > span, .mobile-record-card__detail-row > span { font-size:10px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  .mobile-record-card__preview-row > strong { font-size:12px; color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mobile-record-card__expanded { padding:8px 15px 10px; border-top:1px solid var(--surface-border); display:flex; flex-direction:column; }
+  .mobile-record-card__detail-row { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:8px 0; border-bottom:1px solid var(--surface-border); font-size:12px; }
+  .mobile-record-card__detail-row:last-child { border-bottom:0; }
+  .mobile-record-card__detail-row > strong { text-align:right; max-width:62%; overflow-wrap:anywhere; font-weight:600; }
+  .mobile-record-card__actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:10px 15px 14px; border-top:1px solid var(--surface-border); }
+  .mobile-record-card__actions .btn { width:100%; min-height:38px; justify-content:center; white-space:nowrap; }
+  .mobile-record-loading { display:flex; justify-content:center; padding:36px; }
+  .mobile-record-loading-placeholder { min-height:22px; }
+  .initial-load-placeholder { min-height:22px; }
+  .data-table-wrap { overflow:visible; }
+  .table-toolbar { padding:12px 12px 0; border-bottom:0; }
+  .table-search { max-width:none; width:100%; }
+  .table-actions { width:100%; justify-content:flex-end; }
+  .table-pagination { padding:12px; }
+}
+.initial-load-placeholder { min-height:22px; }
 .data-table-wrap { border-radius: var(--radius); overflow: hidden; width: 100%; max-width: 100%; }
 .table-toolbar {
   display: flex; align-items: center; justify-content: space-between;

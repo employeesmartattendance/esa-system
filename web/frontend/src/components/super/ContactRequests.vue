@@ -1,7 +1,8 @@
 <template>
   <div class="cr-page">
+    <MobilePageHero title="Contact requests" subtitle="Review and manage requests from organizations" />
     <!-- Header -->
-    <div class="section-header">
+    <div class="section-header mobile-contact-header">
       <div>
         <h2 class="section-title">Contact Requests</h2>
         <p class="section-desc">Manage incoming website contact requests</p>
@@ -11,16 +12,12 @@
       </button>
     </div>
 
-    <!-- Stats -->
-    <div class="cr-stats">
-      <div class="glass mini-stat" v-for="s in miniStats" :key="s.label">
-        <AppIcon :name="s.icon" :size="18" :color="s.color" />
-        <div>
-          <div class="mini-val" :style="`color:${s.color}`">{{ s.val }}</div>
-          <div class="mini-label">{{ s.label }}</div>
-        </div>
-      </div>
-    </div>
+    <MetricBarsChart
+      title="Contact request status"
+      subtitle="Requests grouped by their current review state"
+      :items="requestStatusChart"
+      period-label="All requests"
+    />
 
     <!-- Filter tabs -->
     <div class="cr-tabs glass">
@@ -37,10 +34,11 @@
 
     <!-- List -->
     <div class="glass cr-list-wrap">
-      <div v-if="loading" class="cr-empty">
+      <div v-if="loading && !localList.length && showDelayedLoading" class="cr-empty">
         <div class="spinner-lg"></div>
         <span style="color:var(--text-muted)">Loading requests...</span>
       </div>
+      <div v-else-if="loading && !localList.length" class="cr-loading-reserve"></div>
       <div v-else-if="filtered.length === 0" class="cr-empty">
         <AppIcon name="bell" :size="32" color="var(--text-muted)" />
         <span style="color:var(--text-muted)">No {{ activeTab === 'all' ? '' : activeTab }} requests yet</span>
@@ -203,10 +201,13 @@
 </template>
 
 <script setup>
+import MobilePageHero from '../ui/MobilePageHero.vue'
+import MetricBarsChart from '../ui/MetricBarsChart.vue'
 import { ref, computed, onMounted } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
 import AppModal from '../ui/AppModal.vue'
 import api from '../../api'
+import { useDelayedLoading } from '../../composables/useDelayedLoading'
 import { useToast } from '../../composables/useToast'
 
 const { showToast } = useToast()
@@ -261,15 +262,15 @@ function countByStatus(key) {
   return statusTally.value[key] ?? 0
 }
 
-const miniStats = computed(() => {
-  const t = statusTally.value
+const requestStatusChart = computed(() => {
+  const tally = statusTally.value
   return [
-    { icon: 'bell',         label: 'Total',    val: t.all,      color: 'var(--primary)' },
-    { icon: 'clock',        label: 'Pending',  val: t.pending,  color: 'var(--warning)' },
-    { icon: 'check-circle', label: 'Approved', val: t.approved, color: 'var(--success)' },
-    { icon: 'x-circle',     label: 'Rejected', val: t.rejected, color: 'var(--danger)'  },
+    { label: 'Pending', value: tally.pending, color: 'var(--warning)' },
+    { label: 'Approved', value: tally.approved, color: 'var(--success)' },
+    { label: 'Rejected', value: tally.rejected, color: 'var(--danger)' },
   ]
 })
+
 
 function openDetail(r) {
   selected.value = { ...r }
@@ -370,6 +371,7 @@ function formatFull(d) {
 
 /* List container */
 .cr-list-wrap { overflow:hidden; border-radius:var(--radius-lg); }
+.cr-loading-reserve { min-height:22px; }
 .cr-empty { display:flex; flex-direction:column; align-items:center; gap:14px; padding:56px 20px; }
 .cr-list  { display:flex; flex-direction:column; }
 

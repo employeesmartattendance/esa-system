@@ -1,5 +1,6 @@
 <template>
   <div class="page-root">
+    <MobilePageHero :title="groupVocab.personNounPlural" subtitle="Manage people, access and attendance records" />
     <div class="section-header">
       <div>
         <h2 class="section-title">{{ groupVocab.personNounPlural }}</h2>
@@ -212,6 +213,7 @@
 </template>
 
 <script setup>
+import MobilePageHero from '../ui/MobilePageHero.vue'
 import { ref, computed, onMounted } from 'vue'
 import DataTable from '../ui/DataTable.vue'
 import AppModal from '../ui/AppModal.vue'

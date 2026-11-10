@@ -2,7 +2,8 @@
   <Teleport to="body">
     <Transition name="modal-fade">
       <div v-if="modelValue" class="modal-overlay" @click.self="close">
-        <div class="modal-box fcm-box" @click.stop>
+        <div ref="sheetRef" class="modal-box fcm-box" @click.stop>
+          <div class="modal-sheet-handle-wrap" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerCancel"><span class="modal-sheet-handle" aria-hidden="true"></span></div>
           <div class="modal-header">
             <div class="modal-header-left">
               <div class="modal-icon-wrap">
@@ -141,6 +142,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import AppIcon from './AppIcon.vue'
+import { useMobileSheetDrag } from '../../composables/useMobileSheetDrag'
 import { useBiometric } from '../../composables/useBiometric'
 
 const props = defineProps({
@@ -283,6 +285,8 @@ function close() {
   emit('update:modelValue', false)
 }
 
+const { sheetRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useMobileSheetDrag(close, () => stage.value !== 'capturing')
+
 watch(() => props.modelValue, (open) => {
   if (open) startCamera()
   else stopCamera()
@@ -318,6 +322,7 @@ onBeforeUnmount(stopCamera)
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
 }
 .fcm-box { max-width: 460px; }
+.modal-sheet-handle-wrap { display:none; }
 
 .modal-header {
   display: flex;
@@ -564,5 +569,16 @@ onBeforeUnmount(stopCamera)
   border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
   border-radius: 50%; animation: fcm-spin 0.7s linear infinite;
   flex-shrink: 0;
+}
+
+@media (max-width:768px) {
+  .modal-overlay { padding:0; align-items:flex-end; justify-content:center; }
+  .modal-box { max-width:100%; max-height:min(94dvh, 900px); border-radius:24px 24px 0 0; border-left:0; border-right:0; border-bottom:0; padding-bottom:env(safe-area-inset-bottom); transform:translate3d(0,0,0); will-change:transform; }
+  .modal-sheet-handle-wrap { height:26px; display:flex; align-items:center; justify-content:center; flex:0 0 26px; touch-action:none; cursor:grab; }
+  .modal-sheet-handle { display:block; width:38px; height:4px; border-radius:99px; background:var(--text-muted); opacity:.42; }
+  .modal-header { padding:8px 18px 14px; }
+  .fcm-body { padding:12px 16px 16px; }
+  .fcm-stage { max-width:min(76vw, 320px); }
+  .modal-footer { padding:12px 18px calc(14px + env(safe-area-inset-bottom)); }
 }
 </style>

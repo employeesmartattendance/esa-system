@@ -1,5 +1,6 @@
 <template>
   <div class="page-root">
+    <MobilePageHero title="System logs" subtitle="Review important platform activity" />
     <div class="section-header">
       <div>
         <h2 class="section-title">System Logs</h2>
@@ -50,6 +51,7 @@
 </template>
 
 <script setup>
+import MobilePageHero from '../ui/MobilePageHero.vue'
 import { ref } from 'vue'
 import DataTable from '../ui/DataTable.vue'
 import AppBadge from '../ui/AppBadge.vue'

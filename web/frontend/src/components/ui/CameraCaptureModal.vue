@@ -2,7 +2,8 @@
   <Teleport to="body">
     <Transition name="modal-fade">
       <div v-if="modelValue" class="modal-overlay" @click.self="close">
-        <div class="modal-box ccm-box" @click.stop>
+        <div ref="sheetRef" class="modal-box ccm-box" @click.stop>
+          <div class="modal-sheet-handle-wrap" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerCancel"><span class="modal-sheet-handle" aria-hidden="true"></span></div>
           <div class="modal-header">
             <div class="modal-header-left">
               <div class="modal-icon-wrap">
@@ -98,6 +99,7 @@
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { useCameraCapture } from '../../composables/useCameraCapture'
+import { useMobileSheetDrag } from '../../composables/useMobileSheetDrag'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -105,7 +107,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'success', 'error'])
 
-const capture = useCameraCapture()
+const cameraCapture = useCameraCapture()
 const videoRef = ref(null)
 const canvasRef = ref(null)
 const stage = ref('loading') // loading | ready | uploading | success | error | denied | unsupported
@@ -136,13 +138,13 @@ async function startCamera() {
   stage.value = 'loading'
   errorMessage.value = ''
 
-  if (!capture.isSupported) {
+  if (!cameraCapture.isSupported) {
     stage.value = 'unsupported'
     return
   }
 
   try {
-    stream = await capture.requestCamera()
+    stream = await cameraCapture.requestCamera()
     await nextTick()
     if (videoRef.value) {
       videoRef.value.srcObject = stream
@@ -182,14 +184,14 @@ async function capture() {
   errorMessage.value = ''
 
   try {
-    const blob = await capture.captureFrame(videoRef.value, canvasRef.value)
+    const blob = await cameraCapture.captureFrame(videoRef.value, canvasRef.value)
     if (!blob) {
       stage.value = 'error'
       errorMessage.value = 'Could not capture frame. Please try again.'
       return
     }
 
-    const result = await capture.verify(blob, props.action)
+    const result = await cameraCapture.verify(blob, props.action)
 
     if (result?.biometric_token) {
       stage.value = 'success'
@@ -199,7 +201,7 @@ async function capture() {
       }, 500)
     } else {
       stage.value = 'error'
-      errorMessage.value = capture.error.value || 'Verification failed. Please try again.'
+      errorMessage.value = cameraCapture.error.value || 'Verification failed. Please try again.'
       emit('error', errorMessage.value)
     }
   } catch (e) {
@@ -216,6 +218,8 @@ function close() {
   if (stage.value === 'uploading') return
   emit('update:modelValue', false)
 }
+
+const { sheetRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useMobileSheetDrag(close, () => stage.value !== 'uploading')
 
 watch(() => props.modelValue, (open) => {
   if (open) startCamera()
@@ -249,6 +253,7 @@ onBeforeUnmount(stopCamera)
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
 }
 .ccm-box { max-width: 420px; }
+.modal-sheet-handle-wrap { display:none; }
 
 .modal-header {
   display: flex;
@@ -330,6 +335,17 @@ onBeforeUnmount(stopCamera)
   border-radius: 50%; animation: ccm-spin 0.7s linear infinite;
 }
 @keyframes ccm-spin { to { transform: rotate(360deg); } }
+
+@media (max-width:768px) {
+  .modal-overlay { padding:0; align-items:flex-end; justify-content:center; }
+  .modal-box { max-width:100%; max-height:min(94dvh, 900px); border-radius:24px 24px 0 0; border-left:0; border-right:0; border-bottom:0; padding-bottom:env(safe-area-inset-bottom); transform:translate3d(0,0,0); will-change:transform; }
+  .modal-sheet-handle-wrap { height:26px; display:flex; align-items:center; justify-content:center; flex:0 0 26px; touch-action:none; cursor:grab; }
+  .modal-sheet-handle { display:block; width:38px; height:4px; border-radius:99px; background:var(--text-muted); opacity:.42; }
+  .modal-header { padding:8px 18px 14px; }
+  .ccm-body { padding:12px 16px 16px; }
+  .ccm-stage { max-width:min(72vw, 300px); }
+  .modal-footer { padding:12px 18px calc(14px + env(safe-area-inset-bottom)); }
+}
 
 .ccm-tip {
   display: flex; align-items: center; gap: 6px;

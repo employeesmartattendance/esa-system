@@ -21,10 +21,12 @@
       </div>
 
       <!-- Loading -->
-      <div v-if="loading" class="np-loading">
+      <div v-if="loading && !items.length && showDelayedLoading" class="np-loading">
         <div class="np-spinner"></div>
         <span>Loading…</span>
       </div>
+
+      <div v-else-if="loading && !items.length" class="np-loading-reserve"></div>
 
       <!-- Empty -->
       <div v-else-if="!items.length" class="np-empty">
@@ -73,6 +75,7 @@
 <script setup>
 import { ref, watch, toRef } from 'vue'
 import api from '../../api'
+import { useDelayedLoading } from '../../composables/useDelayedLoading'
 import { useScrollLock } from '../../composables/useScrollLock'
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } })
@@ -82,6 +85,7 @@ useScrollLock(toRef(props, 'modelValue'))
 
 const items   = ref([])
 const loading = ref(false)
+const showDelayedLoading = useDelayedLoading(() => loading.value, 180)
 
 // Auto-load when panel opens
 watch(() => props.modelValue, (open) => { if (open) load() })
@@ -203,6 +207,7 @@ function getType(a) {
 .np-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
 
 /* Loading */
+.np-loading-reserve { min-height:20px; }
 .np-loading {
   display: flex; align-items: center; justify-content: center;
   gap: 10px; padding: 32px;

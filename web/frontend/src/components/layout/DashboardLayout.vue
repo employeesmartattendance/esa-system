@@ -8,12 +8,9 @@
       <TopBar
         :title="pageTitle"
         :subtitle="pageSubtitle"
-        :isDark="isDark"
         :userName="user?.name || ''"
         :userAvatar="user?.avatar || ''"
         :notifCount="0"
-        @toggle-sidebar="sidebarOpen = !sidebarOpen"
-        @toggle-theme="toggleDark"
         @notifications="showNotif = !showNotif"
         @open-profile="showProfile = true"
       />
@@ -46,17 +43,15 @@ import ToastNotification  from '../ui/ToastNotification.vue'
 import NotificationsPanel from '../ui/NotificationsPanel.vue'
 import ProfileModal       from '../ui/ProfileModal.vue'
 import { useAuthStore }   from '../../stores/auth'
-import { useDark }        from '../../composables/useDark'
 
 const props = defineProps({
   navSections:  { type: Array,  default: () => [] },
-  pageTitle:    { type: String, default: 'Dashboard' },
+  pageTitle:    { type: String, default: 'Home' },
   pageSubtitle: { type: String, default: '' },
 })
 
 const auth = useAuthStore()
 const user = computed(() => auth.user)
-const { isDark, toggleDark } = useDark()
 
 const MOBILE_BREAKPOINT = 768
 const initialMobile = window.innerWidth <= MOBILE_BREAKPOINT

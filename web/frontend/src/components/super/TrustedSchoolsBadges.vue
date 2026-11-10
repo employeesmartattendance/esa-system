@@ -18,10 +18,12 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="ts-empty">
+    <div v-if="loading && !schools.length && showDelayedLoading" class="ts-empty">
       <div class="spinner"></div>
       <span style="color:var(--text-muted)">Loading...</span>
     </div>
+
+    <div v-else-if="loading && !schools.length" class="ts-loading-reserve"></div>
 
     <!-- Empty state -->
     <div v-else-if="schools.length === 0" class="ts-empty glass">
@@ -255,6 +257,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import AppIcon  from '../ui/AppIcon.vue'
 import AppModal from '../ui/AppModal.vue'
+import { useDelayedLoading } from '../../composables/useDelayedLoading'
 import api      from '../../api'
 import { useToast } from '../../composables/useToast'
 import { compressImage } from '../../composables/useImageCompress'
@@ -558,6 +561,7 @@ async function doDelete() {
 }
 .btn-danger-soft:hover { background:var(--danger); color:#fff; }
 
+.ts-loading-reserve { min-height:22px; }
 .ts-empty { display:flex; flex-direction:column; align-items:center; gap:14px; padding:64px 32px; text-align:center; border-radius:var(--radius-xl); }
 
 /* ── Drop zone ──────────────────────────────────────────────────────────── */

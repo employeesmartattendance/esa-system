@@ -1,11 +1,13 @@
 <template>
   <div>
-    <div class="stats-grid">
-      <StatCard icon="teachers" :label="`Total ${vocab.personNounPlural}`" :value="stats.totalTeachers" value-color="var(--primary)" icon-color="var(--primary)" bg-color="rgba(37,99,235,0.1)" glow-color="rgba(37,99,235,0.08)" delay="0s" />
-      <StatCard icon="check-circle" label="Present Today" :value="stats.presentToday" value-color="var(--success)" icon-color="var(--success)" bg-color="rgba(16,185,129,0.1)" glow-color="rgba(16,185,129,0.08)" delay="0.05s" />
-      <StatCard icon="clock" label="Late Today" :value="stats.lateToday" value-color="var(--warning)" icon-color="var(--warning)" bg-color="rgba(245,158,11,0.1)" glow-color="rgba(245,158,11,0.08)" delay="0.1s" />
-      <StatCard icon="x-circle" label="Absent Today" :value="stats.absentToday" value-color="var(--danger)" icon-color="var(--danger)" bg-color="rgba(239,68,68,0.1)" glow-color="rgba(239,68,68,0.08)" delay="0.15s" />
-    </div>
+    <AttendanceDistributionChart
+      title="Today’s attendance"
+      :subtitle="`${stats.totalTeachers || 0} ${vocab.personNounPlural.toLowerCase()} in this attendance breakdown`"
+      :total="Number(stats.totalTeachers) || 0"
+      :items="attendanceChartItems"
+      :center-label="vocab.personNounPlural"
+      period-label="Today"
+    />
 
     <div class="grid-2">
       <!-- Live teacher status -->
@@ -68,18 +70,31 @@
 </template>
 
 <script setup>
-import StatCard from '../ui/StatCard.vue'
+import { computed } from 'vue'
+import AttendanceDistributionChart from '../ui/AttendanceDistributionChart.vue'
 import AppBadge from '../ui/AppBadge.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import { useIndustry } from '../../composables/useIndustry'
-defineProps({
+const props = defineProps({
   stats: { type: Object, default: () => ({}) },
   teachers: { type: Array, default: () => [] },
   recentAttendance: { type: Array, default: () => [] },
 })
 defineEmits(['go-attendance'])
 const { vocab } = useIndustry()
+const attendanceChartItems = computed(() => {
+  const total = Math.max(0, Number(props.stats.totalTeachers) || 0)
+  const present = Math.max(0, Number(props.stats.presentToday) || 0)
+  const late = Math.max(0, Number(props.stats.lateToday) || 0)
+  const absent = Math.max(0, Number(props.stats.absentToday) || 0)
+  return [
+    { label: 'Present', value: present, color: 'var(--success)' },
+    { label: 'Late', value: late, color: 'var(--warning)' },
+    { label: 'Absent', value: absent, color: 'var(--danger)' },
+    { label: 'Not recorded', value: Math.max(0, total - present - late - absent), color: 'var(--text-muted)' },
+  ]
+})
 
 const API = import.meta.env.VITE_API_URL || 'https://esa-system.onrender.com/api'
 const apiBase = API.replace('/api', '')
@@ -91,7 +106,6 @@ function resolveAvatar(url) {
 </script>
 
 <style scoped>
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .section-card { padding: 22px; }
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
@@ -120,6 +134,5 @@ function resolveAvatar(url) {
 .dot.ok  { background: rgba(16,185,129,0.15); color: var(--success); }
 .dot.no  { background: rgba(239,68,68,0.15); color: var(--danger); }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-@media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .grid-2 { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
 </style>

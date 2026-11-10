@@ -15,15 +15,15 @@
             v-if="!item.isMore"
             :to="item.to"
             class="esa-mobile-nav-item"
-            :class="{ 'is-active': isItemActive(item), 'is-primary-action': index === 2 }"
+            :class="{ 'is-active': isItemActive(item), 'is-primary-action': index === 2, 'is-center-slot': index === 2 }"
             :aria-current="isItemActive(item) ? 'page' : undefined"
             :title="item.label"
             :aria-label="item.label"
           >
             <span class="esa-mobile-nav-icon">
-              <AppIcon :name="item.icon || 'info'" :size="20" />
+              <AppIcon :name="item.icon || 'info'" :size="index === 2 ? 24 : 20" />
             </span>
-            <span class="esa-mobile-nav-label">{{ item.label }}</span>
+            <span v-if="index !== 2 || isItemActive(item)" class="esa-mobile-nav-label">{{ item.label }}</span>
           </RouterLink>
 
           <button
@@ -144,7 +144,7 @@ function isItemActive(item) {
     -webkit-user-select: none;
     touch-action: manipulation;
     isolation: isolate;
-    transition: transform .38s cubic-bezier(.22, 1.18, .36, 1), opacity .25s ease;
+    transition: transform .22s cubic-bezier(.2, .8, .2, 1), opacity .16s ease;
   }
 
   .esa-mobile-bottom-nav::before {
@@ -179,7 +179,7 @@ function isItemActive(item) {
     background: var(--surface);
     box-shadow: 0 5px 13px rgba(11, 18, 32, .15), 0 1px 2px rgba(11, 18, 32, .12);
     pointer-events: none;
-    transition: left .42s cubic-bezier(.22, 1.18, .36, 1), box-shadow .2s ease;
+    transition: left .2s cubic-bezier(.2, .8, .2, 1), box-shadow .16s ease;
   }
 
   .esa-mobile-nav-indicator span {
@@ -235,10 +235,11 @@ function isItemActive(item) {
     display: grid;
     place-items: center;
     transform: translateY(0) scale(1);
-    transition: transform .36s cubic-bezier(.22, 1.18, .36, 1), color .2s ease, background .24s ease, box-shadow .24s ease, border-color .24s ease;
+    transition: transform .2s cubic-bezier(.2, .8, .2, 1), color .16s ease, background .16s ease, box-shadow .16s ease, border-color .16s ease;
   }
 
   .esa-mobile-nav-icon :deep(svg) { width: 20px; height: 20px; stroke-width: 1.75; }
+  .esa-mobile-nav-item.is-center-slot .esa-mobile-nav-icon :deep(svg) { width:24px; height:24px; stroke-width:2; }
 
   .esa-mobile-nav-label {
     display: block;
@@ -253,15 +254,15 @@ function isItemActive(item) {
     line-height: 1.1;
     font-weight: 600;
     letter-spacing: -.015em;
-    transition: color .2s ease, transform .34s cubic-bezier(.22, 1.18, .36, 1);
+    transition: color .16s ease, transform .18s ease;
   }
 
   .esa-mobile-nav-item.is-active { color: var(--primary); }
-  .esa-mobile-nav-item.is-active .esa-mobile-nav-icon { transform: translateY(-24px) scale(1.08); color: var(--primary); }
-  .esa-mobile-nav-item.is-active .esa-mobile-nav-label { transform: translateY(-1px); color: var(--text); font-weight: 700; }
+  .esa-mobile-nav-item.is-active .esa-mobile-nav-icon { transform: translateY(-27px) scale(1.04); color: var(--primary); }
+  .esa-mobile-nav-item.is-active .esa-mobile-nav-label { transform: translateY(0); color: var(--text); font-weight: 700; }
 
   .esa-mobile-nav-item:active .esa-mobile-nav-icon { transform: scale(.88); }
-  .esa-mobile-nav-item.is-active:active .esa-mobile-nav-icon { transform: translateY(-24px) scale(1.02); }
+  .esa-mobile-nav-item.is-active:active .esa-mobile-nav-icon { transform: translateY(-27px) scale(1.02); }
 
   /* The middle shortcut is the prominent action, like LapTrack's raised Scan
      control. It remains a normal in-app route and uses ESA's blue ring system. */
@@ -276,9 +277,12 @@ function isItemActive(item) {
     color: #fff;
     box-shadow: 0 9px 18px rgba(37, 99, 235, .3), 0 2px 6px rgba(11, 18, 32, .13);
   }
-  .esa-mobile-nav-item.is-primary-action:not(.is-active) .esa-mobile-nav-icon :deep(svg) { width: 21px; height: 21px; stroke-width: 2; }
+  .esa-mobile-nav-item.is-primary-action:not(.is-active) .esa-mobile-nav-icon :deep(svg) { width: 24px; height: 24px; stroke-width: 2; }
   .esa-mobile-nav-item.is-primary-action:not(.is-active) .esa-mobile-nav-label { color: var(--primary); font-weight: 700; }
+  .esa-mobile-nav-item.is-center-slot.is-active .esa-mobile-nav-icon { transform: translateY(-27px) scale(1.04); }
   .esa-mobile-nav-item.is-primary-action:not(.is-active):active .esa-mobile-nav-icon { transform: scale(.92); }
+
+  .esa-mobile-nav-item.is-center-slot:not(.is-active) { padding-top: 30px; }
 
   .esa-mobile-nav-item:focus-visible {
     outline: 2px solid var(--primary);

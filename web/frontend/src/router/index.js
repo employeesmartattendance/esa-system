@@ -38,7 +38,7 @@ const routes = [
     path: '/super/dashboard',
     name: 'SuperDashboard',
     component: () => import('../views/SuperAdminDashboard.vue'),
-    meta: { requiresAuth: true, role: 'super_admin', title: 'Super Admin Dashboard | ESA', robots: 'noindex,nofollow' },
+    meta: { requiresAuth: true, role: 'super_admin', title: 'Super Admin Home | ESA', robots: 'noindex,nofollow' },
   },
   {
     path: '/super/companies',
@@ -80,7 +80,7 @@ const routes = [
     path: '/school/dashboard',
     name: 'SchoolDashboard',
     component: () => import('../views/SchoolAdminDashboard.vue'),
-    meta: { requiresAuth: true, role: 'school_admin', title: 'School Dashboard | ESA', robots: 'noindex,nofollow' },
+    meta: { requiresAuth: true, role: 'school_admin', title: 'School Home | ESA', robots: 'noindex,nofollow' },
   },
   {
     path: '/school/teachers',
@@ -140,7 +140,7 @@ const routes = [
     path: '/teacher/dashboard',
     name: 'TeacherDashboard',
     component: () => import('../views/TeacherDashboard.vue'),
-    meta: { requiresAuth: true, role: 'teacher', title: 'Teacher Dashboard | ESA', robots: 'noindex,nofollow' },
+    meta: { requiresAuth: true, role: 'teacher', title: 'Teacher Home | ESA', robots: 'noindex,nofollow' },
   },
   {
     path: '/teacher/map',

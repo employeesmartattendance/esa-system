@@ -1,9 +1,6 @@
 <template>
   <header class="topbar">
     <div class="topbar-left">
-      <button class="hamburger" @click="$emit('toggle-sidebar')">
-        <AppIcon name="menu" :size="20" />
-      </button>
       <div class="page-title-wrap">
         <h2 class="page-title">{{ title }}</h2>
         <p v-if="subtitle" class="page-subtitle">{{ subtitle }}</p>
@@ -26,14 +23,6 @@
         <span v-if="notifCount" class="notif-dot">{{ notifCount }}</span>
       </button>
 
-      <!-- Theme toggle -->
-      <button class="topbar-btn theme-btn" @click="$emit('toggle-theme')" :title="isDark ? 'Light mode' : 'Dark mode'">
-        <Transition name="icon-swap" mode="out-in">
-          <AppIcon v-if="isDark" name="sun" :size="18" key="sun" />
-          <AppIcon v-else name="moon" :size="18" key="moon" />
-        </Transition>
-      </button>
-
       <!-- User avatar — click to open profile -->
       <div class="user-chip" @click="$emit('open-profile')" title="View Profile">
         <div class="user-chip-avatar">
@@ -51,14 +40,13 @@ import { computed } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
 
 const props = defineProps({
-  title: { type: String, default: 'Dashboard' },
+  title: { type: String, default: 'Home' },
   subtitle: { type: String, default: '' },
-  isDark: Boolean,
   userName: { type: String, default: '' },
   userAvatar: { type: String, default: '' },
   notifCount: { type: Number, default: 0 },
 })
-defineEmits(['toggle-sidebar', 'toggle-theme', 'notifications', 'open-profile'])
+defineEmits(['notifications', 'open-profile'])
 
 
 const initials = computed(() =>
@@ -90,20 +78,6 @@ const dateStr = computed(() =>
   gap: 16px;
 }
 .topbar-left { display: flex; align-items: center; gap: 14px; }
-.hamburger {
-  width: 38px; height: 38px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--surface-border);
-  background: var(--surface);
-  color: var(--text-secondary);
-  display: none; /* hidden on desktop, shown on mobile */
-  align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition);
-  flex-shrink: 0;
-}
-.hamburger:hover { border-color: var(--primary); color: var(--primary); }
-
 .page-title { font-size: 17px; font-weight: 700; line-height: 1.2; }
 .page-subtitle { font-size: 12px; color: var(--text-muted); }
 
@@ -144,7 +118,6 @@ const dateStr = computed(() =>
   font-size: 10px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
-.theme-btn { transition: transform 0.001s cubic-bezier(0.34,1.56,0.64,1); }
 
 
 .user-chip {
@@ -177,7 +150,6 @@ const dateStr = computed(() =>
 @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.85); } }
 
 @media (max-width: 768px) {
-  .hamburger { display: flex; } /* show hamburger on mobile */
   .user-chip{
   padding: 5px 5px 5px 5px;
   }

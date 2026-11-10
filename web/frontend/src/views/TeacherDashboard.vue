@@ -35,12 +35,12 @@
           </div>
 
           <!-- Quick stats row -->
-          <div class="mobile-stats-row">
-            <div class="mobile-stat glass" v-for="s in quickStats" :key="s.label">
-              <div class="ms-val" :style="`color:${s.color}`">{{ s.val }}</div>
-              <div class="ms-label">{{ s.label }}</div>
-            </div>
-          </div>
+          <MetricBarsChart
+            title="This week’s attendance"
+            subtitle="Your attendance pattern for the current week"
+            :items="quickStats"
+            period-label="This week"
+          />
 
           <!-- Recent records (mobile only shows 3) -->
           <div class="glass mobile-recent">
@@ -288,12 +288,7 @@
                 <AppIcon name="analytics" :size="17" color="var(--primary)" />
                 <span class="card-title-text">All-Time Stats</span>
               </div>
-              <div class="alltime-stats">
-                <div class="at-stat" v-for="s in allTimeStats" :key="s.label">
-                  <div class="at-val" :style="`color:${s.color}`">{{ s.val }}</div>
-                  <div class="at-label">{{ s.label }}</div>
-                </div>
-              </div>
+              <MetricBarsChart title="All-time attendance" subtitle="Recorded attendance days" :items="allTimeChartItems" />
             </div>
           </div>
         </div>
@@ -350,13 +345,7 @@
                 <AppIcon name="analytics" :size="17" color="var(--info)" />
                 <span class="card-title-text">Career Stats</span>
               </div>
-              <div class="career-stats">
-                <div class="cs-stat" v-for="s in allTimeStats" :key="s.label">
-                  <div class="cs-val" :style="`color:${s.color}`">{{ s.val }}</div>
-                  <div class="cs-label">{{ s.label }}</div>
-                  <div class="cs-bar"><div class="cs-fill" :style="`width:${s.pct||0}%;background:${s.color}`"></div></div>
-                </div>
-              </div>
+              <MetricBarsChart title="Career attendance" subtitle="Your full attendance history" :items="allTimeChartItems" />
             </div>
             <div class="glass desk-card">
               <div class="card-title-row">
@@ -381,6 +370,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import DashboardLayout    from '../components/layout/DashboardLayout.vue'
+import MetricBarsChart    from '../components/ui/MetricBarsChart.vue'
 import CheckInCard        from '../components/teacher/CheckInCard.vue'
 import AttendanceHistory  from '../components/teacher/AttendanceHistory.vue'
 import TeacherLiveMap     from '../components/teacher/TeacherLiveMap.vue'
@@ -464,7 +454,7 @@ const schoolInfo   = ref(null)  // { id, name, lat, lng }
 
 /* ── Nav ── */
 const _allNavItems = [
-  { to: '/teacher/dashboard', label: 'Dashboard',    icon: 'dashboard'  },
+  { to: '/teacher/dashboard', label: 'Home',    icon: 'dashboard'  },
   { to: '/teacher/map',       label: 'Live GPS Map', icon: 'location',  desktopHide: true },
   { to: '/teacher/history',   label: 'Attendance',   icon: 'attendance' },
   { to: '/teacher/profile',   label: 'My Profile',   icon: 'profile'    },
@@ -473,8 +463,8 @@ const navSections = computed(() => [{
   group: 'My Portal',
   items: _allNavItems.filter(i => !(isDesktop.value && i.desktopHide)),
 }])
-const pageTitles       = { dashboard: 'Dashboard', map: 'Live GPS Map', history: 'Attendance', profile: 'Profile' }
-const currentPageTitle = computed(() => pageTitles[section.value] || 'Dashboard')
+const pageTitles       = { dashboard: 'Home', map: 'Live GPS Map', history: 'Attendance', profile: 'Profile' }
+const currentPageTitle = computed(() => pageTitles[section.value] || 'Home')
 
 /* ── Single-pass tally helper ──
    Counts present/late in one walk instead of separate .filter() passes.
@@ -603,6 +593,10 @@ const allTimeStats = computed(() => {
     { label: 'Attendance Rate',val: `${Math.round(showedUp/total*100)}%`, color: 'var(--accent)', pct: Math.round(showedUp/total*100) },
   ]
 })
+const allTimeChartItems = computed(() => allTimeStats.value
+  .filter(item => item.label !== 'Attendance Rate')
+  .map(item => ({ label: item.label, value: Number(item.val) || 0, color: item.color })))
+
 
 /* ── Week days display ── */
 const weekDays = computed(() => {
@@ -759,7 +753,6 @@ onUnmounted(() => {
 @media (min-width:1200px) { .desktop-layout { grid-template-columns:1fr 380px; } }
 
 /* ── Mobile stats row ── */
-.mobile-stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .mobile-stat { padding:14px 10px; border-radius:var(--radius); text-align:center; }
 .ms-val  { font-size:28px; font-weight:800; line-height:1; }
 .ms-label{ font-size:11px; color:var(--text-muted); margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
@@ -860,10 +853,6 @@ onUnmounted(() => {
 }
 
 /* ── All time stats ── */
-.alltime-stats { display:flex; flex-direction:column; gap:10px; }
-.at-stat { display:flex; align-items:center; gap:10px; }
-.at-val  { font-size:20px; font-weight:800; min-width:36px; text-align:right; }
-.at-label{ font-size:12px; color:var(--text-muted); flex:1; font-weight:500; }
 
 /* ── Profile layout ── */
 .profile-layout { display:flex; flex-direction:column; gap:20px; }
@@ -887,12 +876,6 @@ onUnmounted(() => {
 .pf-val   { font-size:14px; font-weight:600; margin-top:2px; }
 
 /* Career stats */
-.career-stats { display:flex; flex-direction:column; gap:12px; }
-.cs-stat { }
-.cs-val   { font-size:22px; font-weight:800; }
-.cs-label { font-size:12px; color:var(--text-muted); font-weight:500; }
-.cs-bar   { height:4px; background:var(--surface-border); border-radius:99px; overflow:hidden; margin-top:4px; }
-.cs-fill  { height:100%; border-radius:99px; transition:width 1s ease; }
 
 /* ══ Map Section ══ */
 .map-section       { display:flex; flex-direction:column; gap:16px; }

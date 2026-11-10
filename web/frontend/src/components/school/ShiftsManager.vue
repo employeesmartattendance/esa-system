@@ -1,5 +1,6 @@
 <template>
   <div class="page-root">
+    <MobilePageHero title="Work shifts" subtitle="Manage schedules and assignments" />
     <div class="section-header">
       <div>
         <h2 class="section-title">Shifts</h2>
@@ -154,6 +155,7 @@
 </template>
 
 <script setup>
+import MobilePageHero from '../ui/MobilePageHero.vue'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import DataTable from '../ui/DataTable.vue'
 import AppModal from '../ui/AppModal.vue'

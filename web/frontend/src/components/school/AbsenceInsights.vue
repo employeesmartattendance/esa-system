@@ -1,5 +1,6 @@
 <template>
   <div class="insights-page">
+    <MobilePageHero title="Attendance insights" subtitle="Understand absence and punctuality trends" />
 
     <div class="insights-header">
       <div>
@@ -28,30 +29,12 @@
       </div>
     </div>
 
-    <!-- Summary stats -->
-    <div class="stats-row">
-      <div class="stat-card glass">
-        <div class="stat-icon" style="background:rgba(37,99,235,0.12);color:var(--primary)"><AppIcon name="teachers" :size="18" /></div>
-        <div>
-          <div class="stat-val">{{ totalEmployees }}</div>
-          <div class="stat-label">{{ vocab.personNounPlural }} Tracked</div>
-        </div>
-      </div>
-      <div class="stat-card glass">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.12);color:var(--danger)"><AppIcon name="x-circle" :size="18" /></div>
-        <div>
-          <div class="stat-val">{{ topAbsentCount }}</div>
-          <div class="stat-label">Most Absences</div>
-        </div>
-      </div>
-      <div class="stat-card glass">
-        <div class="stat-icon" style="background:rgba(245,158,11,0.12);color:var(--warning)"><AppIcon name="alert-triangle" :size="18" /></div>
-        <div>
-          <div class="stat-val">{{ topLateCount }}</div>
-          <div class="stat-label">Most Late Arrivals</div>
-        </div>
-      </div>
-    </div>
+    <MetricBarsChart
+      title="Absence and punctuality patterns"
+      :subtitle="`${totalEmployees} ${vocab.personNounPlural.toLowerCase()} tracked in the selected period`"
+      :items="insightChartItems"
+      period-label="Selected period"
+    />
 
     <!-- Tab switch -->
     <div class="tab-switch">
@@ -65,11 +48,12 @@
 
     <!-- List -->
     <div class="glass list-card">
-      <div v-if="loading" class="loading-wrap">
+      <div v-if="loading && !hasLoadedOnce && showDelayedLoading" class="loading-wrap">
         <div class="spinner-ring"><div></div><div></div><div></div><div></div></div>
         <span>Loading insights...</span>
       </div>
 
+      <div v-else-if="loading && !hasLoadedOnce && !showDelayedLoading" class="loading-reserve"></div>
       <EmptyState
         v-else-if="!activeList.length"
         icon="attendance"
@@ -126,12 +110,15 @@
 </template>
 
 <script setup>
+import MobilePageHero from '../ui/MobilePageHero.vue'
+import MetricBarsChart from '../ui/MetricBarsChart.vue'
 import { ref, computed, onMounted } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import { useToast } from '../../composables/useToast'
 import { useIndustry } from '../../composables/useIndustry'
 import api from '../../api'
+import { useDelayedLoading } from '../../composables/useDelayedLoading'
 
 const toast = useToast()
 const { vocab } = useIndustry()
@@ -152,14 +139,20 @@ function defaultRange() {
 
 const range = ref(defaultRange())
 const loading = ref(false)
+const showDelayedLoading = useDelayedLoading(() => loading.value, 180)
 const tab = ref('absent')
 const mostAbsent = ref([])
 const mostLate = ref([])
 const totalEmployees = ref(0)
+const hasLoadedOnce = ref(false)
 
 const activeList = computed(() => tab.value === 'absent' ? mostAbsent.value : mostLate.value)
 const topAbsentCount = computed(() => mostAbsent.value[0]?.absent_count ?? 0)
 const topLateCount = computed(() => mostLate.value[0]?.late_count ?? 0)
+const insightChartItems = computed(() => [
+  { label: 'Highest absence count', value: topAbsentCount.value, color: 'var(--danger)' },
+  { label: 'Highest late-arrival count', value: topLateCount.value, color: 'var(--warning)' },
+])
 
 async function load() {
   loading.value = true
@@ -173,6 +166,7 @@ async function load() {
     toast.error(e.response?.data?.message || 'Failed to load insights')
   } finally {
     loading.value = false
+    hasLoadedOnce.value = true
   }
 }
 
@@ -192,11 +186,6 @@ onMounted(load)
 .filter-actions { display:flex; gap:8px; align-items:center; flex-shrink:0; }
 .form-input { padding:10px 12px; background:var(--surface); border:1.5px solid var(--surface-border); border-radius:var(--radius-sm); color:var(--text); font-size:14px; font-family:var(--font); box-sizing:border-box; }
 
-.stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
-.stat-card { display:flex; align-items:center; gap:12px; padding:16px 16px; border-radius:var(--radius); }
-.stat-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.stat-val { font-size:22px; font-weight:800; line-height:1; }
-.stat-label { font-size:11px; color:var(--text-muted); margin-top:3px; font-weight:600; }
 
 .tab-switch { display:flex; gap:8px; padding:4px; background:var(--surface); border:1px solid var(--surface-border); border-radius:var(--radius); width:fit-content; }
 .tab-btn {
@@ -207,6 +196,7 @@ onMounted(load)
 .tab-btn.active { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; box-shadow:0 3px 10px var(--primary-glow); }
 
 .list-card { border-radius:var(--radius-lg); overflow:hidden; min-height:120px; }
+.loading-reserve { min-height:20px; }
 .loading-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px 20px; color:var(--text-muted); font-size:13px; }
 .spinner-ring { display:inline-block; position:relative; width:36px; height:36px; }
 .spinner-ring div { position:absolute; width:28px; height:28px; margin:4px; border:3px solid var(--primary); border-radius:50%; animation:spinring 1.2s cubic-bezier(0.5,0,0.5,1) infinite; border-color:var(--primary) transparent transparent transparent; }
@@ -261,8 +251,6 @@ onMounted(load)
   .filter-group { min-width:100%; }
   .filter-actions { width:100%; }
   .filter-actions .btn { flex:1; justify-content:center; }
-  .stats-row { grid-template-columns:1fr; gap:8px; }
-  .stat-card { padding:12px 14px; }
   .tab-switch { width:100%; }
   .tab-btn { flex:1; justify-content:center; padding:8px 10px; }
   .rank-row { padding:12px 14px; gap:10px; }

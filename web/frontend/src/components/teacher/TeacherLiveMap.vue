@@ -377,7 +377,6 @@ async function drawRoute(fLat, fLng, tLat, tLng) {
   try {
     const r = await fetch(
       `https://router.project-osrm.org/route/v1/driving/${fLng},${fLat};${tLng},${tLat}?overview=full&geometries=geojson`,
-      { signal: AbortSignal.timeout(5000) }
     )
     if (r.ok) { const d = await r.json(); coords = d.routes?.[0]?.geometry?.coordinates }
   } catch {}

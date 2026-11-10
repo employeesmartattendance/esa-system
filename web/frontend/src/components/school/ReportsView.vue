@@ -1,5 +1,6 @@
 <template>
-  <div>
+  <div class="reports-page">
+    <MobilePageHero title="Attendance reports" subtitle="Review daily attendance summaries and trends" />
     <div class="section-header">
       <div>
         <h2 class="section-title">Attendance Reports</h2>
@@ -17,52 +18,45 @@
       </div>
     </div>
 
-    <!-- Summary cards (latest report) -->
-    <div v-if="latestReport" class="summary-cards">
-      <div class="glass summary-card">
-        <div class="sc-icon" style="background:rgba(37,99,235,0.1)">
-          <AppIcon name="teachers" :size="22" color="var(--primary)" />
-        </div>
-        <div class="sc-val" style="color:var(--primary)">{{ latestReport.total_teachers }}</div>
-        <div class="sc-lbl">Total {{ vocab.personNounPlural }}</div>
-      </div>
-      <div class="glass summary-card">
-        <div class="sc-icon" style="background:rgba(16,185,129,0.1)">
-          <AppIcon name="check-circle" :size="22" color="var(--success)" />
-        </div>
-        <div class="sc-val" style="color:var(--success)">{{ latestReport.present_count }}</div>
-        <div class="sc-lbl">Present</div>
-      </div>
-      <div class="glass summary-card">
-        <div class="sc-icon" style="background:rgba(245,158,11,0.1)">
-          <AppIcon name="clock" :size="22" color="var(--warning)" />
-        </div>
-        <div class="sc-val" style="color:var(--warning)">{{ latestReport.late_count }}</div>
-        <div class="sc-lbl">Late</div>
-      </div>
-      <div class="glass summary-card">
-        <div class="sc-icon" style="background:rgba(239,68,68,0.1)">
-          <AppIcon name="x-circle" :size="22" color="var(--danger)" />
-        </div>
-        <div class="sc-val" style="color:var(--danger)">{{ latestReport.absent_count }}</div>
-        <div class="sc-lbl">Absent</div>
-      </div>
+    <!-- Latest report is presented as a visual attendance breakdown, not KPI tiles. -->
+    <AttendanceDistributionChart
+      v-if="latestReport"
+      title="Latest attendance report"
+      :subtitle="`${latestReport.total_teachers || 0} ${vocab.personNounPlural.toLowerCase()} in the latest report`"
+      :total="Number(latestReport.total_teachers) || 0"
+      :items="latestReportChartItems"
+      :center-label="vocab.personNounPlural"
+      :period-label="formatDate(latestReport.report_date)"
+    />
+
+    <div class="mobile-report-filters" role="tablist" aria-label="Filter attendance reports">
+      <button
+        v-for="filter in reportFilters"
+        :key="filter.value"
+        type="button"
+        class="mobile-report-filter"
+        :class="{ active: activeReportFilter === filter.value }"
+        :aria-selected="activeReportFilter === filter.value"
+        @click="activeReportFilter = filter.value; expandedReportKey = null"
+      >{{ filter.label }}</button>
     </div>
 
     <!-- Reports table -->
     <div class="glass reports-table-wrap">
       <!-- Loading -->
-      <div v-if="loading" class="rp-empty">
+      <div v-if="loading && !hasLoadedOnce && !reports.length && showDelayedLoading" class="rp-empty">
         <div class="spinner-lg"></div>
         <span style="color:var(--text-muted)">Loading reports...</span>
       </div>
 
+      <div v-else-if="loading && !hasLoadedOnce && !reports.length" class="rp-empty rp-loading-reserve"></div>
+
       <!-- Empty -->
-      <div v-else-if="reports.length === 0" class="rp-empty">
+      <div v-else-if="!filteredReports.length" class="rp-empty">
         <AppIcon name="analytics" :size="36" color="var(--text-muted)" />
-        <p style="color:var(--text-muted);font-size:15px;font-weight:600">No reports yet</p>
-        <p style="color:var(--text-muted);font-size:13px">Reports are auto-generated at 17:30 each day, or click "Generate Today".</p>
-        <button class="btn btn-primary btn-sm" @click="generateToday" :disabled="generating">
+        <p style="color:var(--text-muted);font-size:15px;font-weight:600">{{ reports.length ? 'No reports match this filter' : 'No reports yet' }}</p>
+        <p v-if="!reports.length" style="color:var(--text-muted);font-size:13px">Reports are auto-generated at 17:30 each day, or click "Generate Today".</p>
+        <button v-if="!reports.length" class="btn btn-primary btn-sm" @click="generateToday" :disabled="generating">
           Generate Today's Report
         </button>
       </div>
@@ -79,7 +73,12 @@
           <div class="rp-col rp-act">Details</div>
         </div>
 
-        <div v-for="r in reports" :key="r.id" class="rp-row">
+        <div
+          v-for="r in filteredReports"
+          :key="r.id || r.report_date"
+          class="rp-row"
+          :class="{ 'is-expanded': expandedReportKey === reportKey(r) }"
+        >
           <div class="rp-col rp-date">
             <div class="rp-date-main">{{ formatDate(r.report_date) }}</div>
             <div class="rp-date-sub">{{ dayLabel(r.report_date) }}</div>
@@ -97,8 +96,12 @@
             </div>
           </div>
           <div class="rp-col rp-act" data-label="Actions">
-            <button class="btn btn-ghost btn-sm" @click="openDetail(r)">
-              <AppIcon name="eye" :size="13" />Details
+            <button class="btn btn-primary btn-sm" @click="openDetail(r)">
+              <AppIcon name="eye" :size="13" />View more
+            </button>
+            <button class="btn btn-ghost btn-sm" @click="toggleReportExpanded(r)">
+              <AppIcon :name="expandedReportKey === reportKey(r) ? 'chevron-up' : 'chevron-down'" :size="13" />
+              {{ expandedReportKey === reportKey(r) ? 'Less' : 'Details' }}
             </button>
           </div>
         </div>
@@ -108,13 +111,14 @@
     <!-- Detail Modal -->
     <AppModal v-model="showDetail" :title="`Report — ${formatDate(selected?.report_date)}`" icon="analytics" max-width="560px">
       <div v-if="selected">
-        <!-- Stats row -->
-        <div class="detail-stats">
-          <div class="ds-item" v-for="s in detailStats" :key="s.label">
-            <div class="ds-val" :style="`color:${s.color}`">{{ s.val }}</div>
-            <div class="ds-lbl">{{ s.label }}</div>
-          </div>
-        </div>
+        <AttendanceDistributionChart
+          title="Report breakdown"
+          :subtitle="`${selected.total_teachers || 0} ${vocab.personNounPlural.toLowerCase()} recorded`"
+          :total="Number(selected.total_teachers) || 0"
+          :items="selectedReportChartItems"
+          :center-label="vocab.personNounPlural"
+          :period-label="formatDate(selected.report_date)"
+        />
 
         <!-- Name lists -->
         <div class="name-lists">
@@ -159,11 +163,14 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import MobilePageHero from '../ui/MobilePageHero.vue'
+import AttendanceDistributionChart from '../ui/AttendanceDistributionChart.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import AppModal from '../ui/AppModal.vue'
 import api from '../../api'
 import { useToast } from '../../composables/useToast'
 import { getSocket } from '../../socket'
+import { useDelayedLoading } from '../../composables/useDelayedLoading'
 import { useIndustry } from '../../composables/useIndustry'
 const { vocab } = useIndustry()
 
@@ -171,17 +178,58 @@ const { showToast } = useToast()
 const reports    = ref([])
 const loading    = ref(false)
 const generating = ref(false)
+const hasLoadedOnce = ref(false)
+const showDelayedLoading = useDelayedLoading(() => loading.value, 180)
 const showDetail = ref(false)
 const selected   = ref(null)
+const activeReportFilter = ref('all')
+const expandedReportKey = ref(null)
 
 const latestReport = computed(() => reports.value[0] || null)
+const reportFilters = [
+  { value: 'all', label: 'All reports' },
+  { value: 'week', label: 'This week' },
+  { value: 'month', label: 'This month' },
+  { value: 'older', label: 'Older' },
+]
+const filteredReports = computed(() => {
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setHours(0, 0, 0, 0)
+  const day = (startOfWeek.getDay() + 6) % 7
+  startOfWeek.setDate(startOfWeek.getDate() - day)
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  return reports.value.filter(report => {
+    if (activeReportFilter.value === 'all') return true
+    const date = new Date(report.report_date)
+    if (Number.isNaN(date.getTime())) return activeReportFilter.value === 'older'
+    if (activeReportFilter.value === 'week') return date >= startOfWeek
+    if (activeReportFilter.value === 'month') return date >= startOfMonth
+    return date < startOfMonth
+  })
+})
+const latestReportChartItems = computed(() => reportChartItems(latestReport.value))
+const selectedReportChartItems = computed(() => reportChartItems(selected.value))
 
-const detailStats = computed(() => selected.value ? [
-  { val: selected.value.total_teachers, label: 'Total',   color: 'var(--primary)' },
-  { val: selected.value.present_count,  label: 'Present', color: 'var(--success)' },
-  { val: selected.value.late_count,     label: 'Late',    color: 'var(--warning)' },
-  { val: selected.value.absent_count,   label: 'Absent',  color: 'var(--danger)'  },
-] : [])
+function reportChartItems(report) {
+  if (!report) return []
+  const total = Math.max(0, Number(report.total_teachers) || 0)
+  const present = Math.max(0, Number(report.present_count) || 0)
+  const late = Math.max(0, Number(report.late_count) || 0)
+  const absent = Math.max(0, Number(report.absent_count) || 0)
+  return [
+    { label: 'Present', value: present, color: 'var(--success)' },
+    { label: 'Late', value: late, color: 'var(--warning)' },
+    { label: 'Absent', value: absent, color: 'var(--danger)' },
+    { label: 'Not recorded', value: Math.max(0, total - present - late - absent), color: 'var(--text-muted)' },
+  ]
+}
+function reportKey(report) { return String(report?.id ?? report?.report_date ?? '') }
+function toggleReportExpanded(report) {
+  const key = reportKey(report)
+  expandedReportKey.value = expandedReportKey.value === key ? null : key
+}
+
 
 onMounted(() => {
   load()
@@ -208,6 +256,7 @@ async function load() {
     showToast({ type: 'error', message: 'Failed to load reports' })
   } finally {
     loading.value = false
+    hasLoadedOnce.value = true
   }
 }
 
@@ -279,12 +328,9 @@ function dayLabel(d) {
 .section-desc    { font-size:13px; color:var(--text-muted); margin-top:2px; }
 .header-actions  { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
-/* Summary cards */
-.summary-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
-.summary-card  { padding:18px 20px; border-radius:var(--radius-lg); display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
-.sc-icon { width:44px; height:44px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; }
-.sc-val  { font-size:32px; font-weight:900; color:var(--text); }
-.sc-lbl  { font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.reports-page { display:flex; flex-direction:column; gap:16px; }
+.rp-loading-reserve { min-height:20px; padding:12px; }
+.mobile-report-filters { display:none; }
 
 /* Table */
 .reports-table-wrap { border-radius:var(--radius-lg); overflow:hidden; }
@@ -315,11 +361,7 @@ function dayLabel(d) {
 .rate-fill { height:100%; border-radius:99px; transition:width .5s ease; }
 .rate-pct  { font-size:12px; font-weight:800; flex-shrink:0; }
 
-/* Detail modal */
-.detail-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
-.ds-item { padding:14px; background:var(--bg-secondary); border-radius:var(--radius); text-align:center; border:1px solid var(--surface-border); }
-.ds-val  { font-size:28px; font-weight:900; }
-.ds-lbl  { font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase; margin-top:4px; }
+/* Report details inside the shared mobile bottom sheet. */
 
 .name-lists { display:flex; flex-direction:column; gap:14px; }
 .name-section { border-radius:var(--radius); overflow:hidden; }
@@ -338,14 +380,24 @@ function dayLabel(d) {
 @keyframes spin { to { transform:rotate(360deg); } }
 
 @media (max-width:768px) {
-  .summary-cards { grid-template-columns:repeat(2,1fr); }
+  .mobile-report-filters { display:flex; gap:8px; overflow-x:auto; padding:1px 0 4px; margin:0 -1px; scrollbar-width:none; overscroll-behavior-x:contain; }
+  .mobile-report-filters::-webkit-scrollbar { display:none; }
+  .mobile-report-filter { flex:0 0 auto; white-space:nowrap; border:1px solid var(--surface-border); border-radius:999px; background:var(--surface); color:var(--text-secondary); padding:8px 14px; font:600 12px var(--font); }
+  .mobile-report-filter.active { color:#fff; background:var(--primary); border-color:var(--primary); box-shadow:0 4px 12px rgba(37,99,235,.2); }
   .rp-table-header { display:none; }
-  .rp-row { display: flex; flex-direction: column; gap: 12px; padding: 20px; border-bottom: 1px solid var(--surface-border); }
-  .rp-col { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; }
-  .rp-col::before { content: attr(data-label); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); }
-  .rp-date { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .rp-date::before { content: "Date"; margin-bottom: 4px; }
-  .rp-num, .rp-rate, .rp-act { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; }
-  .detail-stats { grid-template-columns:repeat(2,1fr); }
+  .rp-row { display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; margin:0 0 10px; padding:14px; border:1px solid var(--surface-border); border-radius:16px; background:var(--surface); box-shadow:0 4px 16px rgba(15,23,42,.045); }
+  .rp-col { display:flex; justify-content:space-between; align-items:center; width:100%; min-width:0; text-align:left; }
+  .rp-col::before { content:attr(data-label); font-size:10px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:.04em; }
+  .rp-date { grid-column:1 / -1; flex-direction:column; align-items:flex-start; gap:2px; border-bottom:1px solid var(--surface-border); padding-bottom:9px; }
+  .rp-date::before { content:"Report date"; margin-bottom:3px; }
+  .rp-num[data-label="Total"], .rp-num[data-label="Present"] { display:flex; }
+  .rp-num[data-label="Late"], .rp-num[data-label="Absent"], .rp-rate { display:none; }
+  .rp-row.is-expanded .rp-num[data-label="Late"], .rp-row.is-expanded .rp-num[data-label="Absent"], .rp-row.is-expanded .rp-rate { display:flex; }
+  .rp-num, .rp-rate { border-top:1px solid var(--surface-border); padding-top:9px; }
+  .rp-act { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:8px; border-top:1px solid var(--surface-border); padding-top:10px; }
+  .rp-act::before { display:none; }
+  .rp-act .btn { min-height:38px; justify-content:center; white-space:nowrap; }
+  .reports-table-wrap { background:transparent; border:0; box-shadow:none; overflow:visible; }
+  .rp-row .rp-col.rp-act { background:transparent; }
 }
 </style>

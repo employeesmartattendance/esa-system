@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { reactive, toRaw } from 'vue'
 
 /**
  * ESA API Client – Offline-First
@@ -48,9 +49,186 @@ const getBaseUrl = () => {
 // ── Axios instance ────────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: getBaseUrl(),
-  timeout: 15000,
+  // No application-imposed request timeout: real attendance, exports and
+  // uploads must be bounded by the user's network, not an arbitrary timer.
   headers: { 'Content-Type': 'application/json' },
 })
+
+// ── Persistent cache-first GET layer (IndexedDB + in-memory reactive cache) ──
+// Previously visited pages return their last successful payload immediately.
+// A quiet request then refreshes IndexedDB and patches the same reactive
+// object/array in place, so mounted Vue views update without a loading state.
+const CACHE_DB_NAME = 'esa-data-cache-v1'
+const CACHE_STORE_NAME = 'responses'
+const CACHE_VERSION = 1
+const CACHE_FRESH_MS = 0
+const memoryCache = new Map()
+const refreshInFlight = new Map()
+const cacheGeneration = new Map()
+let cacheDbPromise = null
+
+function openCacheDb() {
+  if (cacheDbPromise) return cacheDbPromise
+  cacheDbPromise = new Promise((resolve) => {
+    if (!('indexedDB' in window)) return resolve(null)
+    const request = indexedDB.open(CACHE_DB_NAME, CACHE_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) db.createObjectStore(CACHE_STORE_NAME, { keyPath: 'key' })
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => resolve(null)
+    request.onblocked = () => resolve(null)
+  })
+  return cacheDbPromise
+}
+
+function idbRequest(mode, action) {
+  return openCacheDb().then(db => new Promise(resolve => {
+    if (!db) return resolve(null)
+    try {
+      const tx = db.transaction(CACHE_STORE_NAME, mode)
+      const request = action(tx.objectStore(CACHE_STORE_NAME))
+      request.onsuccess = () => resolve(request.result ?? null)
+      request.onerror = () => resolve(null)
+      tx.onabort = () => resolve(null)
+    } catch { resolve(null) }
+  }))
+}
+
+const idbGet = key => idbRequest('readonly', store => store.get(key))
+const idbPut = entry => idbRequest('readwrite', store => store.put(entry))
+const idbDelete = key => idbRequest('readwrite', store => store.delete(key))
+
+function safeUserScope() {
+  try {
+    const user = JSON.parse(localStorage.getItem('esa_user') || 'null') || {}
+    if (!localStorage.getItem('esa_token')) return 'public'
+    return [user.role || 'user', user.id ?? user.user_id ?? user.email ?? 'account', user.school_id ?? 'platform'].join(':')
+  } catch { return localStorage.getItem('esa_token') ? 'authenticated' : 'public' }
+}
+
+function stableValue(value) {
+  if (value instanceof URLSearchParams) return value.toString()
+  if (Array.isArray(value)) return value.map(stableValue)
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((out, key) => { out[key] = stableValue(value[key]); return out }, {})
+  }
+  return value
+}
+
+function cacheKeyFor(url, config = {}) {
+  const params = config.params ? JSON.stringify(stableValue(config.params)) : ''
+  return `${CACHE_DB_NAME}:${safeUserScope()}:${String(url || '')}:${params}`
+}
+
+function shouldCacheGet(url, config = {}) {
+  if ((config.method || 'get').toLowerCase() !== 'get' || config.responseType && config.responseType !== 'json') return false
+  if (config.cache === false || config.noCache === true) return false
+  const path = String(url || '').split('?')[0].toLowerCase()
+  if (/^\/auth\//.test(path) || /\/(health|status)$/.test(path)) return false
+  if (/biometric|hikvision|face-capture|camera-stream|live-location|gps-stream/.test(path)) return false
+  if (path === '/teacher/school-location' || path === '/teacher/location') return false
+  return true
+}
+
+function makeReactive(value) {
+  return value && typeof value === 'object' ? reactive(value) : value
+}
+
+function patchReactive(target, next) {
+  if (Array.isArray(target) && Array.isArray(next)) {
+    const replacement = next.map((item, index) => {
+      const current = target[index]
+      if (Array.isArray(current) && Array.isArray(item)) return patchReactive(current, item)
+      if (current && item && typeof current === 'object' && typeof item === 'object' && !Array.isArray(current) && !Array.isArray(item)) return patchReactive(current, item)
+      return makeReactive(item)
+    })
+    target.splice(0, target.length, ...replacement)
+    return target
+  }
+  if (target && next && typeof target === 'object' && typeof next === 'object' && !Array.isArray(target) && !Array.isArray(next)) {
+    for (const key of Object.keys(target)) if (!(key in next)) delete target[key]
+    for (const [key, value] of Object.entries(next)) {
+      const current = target[key]
+      if (Array.isArray(current) && Array.isArray(value)) patchReactive(current, value)
+      else if (current && value && typeof current === 'object' && typeof value === 'object' && !Array.isArray(current) && !Array.isArray(value)) patchReactive(current, value)
+      else target[key] = makeReactive(value)
+    }
+    return target
+  }
+  return makeReactive(next)
+}
+
+function serializable(value) {
+  try { return JSON.parse(JSON.stringify(toRaw(value))) } catch { return null }
+}
+
+async function persistCacheEntry(key, value, updatedAt = Date.now()) {
+  const plain = serializable(value)
+  if (plain === null) return
+  await idbPut({ key, value: plain, updatedAt })
+}
+
+function currentCacheGeneration(scope) {
+  if (!cacheGeneration.has(scope)) cacheGeneration.set(scope, 0)
+  return cacheGeneration.get(scope)
+}
+
+async function invalidateCurrentScopeCache() {
+  const scope = safeUserScope()
+  cacheGeneration.set(scope, currentCacheGeneration(scope) + 1)
+  const prefix = `${CACHE_DB_NAME}:${scope}:`
+  for (const key of memoryCache.keys()) if (key.startsWith(prefix)) memoryCache.delete(key)
+  const db = await openCacheDb()
+  if (!db) return
+  await new Promise(resolve => {
+    try {
+      const tx = db.transaction(CACHE_STORE_NAME, 'readwrite')
+      const store = tx.objectStore(CACHE_STORE_NAME)
+      const request = store.openCursor()
+      request.onsuccess = () => {
+        const cursor = request.result
+        if (!cursor) return
+        if (String(cursor.key).startsWith(prefix)) cursor.delete()
+        cursor.continue()
+      }
+      tx.oncomplete = tx.onerror = tx.onabort = () => resolve()
+    } catch { resolve() }
+  })
+}
+
+async function refreshCachedGet(url, config, key, originalGet, cachedValue) {
+  if (!navigator.onLine || refreshInFlight.has(key)) return
+  const scope = safeUserScope()
+  const generation = currentCacheGeneration(scope)
+  const requestConfig = { ...(config || {}), _esaBackgroundRefresh: true }
+  let promise
+  promise = originalGet(url, requestConfig).then(async freshValue => {
+    if (currentCacheGeneration(scope) !== generation || safeUserScope() !== scope) return
+    const updatedValue = patchReactive(cachedValue, freshValue)
+    const updatedAt = Date.now()
+    memoryCache.set(key, { value: updatedValue, updatedAt })
+    void persistCacheEntry(key, updatedValue, updatedAt)
+  }).catch(() => { /* Retain the last good cached response; no foreground toast. */ })
+    .finally(() => { if (refreshInFlight.get(key) === promise) refreshInFlight.delete(key) })
+  refreshInFlight.set(key, promise)
+}
+
+function clearApiCache() {
+  for (const [scope, generation] of cacheGeneration.entries()) cacheGeneration.set(scope, generation + 1)
+  memoryCache.clear()
+  refreshInFlight.clear()
+  return openCacheDb().then(db => new Promise(resolve => {
+    if (!db) return resolve()
+    try {
+      const tx = db.transaction(CACHE_STORE_NAME, 'readwrite')
+      tx.objectStore(CACHE_STORE_NAME).clear()
+      tx.oncomplete = tx.onerror = tx.onabort = () => resolve()
+    } catch { resolve() }
+  }))
+}
+
 
 // ── SQLite helpers (Electron only) ────────────────────────────────────────────
 const db = {
@@ -153,6 +331,13 @@ api.interceptors.request.use(
 // ── Response interceptor ──────────────────────────────────────────────────────
 api.interceptors.response.use(
   (res) => {
+    // Any successful write invalidates the current account's cached reads.
+    // This is deliberately conservative: it prevents stale lists/counts after
+    // create/edit/delete actions without changing existing mutation flows.
+    if (res.config?.method && res.config.method.toLowerCase() !== 'get'
+      && !String(res.config.url || '').startsWith('/auth/login')) {
+      void invalidateCurrentScopeCache()
+    }
     // Unwrap standard ESA envelope { success, data, message }
     const d = res.data
     if (d && typeof d === 'object' && 'success' in d && 'data' in d) return d.data
@@ -204,7 +389,7 @@ api.interceptors.response.use(
       const offlineMsg = isLoginRequest
         ? 'We couldn\'t sign you in right now. Please check your internet connection and try again.'
         : 'We\'re having trouble connecting right now. Please check your internet connection and try again.'
-      dispatchApiError(offlineMsg)
+      if (!config?._esaBackgroundRefresh) dispatchApiError(offlineMsg)
       const fallback = await _offlineFallback(config?.url, method)
       if (fallback !== null) return fallback
 
@@ -217,9 +402,47 @@ api.interceptors.response.use(
       err.message = offlineMsg
     }
 
-    dispatchApiError(deriveErrorMessage())
+    if (!config?._esaBackgroundRefresh) dispatchApiError(deriveErrorMessage())
     return Promise.reject(err)
   },
 )
 
 export default api
+
+// Cache-first wrapper sits on top of the normal Axios interceptors. Cache hits
+// resolve immediately; stale entries refresh quietly in the background.
+const axiosGet = api.get.bind(api)
+api.get = async function cacheFirstGet(url, config = {}) {
+  if (!shouldCacheGet(url, config)) return axiosGet(url, config)
+  const key = cacheKeyFor(url, config)
+  let entry = memoryCache.get(key)
+  if (!entry) {
+    const persisted = await idbGet(key)
+    if (persisted && Object.prototype.hasOwnProperty.call(persisted, 'value')) {
+      entry = { value: makeReactive(persisted.value), updatedAt: Number(persisted.updatedAt) || 0 }
+      memoryCache.set(key, entry)
+    }
+  }
+  if (entry) {
+    if (Date.now() - entry.updatedAt > CACHE_FRESH_MS) {
+      void refreshCachedGet(url, config, key, axiosGet, entry.value)
+    }
+    return entry.value
+  }
+  const requestScope = safeUserScope()
+  const requestGeneration = currentCacheGeneration(requestScope)
+  const fresh = await axiosGet(url, config)
+  const value = makeReactive(fresh)
+  const updatedAt = Date.now()
+  // Do not let a GET that started before a successful write repopulate the
+  // cache with an older snapshot after that write invalidated the scope.
+  if (safeUserScope() === requestScope && currentCacheGeneration(requestScope) === requestGeneration) {
+    memoryCache.set(key, { value, updatedAt })
+    void persistCacheEntry(key, value, updatedAt)
+  }
+  return value
+}
+api.clearCache = clearApiCache
+
+// Warm the IndexedDB connection during app startup without delaying rendering.
+void openCacheDb()

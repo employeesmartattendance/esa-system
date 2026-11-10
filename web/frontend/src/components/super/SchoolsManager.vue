@@ -1,5 +1,6 @@
 <template>
   <div class="page-root">
+    <MobilePageHero title="Companies" subtitle="Manage organizations and platform access" />
     <div class="section-header">
       <div>
         <h2 class="section-title">Companies Management</h2>
@@ -10,12 +11,20 @@
       </button>
     </div>
 
-    <!-- Stats row -->
-    <div class="schools-stats">
-      <div class="mini-stat glass" v-for="s in miniStats" :key="s.label">
-        <AppIcon :name="s.icon" :size="18" :color="s.color" />
-        <div><div class="mini-val" :style="`color:${s.color}`">{{ s.val }}</div><div class="mini-label">{{ s.label }}</div></div>
-      </div>
+    <div class="schools-charts">
+      <AttendanceDistributionChart
+        title="Company status"
+        subtitle="Active organizations across the platform"
+        :total="schools.length"
+        :items="companyStatusItems"
+        center-label="Companies"
+        period-label="Platform"
+      />
+      <MetricBarsChart
+        title="People tracked"
+        subtitle="Organizations with the largest active workforce"
+        :items="topCompanyPeople"
+      />
     </div>
 
     <div class="glass">
@@ -211,6 +220,9 @@
 </template>
 
 <script setup>
+import MobilePageHero from '../ui/MobilePageHero.vue'
+import AttendanceDistributionChart from '../ui/AttendanceDistributionChart.vue'
+import MetricBarsChart from '../ui/MetricBarsChart.vue'
 import { ref, computed } from 'vue'
 import DataTable from '../ui/DataTable.vue'
 import AppModal from '../ui/AppModal.vue'
@@ -333,15 +345,17 @@ const cols = [
   { key: 'actions', label: 'Actions' },
 ]
 
-const miniStats = computed(() => {
-  const active = props.schools.filter(s => s.status === 'active').length
+const companyStatusItems = computed(() => {
+  const active = props.schools.filter(s => String(s.status || '').toLowerCase() === 'active').length
   return [
-    { icon: 'building', label: 'Total Companies', val: props.schools.length, color: 'var(--primary)' },
-    { icon: 'check-circle', label: 'Active', val: active, color: 'var(--success)' },
-    { icon: 'x-circle', label: 'Inactive', val: props.schools.length - active, color: 'var(--danger)' },
-    { icon: 'teachers', label: 'People Tracked', val: props.schools.reduce((a, s) => a + (s.teacher_count || 0), 0), color: 'var(--accent)' },
+    { label: 'Active', value: active, color: 'var(--success)' },
+    { label: 'Inactive', value: Math.max(0, props.schools.length - active), color: 'var(--danger)' },
   ]
 })
+const topCompanyPeople = computed(() => props.schools
+  .map(s => ({ label: s.name || 'Unnamed company', value: Number(s.teacher_count) || 0, color: 'var(--primary)' }))
+  .sort((a, b) => b.value - a.value)
+  .slice(0, 5))
 
 function openCreate() { editing.value = false; createStep.value = 'industry'; form.value = { name: '', admin_name: '', admin_email: '', admin_password: '', industry: '', logo_url: '' }; showModal.value = true }
 function openEdit(row) { editing.value = true; createStep.value = 'details'; editingOriginalIndustry.value = row.industry || 'school'; form.value = { ...row, admin_password: '', industry: row.industry || 'school', logo_url: row.logo_url || '' }; showModal.value = true }
@@ -382,6 +396,7 @@ function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { mo
 
 <style scoped>
 .page-root { width: 100%; max-width: 100%; overflow-x: hidden; box-sizing: border-box; padding-right: 4px; padding-top: 4px; }
+.schools-charts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:20px; padding-right:12px; }
 .section-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; padding-right: 12px; }
 
 /* Override the global translateY hover for this button — it sits at the
@@ -396,8 +411,6 @@ function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { mo
 }
 .section-title { font-size: 22px; font-weight: 800; }
 .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-.schools-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; width: 100%; box-sizing: border-box; padding-right: 12px; }
-.mini-stat { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius); min-width: 0; overflow: hidden; }
 .mini-val { font-size: 20px; font-weight: 800; line-height: 1; }
 .mini-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .school-name-cell { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
@@ -479,21 +492,18 @@ function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { mo
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1024px) {
-  .schools-stats { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 768px) { 
+@media (max-width: 768px) {
+  .schools-charts { grid-template-columns:1fr; padding-right:0; gap:12px; } 
   .page-root { padding-right: 0; }
   .section-header { flex-direction: column; align-items: flex-start; padding-right: 0; }
   .section-header .btn { width: 100%; justify-content: center; }
-  .schools-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; padding-right: 0; }
   .two-col { flex-direction: column; }
   .school-name-cell { min-width: 0; }
   .row-actions { flex-wrap: nowrap; }
   .industry-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
-  .schools-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .mini-stat { padding: 12px 12px; }
   .mini-val { font-size: 18px; }
 }
 </style>

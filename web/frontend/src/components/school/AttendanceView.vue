@@ -1,5 +1,6 @@
 <template>
   <div>
+    <MobilePageHero title="Attendance" subtitle="Monitor daily activity and historical records" />
     <div class="section-header">
       <div>
         <h2 class="section-title">Attendance Records</h2>
@@ -13,18 +14,14 @@
       </div>
     </div>
 
-    <!-- Today status cards -->
-    <div class="status-row">
-      <div class="status-card glass" v-for="s in todayStats" :key="s.label">
-        <div class="status-icon" :style="`background:${s.bg};color:${s.color}`">
-          <AppIcon :name="s.icon" :size="20" />
-        </div>
-        <div class="status-info">
-          <div class="status-val" :style="`color:${s.color}`">{{ s.val }}</div>
-          <div class="status-label">{{ s.label }}</div>
-        </div>
-      </div>
-    </div>
+    <AttendanceDistributionChart
+      title="Today’s attendance"
+      subtitle="A live breakdown of the selected day’s attendance records"
+      :total="teachers.length"
+      :items="todayChartItems"
+      center-label="People"
+      period-label="Today"
+    />
 
     <!-- Filters -->
     <div class="glass filters-bar">
@@ -121,6 +118,8 @@
 </template>
 
 <script setup>
+import MobilePageHero from '../ui/MobilePageHero.vue'
+import AttendanceDistributionChart from '../ui/AttendanceDistributionChart.vue'
 import { ref, computed, watch } from 'vue'
 import DataTable from '../ui/DataTable.vue'
 import AppBadge from '../ui/AppBadge.vue'
@@ -177,13 +176,14 @@ const todayStats = computed(() => {
   const present = today.filter(r => r.status === 'present').length
   const late = today.filter(r => r.status === 'late').length
   const absent = today.filter(r => r.status === 'absent').length
-  return [
-    { icon: 'check-circle', label: 'Present', val: present, bg: 'rgba(16,185,129,0.12)', color: 'var(--success)' },
-    { icon: 'clock', label: 'Late', val: late, bg: 'rgba(245,158,11,0.12)', color: 'var(--warning)' },
-    { icon: 'x-circle', label: 'Absent', val: absent, bg: 'rgba(239,68,68,0.12)', color: 'var(--danger)' },
-    { icon: 'teachers', label: 'Total', val: props.teachers.length, bg: 'rgba(37,99,235,0.12)', color: 'var(--primary)' },
-  ]
+  return { present, late, absent }
 })
+const todayChartItems = computed(() => [
+  { label: 'Present', value: todayStats.value.present, color: 'var(--success)' },
+  { label: 'Late', value: todayStats.value.late, color: 'var(--warning)' },
+  { label: 'Absent', value: todayStats.value.absent, color: 'var(--danger)' },
+  { label: 'Not recorded', value: Math.max(0, props.teachers.length - todayStats.value.present - todayStats.value.late - todayStats.value.absent), color: 'var(--text-muted)' },
+])
 
 function applyFilters() { appliedFilters.value = { ...filters.value }; lastUpdate.value = new Date().toLocaleTimeString(); emit('refresh') }
 function clearFilters() { filters.value = { date: '', teacherId: '', status: '' }; appliedFilters.value = { ...filters.value }; emit('refresh') }
@@ -347,7 +347,6 @@ async function exportPDF() {
 .section-title { font-size: 22px; font-weight: 800; }
 .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 .header-actions { display: flex; gap: 8px; }
-.status-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .status-card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: var(--radius); }
 .status-icon { width: 44px; height: 44px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .status-val { font-size: 24px; font-weight: 800; line-height: 1; }
@@ -380,7 +379,6 @@ async function exportPDF() {
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 @media (max-width: 768px) {
-  .status-row { grid-template-columns: repeat(2,1fr); }
   .section-header { flex-direction: column; align-items: flex-start; }
   .header-actions { width: 100%; }
   .header-actions .btn { flex: 1; justify-content: center; }
@@ -391,7 +389,6 @@ async function exportPDF() {
   .filter-input { font-size: 14px; }
 }
 @media (max-width: 480px) {
-  .status-row { grid-template-columns: 1fr 1fr; gap: 8px; }
   .status-card { padding: 12px 14px; }
   .status-val { font-size: 20px; }
   .teacher-cell { min-width: 0; }

@@ -136,7 +136,7 @@ const navSections = computed(() => {
   managementItems.push({ to: '/school/attendance', label: 'Attendance', icon: 'attendance' })
   managementItems.push({ to: '/school/regular-attendance', label: 'Regular Attendance', icon: 'checkin' })
   return [
-    { group: 'Overview',   items: [{ to: '/school/dashboard',  label: 'Dashboard',  icon: 'dashboard'  }] },
+    { group: 'Overview',   items: [{ to: '/school/dashboard',  label: 'Home',  icon: 'dashboard'  }] },
     { group: 'Management', items: managementItems },
     { group: 'Configure',  items: [{ to: '/school/settings',   label: 'Settings',   icon: 'settings'   }] },
     { group: 'Reports',    items: [
@@ -146,7 +146,7 @@ const navSections = computed(() => {
   ]
 })
 const pageTitles = computed(() => ({
-  dashboard: 'Dashboard',
+  dashboard: 'Home',
   teachers: vocab.value.personNounPlural,
   secondary: vocab.value.secondaryGroup?.labelPlural || 'Team',
   shifts: 'Shifts',
@@ -156,7 +156,7 @@ const pageTitles = computed(() => ({
   'regular-attendance': 'Regular Attendance',
   'absence-insights': 'Absence Insights',
 }))
-const currentPageTitle = computed(() => pageTitles.value[section.value] || 'Dashboard')
+const currentPageTitle = computed(() => pageTitles.value[section.value] || 'Home')
 
 /* ── Data fetchers ────────────────────────────────────────────────────── */
 // NOTE: api.js interceptor unwraps the { success, data, message } envelope,

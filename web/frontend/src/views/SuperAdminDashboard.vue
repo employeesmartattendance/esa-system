@@ -94,15 +94,15 @@ let   pollInterval   = null
 
 /* ── Nav ──────────────────────────────────────────────────────────────── */
 const navSections = [
-  { group: 'Overview',    items: [{ to: '/super/dashboard', label: 'Dashboard',         icon: 'dashboard' }] },
+  { group: 'Overview',    items: [{ to: '/super/dashboard', label: 'Home',         icon: 'dashboard' }] },
   { group: 'Management',  items: [{ to: '/super/companies',   label: 'Companies',         icon: 'building'  },
                                    { to: '/super/logs',      label: 'System Logs',       icon: 'log'       }] },
   { group: 'Website',     items: [{ to: '/super/contact-requests', label: 'Contact Requests', icon: 'bell' },
                                    { to: '/super/trusted-clients',  label: 'Trusted Clients',  icon: 'check-circle' }] },
   { group: 'System',      items: [{ to: '/super/settings',  label: 'Settings',          icon: 'settings'  }] },
 ]
-const pageTitles = { dashboard: 'Dashboard', schools: 'Companies', logs: 'System Logs', settings: 'Settings', 'contact-requests': 'Requests', 'trusted-schools': 'Trusted Clients' }
-const currentPageTitle = computed(() => pageTitles[section.value] || 'Dashboard')
+const pageTitles = { dashboard: 'Home', schools: 'Companies', logs: 'System Logs', settings: 'Settings', 'contact-requests': 'Requests', 'trusted-schools': 'Trusted Clients' }
+const currentPageTitle = computed(() => pageTitles[section.value] || 'Home')
 
 /* ── Data fetchers ────────────────────────────────────────────────────── */
 // NOTE: api.js interceptor unwraps the { success, data, message } envelope,

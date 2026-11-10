@@ -33,6 +33,7 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   function _clearSession() {
+    void api.clearCache?.()
     token.value     = null
     user.value      = null
     loginTime.value = 0

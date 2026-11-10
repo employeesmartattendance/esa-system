@@ -1,45 +1,25 @@
 <template>
   <div>
-    <!-- Stats grid -->
-    <div class="stats-grid">
-      <StatCard icon="school" label="Organizations" :value="stats.totalSchools" value-color="var(--primary)" icon-color="var(--primary)" bg-color="rgba(37,99,235,0.1)" glow-color="rgba(37,99,235,0.08)" delay="0s" />
-      <StatCard icon="teachers" label="Total People" :value="stats.totalTeachers" value-color="var(--accent)" icon-color="var(--accent)" bg-color="rgba(6,182,212,0.1)" glow-color="rgba(6,182,212,0.08)" delay="0.05s" />
-      <StatCard icon="check-circle" label="Present Today" :value="stats.presentToday" value-color="var(--success)" icon-color="var(--success)" bg-color="rgba(16,185,129,0.1)" glow-color="rgba(16,185,129,0.08)" delay="0.1s" />
-      <StatCard icon="alert-triangle" label="Absent Today" :value="stats.absentToday" value-color="var(--danger)" icon-color="var(--danger)" bg-color="rgba(239,68,68,0.1)" glow-color="rgba(239,68,68,0.08)" delay="0.15s" />
+    <div class="super-overview-charts">
+      <AttendanceDistributionChart
+        title="Today’s attendance"
+        subtitle="Attendance distribution across all organizations"
+        :total="Number(stats.totalTeachers) || 0"
+        :items="attendanceItems"
+        center-label="People"
+        period-label="Today"
+      />
+      <AttendanceDistributionChart
+        title="Organization status"
+        subtitle="Active and inactive companies on the platform"
+        :total="schools.length"
+        :items="companyStatusItems"
+        center-label="Companies"
+        period-label="Platform"
+      />
     </div>
 
-    <!-- Charts row -->
     <div class="grid-2" style="margin-bottom:24px">
-      <!-- Attendance rate donut -->
-      <div class="glass section-card">
-        <div class="card-header">
-          <div class="card-title"><AppIcon name="analytics" :size="18" color="var(--primary)" />Attendance Rate Today</div>
-        </div>
-        <div class="donut-wrap">
-          <svg class="donut-svg" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface-border)" stroke-width="12"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="url(#grad)" stroke-width="12"
-              stroke-dasharray="314" :stroke-dashoffset="314 - (314 * attendanceRate / 100)"
-              stroke-linecap="round" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset 1s ease"/>
-            <defs>
-              <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="var(--primary)"/>
-                <stop offset="100%" stop-color="var(--accent)"/>
-              </linearGradient>
-            </defs>
-          </svg>
-          <div class="donut-center">
-            <div class="donut-val">{{ attendanceRate }}%</div>
-            <div class="donut-label">Present</div>
-          </div>
-        </div>
-        <div class="donut-legend">
-          <div class="legend-item"><span class="legend-dot present"></span>Present ({{ stats.presentToday }})</div>
-          <div class="legend-item"><span class="legend-dot late"></span>Late ({{ stats.lateToday ?? 0 }})</div>
-          <div class="legend-item"><span class="legend-dot absent"></span>Absent ({{ stats.absentToday }})</div>
-        </div>
-      </div>
-
       <!-- Schools overview -->
       <div class="glass section-card">
         <div class="card-header">
@@ -128,7 +108,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import StatCard from '../ui/StatCard.vue'
+import AttendanceDistributionChart from '../ui/AttendanceDistributionChart.vue'
 import AppBadge from '../ui/AppBadge.vue'
 import AppIcon from '../ui/AppIcon.vue'
 import EmptyState from '../ui/EmptyState.vue'
@@ -141,11 +121,24 @@ const props = defineProps({
 })
 defineEmits(['go-schools', 'go-logs'])
 
-const attendanceRate = computed(() => {
-  const total = props.stats.totalTeachers || 0
-  const present = props.stats.presentToday || 0
-  if (!total) return 0
-  return Math.round((present / total) * 100)
+const attendanceItems = computed(() => {
+  const total = Math.max(0, Number(props.stats.totalTeachers) || 0)
+  const present = Math.max(0, Number(props.stats.presentToday) || 0)
+  const late = Math.max(0, Number(props.stats.lateToday) || 0)
+  const absent = Math.max(0, Number(props.stats.absentToday) || 0)
+  return [
+    { label: 'Present', value: present, color: 'var(--success)' },
+    { label: 'Late', value: late, color: 'var(--warning)' },
+    { label: 'Absent', value: absent, color: 'var(--danger)' },
+    { label: 'Not recorded', value: Math.max(0, total - present - late - absent), color: 'var(--text-muted)' },
+  ]
+})
+const companyStatusItems = computed(() => {
+  const active = props.schools.filter(s => String(s.status || '').toLowerCase() === 'active').length
+  return [
+    { label: 'Active', value: active, color: 'var(--success)' },
+    { label: 'Inactive', value: Math.max(0, props.schools.length - active), color: 'var(--danger)' },
+  ]
 })
 
 // ── Real System Status ──────────────────────────────────────────
@@ -168,7 +161,7 @@ function resolveLogoUrl(url) {
 
 async function checkHealth() {
   try {
-    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) })
+    const r = await fetch(`${API}/health`)
     const d = await r.json()
     const health = d?.data || {}
     const socket = getSocket()
@@ -203,7 +196,7 @@ function timeAgo(ts) {
 </script>
 
 <style scoped>
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.super-overview-charts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-bottom:24px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .section-card { padding: 22px; }
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
@@ -251,6 +244,5 @@ function timeAgo(ts) {
 .qa-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--surface-border); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all var(--transition); font-family: var(--font); }
 .qa-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(37,99,235,0.06); }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-@media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .grid-2 { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .super-overview-charts, .grid-2 { grid-template-columns: 1fr; } }
 </style>

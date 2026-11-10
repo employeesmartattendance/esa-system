@@ -3,10 +3,14 @@
     <Transition name="modal-fade">
       <div v-if="modelValue" class="modal-overlay" @click.self="$emit('update:modelValue', false)">
         <div
+          ref="modalBoxRef"
           class="modal-box"
           :style="maxWidth ? `max-width:${maxWidth}` : ''"
           @click.stop
         >
+          <div class="modal-sheet-handle-wrap" @pointerdown="onHandlePointerDown" @pointermove="onHandlePointerMove" @pointerup="onHandlePointerUp" @pointercancel="onHandlePointerCancel">
+            <span class="modal-sheet-handle" aria-hidden="true"></span>
+          </div>
           <div class="modal-header">
             <div class="modal-header-left">
               <div v-if="icon" class="modal-icon-wrap">
@@ -46,9 +50,62 @@ const props = defineProps({
   iconColor: String,
   maxWidth: String,
 })
-defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue'])
 
 useScrollLock(toRef(props, 'modelValue'))
+
+const modalBoxRef = ref(null)
+const dragState = { active: false, startY: 0, lastY: 0, startedAt: 0, offset: 0 }
+function onHandlePointerDown(event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  const box = modalBoxRef.value
+  if (!box) return
+  dragState.active = true
+  dragState.startY = event.clientY
+  dragState.lastY = event.clientY
+  dragState.startedAt = performance.now()
+  dragState.offset = 0
+  box.style.transition = 'none'
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+}
+function onHandlePointerMove(event) {
+  if (!dragState.active) return
+  const delta = Math.max(0, event.clientY - dragState.startY)
+  dragState.lastY = event.clientY
+  dragState.offset = delta
+  if (modalBoxRef.value) modalBoxRef.value.style.transform = `translate3d(0, ${delta}px, 0)`
+}
+function onHandlePointerCancel() {
+  if (!dragState.active) return
+  dragState.active = false
+  dragState.offset = 0
+  const box = modalBoxRef.value
+  if (box) {
+    box.style.transition = 'transform .18s ease-out'
+    box.style.transform = 'translate3d(0, 0, 0)'
+    window.setTimeout(() => {
+      if (modalBoxRef.value === box) {
+        box.style.transform = ''
+        box.style.transition = ''
+      }
+    }, 190)
+  }
+}
+
+function onHandlePointerUp(event) {
+  if (!dragState.active) return
+  dragState.active = false
+  const elapsed = Math.max(1, performance.now() - dragState.startedAt)
+  const velocity = (dragState.lastY - dragState.startY) / elapsed
+  const shouldClose = dragState.offset > 112 || (dragState.offset > 34 && velocity > 0.65)
+  const box = modalBoxRef.value
+  if (box) {
+    box.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1)'
+    box.style.transform = shouldClose ? `translate3d(0, 110%, 0)` : 'translate3d(0, 0, 0)'
+  }
+  if (shouldClose) window.setTimeout(() => emit('update:modelValue', false), 220)
+  dragState.offset = 0
+}
 
 // ── Mobile scrollbar fade ────────────────────────────────────────────────
 // Same pattern used for the dashboard's .layout-content: the modal body's
@@ -93,6 +150,7 @@ onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
   overflow: hidden;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
 }
+.modal-sheet-handle-wrap { display:none; }
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -174,8 +232,18 @@ onBeforeUnmount(() => clearTimeout(scrollFadeTimer))
    scroll behavior. The scrollbar on .modal-body auto-hides here the same
    way .layout-content's does, fading in only while actively scrolling. */
 @media (max-width: 768px) {
-  .modal-overlay { padding: 16px; }
-  .modal-box { max-height: min(80vh, 640px); }
+  .modal-overlay { padding: 0; align-items: flex-end !important; justify-content: center !important; }
+  .modal-box { max-height: min(91dvh, 860px); max-width: 680px; border-radius: 24px 24px 0 0; border-left: 0; border-right: 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom); transform: translate3d(0,0,0); will-change: transform; }
+  .modal-fade-enter-active .modal-box { transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .15s ease; }
+  .modal-fade-leave-active .modal-box { transition: transform .18s ease-in, opacity .15s ease; }
+  .modal-fade-enter-from .modal-box,
+  .modal-fade-leave-to .modal-box { transform: translate3d(0, 100%, 0); }
+  .modal-sheet-handle-wrap { height: 26px; display:flex; align-items:center; justify-content:center; flex:0 0 26px; touch-action:none; cursor:grab; }
+  .modal-sheet-handle-wrap:active { cursor:grabbing; }
+  .modal-sheet-handle { display:block; width:38px; height:4px; border-radius:99px; background:var(--text-muted); opacity:.42; }
+  .modal-header { padding: 8px 18px 14px; }
+  .modal-body { padding: 16px 18px 20px; }
+  .modal-footer { padding: 12px 18px 14px; }
   .modal-body::-webkit-scrollbar-thumb {
     background: transparent;
     transition: background-color 0.6s ease;

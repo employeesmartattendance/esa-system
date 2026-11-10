@@ -1,8 +1,9 @@
 <template>
   <Teleport to="body">
     <Transition name="modal-fade">
-      <div v-if="modelValue" class="profile-overlay" @click.self="$emit('update:modelValue', false)">
-        <div class="profile-drawer">
+      <div v-if="modelValue" class="profile-overlay" @click.self="close">
+        <div ref="sheetRef" class="profile-drawer">
+          <div class="pd-sheet-handle-wrap" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerCancel"><span class="pd-sheet-handle" aria-hidden="true"></span></div>
           <!-- Header -->
           <div class="pd-header">
             <div class="pd-avatar">
@@ -13,7 +14,7 @@
               <div class="pd-name">{{ user?.name }}</div>
               <div class="pd-role">{{ roleLabel }}</div>
             </div>
-            <button class="pd-close" @click="$emit('update:modelValue', false)">
+            <button class="pd-close" @click="close">
               <AppIcon name="x-circle" :size="20" />
             </button>
           </div>
@@ -60,11 +61,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import { useScrollLock } from '../../composables/useScrollLock'
 import { useIndustry } from '../../composables/useIndustry'
+import { useMobileSheetDrag } from '../../composables/useMobileSheetDrag'
 import { toRef } from 'vue'
 
 const props = defineProps({
@@ -76,6 +78,9 @@ const emit = defineEmits(['update:modelValue'])
 useScrollLock(toRef(props, 'modelValue'))
 
 const router = useRouter()
+
+function close() { emit('update:modelValue', false) }
+const { sheetRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useMobileSheetDrag(close)
 
 const initials = computed(() =>
   (props.user?.name || 'U').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
@@ -131,6 +136,9 @@ function goToSettings() {
   overflow-y: auto; display: flex; flex-direction: column; gap: 0;
   box-shadow: -12px 0 48px rgba(0,0,0,0.2);
 }
+
+.pd-sheet-handle-wrap { display:none; }
+.pd-sheet-handle { display:block; width:38px; height:4px; border-radius:99px; background:var(--text-muted); opacity:.42; }
 
 /* Header */
 .pd-header {
@@ -196,9 +204,13 @@ function goToSettings() {
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 .modal-fade-enter-from .profile-drawer, .modal-fade-leave-to .profile-drawer { transform: translateX(100%); }
 
-/* Mobile — leave a 20% strip of the overlay clickable at the left of the
-   drawer so users can tap it to close, same as the sidebar's own overlay. */
+/* Mobile profile uses the same bottom-sheet interaction as the other dialogs. */
 @media (max-width: 768px) {
-  .profile-drawer { width: 80%; max-width: 80%; }
+  .profile-overlay { align-items:flex-end; justify-content:center; }
+  .profile-drawer { width:100%; max-width:100%; height:auto; max-height:91dvh; border-left:0; border-top:1px solid var(--surface-border); border-radius:24px 24px 0 0; padding-bottom:env(safe-area-inset-bottom); transform:translate3d(0,0,0); will-change:transform; }
+  .pd-sheet-handle-wrap { height:26px; display:flex; align-items:center; justify-content:center; flex:0 0 26px; touch-action:none; cursor:grab; }
+  .modal-fade-enter-from .profile-drawer, .modal-fade-leave-to .profile-drawer { transform:translate3d(0,100%,0); }
+  .pd-header { padding:0 18px 12px; }
+  .pd-section { padding:16px 18px; }
 }
 </style>

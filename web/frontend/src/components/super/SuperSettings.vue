@@ -124,11 +124,12 @@
           </button>
         </div>
 
-        <div v-if="loadingAdmins" class="admins-loading">
+        <div v-if="loadingAdmins && showAdminsLoading" class="admins-loading">
           <div class="ss-spinner" style="border-top-color:var(--primary);border-color:var(--surface-border)"></div>
           Loading admins…
         </div>
 
+        <div v-else-if="loadingAdmins && !admins.length" class="admins-loading-reserve"></div>
         <div v-else-if="admins.length" class="admins-list">
           <div v-for="a in admins" :key="a.id" class="admin-row">
             <div class="admin-av">
@@ -206,6 +207,7 @@
 import { ref, computed, onMounted } from 'vue'
 import AppIcon    from '../ui/AppIcon.vue'
 import AppModal   from '../ui/AppModal.vue'
+import { useDelayedLoading } from '../../composables/useDelayedLoading'
 import AppBadge   from '../ui/AppBadge.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import AvatarUploader from '../ui/AvatarUploader.vue'
@@ -283,6 +285,7 @@ async function changePassword() {
 /* ── Admins ───────────────────────────────────────────────────────── */
 const admins       = ref([])
 const loadingAdmins = ref(false)
+const showAdminsLoading = useDelayedLoading(() => loadingAdmins.value, 180)
 const showAddModal  = ref(false)
 const creating      = ref(false)
 const adminForm     = ref({ name: '', email: '', password: '' })
@@ -407,6 +410,7 @@ onMounted(fetchAdmins)
 .pw-err { font-size: 12px; color: var(--danger); margin-top: 2px; }
 
 /* Admins */
+.admins-loading-reserve { min-height:20px; }
 .admins-loading { display: flex; align-items: center; gap: 10px; padding: 20px 0; color: var(--text-muted); font-size: 13px; }
 .admins-list { display: flex; flex-direction: column; gap: 10px; }
 .admin-row {
