@@ -46,10 +46,6 @@
     </nav>
   </Teleport>
 </template>
-    </div>
-    </nav>
-  </Teleport>
-</template>
 
 <script setup>
 import { computed } from 'vue'
