@@ -24,6 +24,12 @@
       </main>
     </div>
 
+    <MobileBottomNav
+      :navSections="navSections"
+      :sidebarOpen="sidebarOpen"
+      @open-sidebar="sidebarOpen = true"
+    />
+
     <ToastNotification ref="toastRef" />
     <NotificationsPanel v-model="showNotif" />
     <ProfileModal v-model="showProfile" :user="user" />
@@ -34,6 +40,7 @@
 import { ref, computed, onMounted, onUnmounted, provide, watch, nextTick } from 'vue'
 import { useRoute }       from 'vue-router'
 import AppSidebar         from './AppSidebar.vue'
+import MobileBottomNav    from './MobileBottomNav.vue'
 import TopBar             from './TopBar.vue'
 import ToastNotification  from '../ui/ToastNotification.vue'
 import NotificationsPanel from '../ui/NotificationsPanel.vue'
@@ -180,6 +187,6 @@ provide('toast', {
 
 @media (max-width: 768px) {
   .layout-main   { margin-left: 0; width: 100%; max-width: 100vw; }
-  .layout-content { padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); width: 100%; }
+  .layout-content { padding: 16px; padding-bottom: calc(112px + env(safe-area-inset-bottom)); width: 100%; }
 }
 </style>

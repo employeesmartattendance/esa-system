@@ -1,0 +1,45 @@
+appId: com.esa.hikvision-agent
+productName: ESA Hikvision Agent
+copyright: Copyright © 2024 ESA
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - agent/**/*
+  - node_modules/**/*
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ESA Hikvision Agent
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+  icon: build/icon.icns
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build/icon.png
+
+extraMetadata:
+  main: electron/main.js

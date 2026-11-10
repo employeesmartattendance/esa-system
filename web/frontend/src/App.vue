@@ -46,7 +46,7 @@
     <Transition name="signout-fade">
       <div v-if="signingIn" class="signout-overlay">
         <div class="signout-box">
-          <img src="/esa-logo.png" alt="ESA" class="signin-logo" />
+          <img src="/esa-logo.png?v=4" alt="ESA" class="signin-logo" />
           <span class="signout-spinner"></span>
           <div class="signout-text">Signing in…</div>
         </div>
@@ -360,7 +360,7 @@ onUnmounted(async () => {
   display: flex; flex-direction: column; align-items: center; gap: 16px;
 }
 .signin-logo {
-  width: 64px; height: 64px; object-fit: contain; border-radius: 16px;
+  width: 64px; height: 64px; object-fit: contain; border-radius: 0;
   box-shadow: 0 8px 28px rgba(37,99,235,0.25);
 }
 .signout-spinner {

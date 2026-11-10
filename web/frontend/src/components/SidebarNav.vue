@@ -1,7 +1,7 @@
 <template>
   <aside :class="['sidebar', { open: modelValue }]">
     <div class="sidebar-logo">
-      <div class="logo-icon">🧠</div>
+      <img src="/esa-logo.png?v=4" alt="ESA" class="logo-icon" />
       <div>
         <div class="logo-text">ESA</div>
         <div class="logo-sub">{{ roleLabel }}</div>
@@ -78,6 +78,7 @@ function handleLogout() {
 </script>
 
 <style scoped>
+.logo-icon { width: 42px; height: 42px; flex: 0 0 auto; display: block; object-fit: contain; border-radius: 0; }
 .sidebar-nav { flex: 1; overflow-y: auto; }
 .sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--surface-border); }
 .user-info { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: var(--radius-sm); margin-bottom: 8px; }

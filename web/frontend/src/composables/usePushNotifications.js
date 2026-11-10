@@ -61,7 +61,7 @@ export function usePushNotifications() {
     if (!isSupported() || Notification.permission !== 'granted') return
     try {
       // eslint-disable-next-line no-new
-      new Notification(title, { body, tag, icon: '/favicon.ico', renotify: false })
+      new Notification(title, { body, tag, icon: '/icons/icon-192x192.png?v=4', renotify: false })
     } catch {
       // Some mobile webviews throw on direct `new Notification()` and
       // require a Service Worker registration instead — since this is a

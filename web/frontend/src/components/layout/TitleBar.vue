@@ -7,7 +7,7 @@
       <!-- Left: branding -->
       <div class="titlebar-brand">
         <div class="titlebar-logo-wrap">
-          <img src="/esa-logo.png" alt="ESA" class="titlebar-logo" />
+          <img src="/esa-logo.png?v=4" alt="ESA" class="titlebar-logo" />
         </div>
         <div class="titlebar-app-name">
           <span class="titlebar-name">ESA</span>
@@ -163,9 +163,9 @@ onUnmounted(() => {
 .titlebar-logo-wrap {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: rgba(37, 99, 235, 0.15);
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -176,7 +176,7 @@ onUnmounted(() => {
   width: 20px;
   height: 20px;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .titlebar-app-name {

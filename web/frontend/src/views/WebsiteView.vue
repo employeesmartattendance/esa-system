@@ -5,7 +5,7 @@
     <nav class="site-nav" :class="{ scrolled: scrolled }">
       <div class="nav-inner">
         <a href="#home" class="nav-brand" @click.prevent="navTo('#home')">
-          <img src="/esa-logo.png" alt="ESA" class="nav-logo" />
+          <img src="/esa-logo.png?v=4" alt="ESA" class="nav-logo" />
           <div>
             <div class="nav-name">ESA</div>
             <div class="nav-sub">Smart Attendance</div>
@@ -425,7 +425,7 @@
         <div class="footer-grid">
           <div>
             <div class="footer-brand">
-              <img src="/esa-logo.png" alt="ESA" class="footer-logo" />
+              <img src="/esa-logo.png?v=4" alt="ESA" class="footer-logo" />
               <span class="footer-brand-name">ESA</span>
             </div>
             <p class="footer-tagline">Employee Smart Attendance — automated, verified GPS &amp; Wi-Fi attendance for every industry.</p>
@@ -1089,7 +1089,7 @@ img { max-width:100%; }
 .site-nav.scrolled { box-shadow:0 4px 24px rgba(0,0,0,0.08); }
 .nav-inner { display:flex; align-items:center; justify-content:space-between; height:64px; max-width:1160px; margin:0 auto; padding:0 24px; }
 .nav-brand { display:flex; align-items:center; gap:10px; }
-.nav-logo  { width:36px; height:36px; border-radius:10px; object-fit:contain; }
+.nav-logo  { width:36px; height:36px; border-radius:0; object-fit:contain; display:block; }
 .nav-name  { font-size:20px; font-weight:800; }
 .nav-sub   { font-size:10px; color:var(--text-muted); font-weight:500; }
 .nav-links { display:flex; align-items:center; gap:4px; }
@@ -1302,7 +1302,7 @@ img { max-width:100%; }
 .site-footer { border-top:1px solid var(--surface-border); background:var(--bg-secondary); padding:48px 0 28px; }
 .footer-grid { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:36px; margin-bottom:36px; }
 .footer-brand { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.footer-logo  { width:30px; height:30px; border-radius:8px; object-fit:contain; }
+.footer-logo  { width:30px; height:30px; border-radius:0; object-fit:contain; display:block; }
 .footer-brand-name { font-size:18px; font-weight:800; }
 .footer-tagline    { font-size:13px; color:var(--text-muted); line-height:1.65; max-width:220px; }
 .footer-col-title  { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin-bottom:12px; }

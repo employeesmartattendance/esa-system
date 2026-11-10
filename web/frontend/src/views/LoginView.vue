@@ -15,7 +15,7 @@
       <div class="login-panel-left">
         <div class="brand">
           <div class="brand-icon">
-            <img src="/esa-logo.png" alt="ESA" class="login-logo-img" />
+            <img src="/esa-logo.png?v=4" alt="ESA" class="login-logo-img" />
           </div>
           <div>
             <div class="brand-name">ESA</div>
@@ -468,8 +468,8 @@ onUnmounted(() => {
 }
 .login-panel-left { flex: 1.1; padding: 48px 52px; display: flex; flex-direction: column; border-right: 1px solid var(--surface-border); background: linear-gradient(150deg, rgba(37,99,235,0.06) 0%, rgba(6,182,212,0.03) 100%); }
 .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 60px; }
-.brand-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.login-logo-img { width: 48px; height: 48px; object-fit: contain; border-radius: 12px; }
+.brand-icon { width: 48px; height: 48px; border-radius: 0; display: flex; align-items: center; justify-content: center; overflow: visible; }
+.login-logo-img { width: 48px; height: 48px; object-fit: contain; border-radius: 0; display: block; }
 .brand-name { font-size: 22px; font-weight: 800; }
 .brand-sub { font-size: 11px; color: var(--text-muted); font-weight: 500; }
 .left-content { flex: 1; }

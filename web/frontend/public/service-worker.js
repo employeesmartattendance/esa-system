@@ -8,14 +8,22 @@
  *  - Static built assets (JS/CSS/images from /assets/): stale-while-revalidate.
  */
 
-const CACHE_VERSION = 'esa-pwa-v1'
+const CACHE_VERSION = 'esa-pwa-v5'
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 
 const APP_SHELL_URLS = [
-  '/manifest.webmanifest',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
+  '/manifest.webmanifest?v=4',
+  '/esa-logo.png?v=4',
+  '/esa-app-icon.png?v=4',
+  '/favicon.ico?v=4',
+  '/favicon-16x16.png?v=4',
+  '/favicon-32x32.png?v=4',
+  '/favicon-512x512.png?v=4',
+  '/icons/apple-touch-icon.png?v=4',
+  '/icons/icon-192x192.png?v=4',
+  '/icons/icon-512x512.png?v=4',
+  '/icons/maskable-icon-512x512.png?v=4',
 ]
 
 // Requests to these paths should never be handled by the service worker —
@@ -70,7 +78,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Built static assets — stale-while-revalidate.
-  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/')) {
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/') || url.pathname === '/esa-logo.png' || url.pathname === '/esa-app-icon.png' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/favicon-')) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const networkFetch = fetch(request)

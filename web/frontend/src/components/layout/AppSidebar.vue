@@ -8,7 +8,7 @@
     <!-- Logo -->
     <div class="sidebar-brand">
       <div class="brand-logo brand-logo-img">
-        <img src="/esa-logo.png" alt="ESA Logo" class="esa-logo-img" />
+        <img src="/esa-logo.png?v=4" alt="ESA Logo" class="esa-logo-img" />
       </div>
       <div class="brand-text">
         <div class="brand-name">ESA</div>
@@ -259,13 +259,13 @@ watch(() => props.navSections, () => { setTimeout(updateNavOverflow, 50) }, { de
 }
 .brand-logo {
   width: 40px; height: 40px;
-  border-radius: 12px;
+  border-radius: 0;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 .brand-logo-img { background: transparent; }
-.esa-logo-img { width: 40px; height: 40px; object-fit: contain; border-radius: 10px; }
+.esa-logo-img { width: 40px; height: 40px; object-fit: contain; border-radius: 0; display: block; }
 .brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
 .brand-tagline { font-size: 10px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
 .brand-close {
